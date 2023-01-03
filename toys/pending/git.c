@@ -1,6 +1,6 @@
 /* git.c - A minimal git clone
  *
- * Copyright 2022 Moritz C. Weber <m.c.weber@web.de>
+ * Copyright 2022 Moritz C. Weber <mo.c.weber@gmail.com>
  *
  * See https://git-scm.com/docs/git-init
  * https://git-scm.com/docs/git-remote
@@ -9,7 +9,7 @@
  * https://git-scm.com/docs/pack-format
  * https://git-scm.com/docs/index-format
  * https://www.alibabacloud.com/blog/a-detailed-explanation-of-the-underlying-data-structures-and-principles-of-git_597391
- * https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt
+ * https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt
  * https://stackoverflow.com/a/14303988
  * https://stackoverflow.com/a/21599232
  * https://github.com/tarruda/node-git-core/blob/master/src/js/delta.js
@@ -74,7 +74,7 @@ GLOBALS(
   struct IndexV2 *i;
 )
 
-//git inxed format v2 https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L241
+//git index format v2 https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L266
 struct IndexV2 {
   char header[8];
   unsigned fot[256];
@@ -89,7 +89,6 @@ static void read_index(struct IndexV2 *i)
   FILE *fpi;
 
   i = malloc(sizeof(i));
-  //i->fot = { 0 };
   i->sha1 = malloc(20*sizeof(char));
   i->crc = malloc(sizeof(unsigned));
   i->offset = malloc(sizeof(unsigned));
@@ -122,8 +121,6 @@ static char *l; //for saving the insertion position
 int cmp (const void *i, void *j)
 {
   l = j; //inject inseration position in compare to binary search
-  //printf("Compare %p %p %d\n", i, j, strncmp(i, j, 20));
-
   return strncmp(i, j, 20);
 }
 
@@ -136,15 +133,10 @@ long bsearchpos(const void *k, const void *a, size_t h, size_t w)
   //printf("Array: %p Key:%p\n", a, k);
   while (h>0) {
     m = l+(h/2);
-    //m = (l+h)/2;
-    //printf("l: %ld m:%ld h:%ld\n", l, m, h);
     r = strncmp(k, a+(m*w), 20);
-    //printf("r: %ld\n", r);
     if (!r||h==1) break; //match on search or position for insert
     if (r<0) { h /= 2; } else { l = m; h -= h/2; }
-    //if (r<0) { h = m-1; } else { l = m+1; }
   }
-  //printf("Return m: %ld r:%ld \n", m, r);
 
   //For inserts check if insert is bigger  obj at identified position
   return m += (r>0) ? 1 : 0;
@@ -152,28 +144,11 @@ long bsearchpos(const void *k, const void *a, size_t h, size_t w)
 
 long get_index(struct IndexV2 *i, char *h)
 {
-  long pos = bsearchpos(h, i->sha1[0], i->fot[255], 20); //,
-
-  //(int(*)(const void*, const void*)) cmp); //TODO: Should be placed by bsearchpos() below; cmp and *l to be removed too
-  // for (int j = 0; j<20; j++) printf("%02x", h[j]);
-  //    printf("\n");
-  //if (pos == NULL){
-  // for (int h = 0; h<i->fot[255]; h++){
-  // printf("%d: ", h);
-  // for (int j = 0; j<20; j++) printf("%02x", i->sha1[h][j]);
-  //   printf("\n");
-  // }
-  //}
-  // printf("index pointer: %ld\n", pos);
-  // printf("fot[255]: %d\n", i->fot[255]);
-  // printf("sha1[0] pointer: %p\n", i->sha1[0]);
-  // printf("offset index : %ld\n", pos);
-  // return i->offset[(pos-i->sha1[0])/20];
-
+  long pos = bsearchpos(h, i->sha1[0], i->fot[255], 20);
  return i->offset[pos];
 }
 
-//https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L30
+//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L35
 //https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png
 
 //read type and lenght of an packed object
@@ -191,15 +166,12 @@ unsigned long long unpack(FILE *fpp, int *type, long *offset)
   *type = ((data & 0x70)>>4);
   printf("Type: %d\n", *type);
   length |= data & 0x0F;
-  //(*offset)++;
   while ((data & 0x80) && fread(&data, 1, 1, fpp)!=-1)
   {
     length |= (unsigned long long)(data & 0x7F) << bitshift;
     bitshift += 7; // (*offset)++;
-    //printf("Offset set to: %ld\n", *offset);
   }
-  //printf("Offset set to: %ld\n", *offset);
-  printf("Length: %ld\n", length);
+  printf("Length: %llu\n", length);
 
   return length;
 }
@@ -299,38 +271,18 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   if (c == NULL) error_exit("c malloc failed in set_object");
   memcpy(c, p, strlen(p)+1); //Robs null terminator embedding
   memcpy(c+strlen(p)+1, o, count+1); //Robs null terminator embedding
-  //printf("Enriched Object: %s %ld\n", c, strlen(p)+count+2);
   h = SHA1(c, strlen(p)+count+1, h); //ToDo: borrowed from OpenSSL to not to pipe or refactor SHA1SUM in toybox
   printf("..Binary search\n");
-  //printf("\nidx->fot[255]=%d\n", idx->fot[255]);
-  //printf("idx->sha1[fot[h[0]]]=%d\n", sizeof(idx->sha1));
-  //TODO:Array Insert broken
-  //if (idx->fot[255]>1)
-  //{
-  //  printf("Bsearch result: %p\n", bsearch(h, idx->sha1[0], idx->fot[255], 20,
-  //  (int(*)(const void *, const void *)) cmp)); //find insertation position
-  //  printf("Inseration position pointer %p\n", l);
-  //  pos = (long)(((l-idx->sha1[0])/20)+((strncmp(h, l, 20)<0) ? 0 : 1)); //ugly ins pos hack
-  //  printf("Bigger one %ld\n", (long)(((l-idx->sha1[0])/20)+((strncmp(h, l, 20)<0) ? 0 : 1)));
-  //} else {
-  //  printf("Smaller two\n");
-  //  if (idx->fot[255]==0) {
-  //    pos = 0;
-  //  } else {
-  //    pos = (strncmp(h, idx->sha1[0], 20)<0) ? 0 : 1;
-  //  }
-  // }
-  //printf("Binary search position: %ld, %p %p\n", pos, idx->sha1[0], l);
-  //l = NULL;
   for (int j = 0; j<20; j++) printf("%02x", h[j]); //find insert position
   pos = bsearchpos(h, idx->sha1[0], idx->fot[255], 20);
   printf("\n..Insert pos %ld\n", pos);
   printf("..Preloop\n");
 
-  // adjust of fanout table https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L179
+  //adjust of fanout table https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L204
   for (int i = h[0]; i<=255; i++) idx->fot[i] += 1;
   printf("Post loop\n");
-  printf("Resize sha1 array..idx->fot[255]%d\n", idx->fot[255]); //Memory management for insert TODO:Could be also a single malloc at gitfetch based on the nbr of objects in pack
+  printf("Resize sha1 array..idx->fot[255]%d\n", idx->fot[255]); //Memory management for insert
+  //TODO:Could be also a single malloc at gitfetch based on the nbr of objects in pack
 
   //Did not fix the TODO yet, because set_object could be reused for other command im mem mgmt is here
   idx->sha1 = realloc(idx->sha1, (idx->fot[255]+1)*20*sizeof(char));
@@ -345,12 +297,6 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   idx->offset[pos] = ofs; //insert offset of SHA1
   //ToDo: id->crc[idx->fot[h[0]]]=;
   printf("Write object\n");
-  // printf("SetGet %d %ld\n :", idx->offset[pos], get_index(idx, h));
-  //writeObject to local pack;
-  //    for (int h = 0; h<idx->fot[255]; h++) {
-  //      for (int j = 0; j<20; j++) printf("%02x", idx->sha1[h][j]);
-  //        printf("\n");
-  //    }
   free(h);
   free(c);
 
@@ -403,22 +349,10 @@ static void gitremote(char *url)
 char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
 {
   long pos = 0, bitshift = 0;
-
-  printf("Original Source: \n");
-  //for (int k = 0; k<*count; k++) { printf("%c", s[k]); }
-  //printf("\n");
-  //printf("Delta:\n");
-  //for (int k = 0; k<dsize; k++) { printf("%c", d[k]); }
-  //printf("\n");
-
-  //https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L88
+  //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L113
   // Skipping source size; did not find out why it is  on the delta header as the source object header contains it too; maybe misunderstood and this makes things buggy, but I dont need it here
   while ((d[pos] & 0x80)) pos++;
-  //{
-  // ssize |= (unsigned long long)(d[pos++] & 0x7F) << bitshift;
-  // bitshift += 7; // (*offset)++;
-  //}
-  pos++; //fixes https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L67
+  pos++; //fixes https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L114
   *count = 0;
   bitshift = 0;
   while ((d[pos] & 0x80)) { //reading target_size from header
@@ -434,22 +368,17 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
   while (pos<dsize) {
     int i = 0, j = 1;
     unsigned offset = 0, size = 0;
-
-    //printf("d[pos]: %d %ld\n", d[pos], pos);
-    if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L103
+    if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L87
     //https://stackoverflow.com/a/14303988
       printf("Case 1\n");
       while (i<4) {
-        //printf("Offset: %d i: %d j: %d d[pos+j]: %d \n", offset, i, j, d[pos+j]);
         if (d[pos]&(1<<i)) {
           offset |= d[pos+j]<<(i*8);
           j++;
         }
         i++;
       }
-      //printf("Offset: %d \n", offset);
       while (i<7) {
-        //printf("Size: %d i: %d j: %d d[pos+j]: %d \n", size, i, j, d[pos+j]);
         if (d[pos]&(1<<i)) {
           size |= d[pos+j]<<((i+4)*8);
           j++;
@@ -458,17 +387,14 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
       }
 
       // packfomat: size zero is automatically converted to 0x10000.
-      // https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L133
+      // https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L156
       if (size==0) size = 0x10000;
-//     printf("Size %d\n", size);
-//      printf("Realloc\n");
-      //printf("Memcpy %s %d %d\n", t, size, offset);
       memcpy(t+*count, s+offset, size);
       //t[size] = '\0';
       pos += j;
       printf("Pos\n");
     } else {
-      //https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L133
+      //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L153
 //    printf("Case 0\n");
       size = d[pos++]; //incrememt
 //    printf("Memcopy %d\n", size);
@@ -499,7 +425,6 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
   printf("Count: %d \n", *count);
 // see OBJ_REF_DELTA here https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png
   if (*type==7) {
-// printf("Type 7:\n");
       char *h = malloc(20*sizeof(char));
 
       if (h == NULL) error_exit("h malloc failed in unpack_object");
@@ -513,14 +438,7 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
       printf("Inflate delta data\n");
       fseek(fpp, toffset, SEEK_SET); //return to original file offset
       printf("Resolve delta data\n");
-      //printf("Print source: %s\n", source);
-      //for (int h = 0; h<i->fot[255]; h++){
-      //  for (int j = 0; j<20; j++) printf("%02x", i->sha1[h][j]);
-      //  printf("\n");
-      //}
-      free(h);
-
-      // recursion due to https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L83
+      free(h);//recursion due to https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L58
       return resolve_delta(source, object, dcount, count);
     } else {
       printf("Type Else:\n");
@@ -536,20 +454,14 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
 //make 20byte SHA1 hash from 40 byte SHA1 string
 char *txtoh(char *p)
 {
-//  printf("txtoh start");
   //TODO: Dont like the malloc here, but did not find a solution to sscanf into p again
-  char *h = malloc(sizeof(char)*41);
-
-  if (h == NULL) error_exit("h malloc failed in unpack_object");
+  char *h = xmalloc(sizeof(char)*41);
 
   for (int c = 0; c<20; c++) {
- // printf("c: %d\n", c);
     sscanf(&p[2*c], "%2hhx", &(h[c]));
   }
-//  printf("txtoh end");
   h[20] = '\0';
   printf("return");
-
   return h;
 }
 
@@ -561,18 +473,11 @@ void write_children(char *hash, char *path, FILE *fpp) {
   long offset;
   unsigned count;
 
-  //printf("process hash: ");
-  //      for (int j = 0; j<20; j++) printf("%02x", hash[j]);
-  //        printf("\n");
   printf("seek index\n");
 
   offset= get_index(TT.i, hash);
   printf("Found index: %ld\n", offset);
-  //fseek(fpp, offset, SEEK_SET);
   printf("read object\n");
- // size_t size = unpack(fpp, &type, &offset);
- // printf("Size: %ld \n", size);
- // printf("Size2: %ld \n", size);
   object = unpack_object(fpp, TT.i, offset, &count, &type);
   printf("%s\n", object);
   printf("Type %d\n", type);
@@ -588,7 +493,7 @@ void write_children(char *hash, char *path, FILE *fpp) {
       //find position where the next hash starts
       hs = strchr(object+pos, '\0')+1;
       printf("Object+pos: %s\n", object+pos);
-      char *name; //=malloc(sizeof(char)*(hs-(object+pos))+strlen(path));
+      char *name;
       // memcpy(mode, object+pos+2, 3)//TODO:String to umask
       if (*(object+pos)=='1') { //tree object reference is a file
         // concat file name
@@ -602,7 +507,6 @@ void write_children(char *hash, char *path, FILE *fpp) {
       }
       memcpy(hash, hs, 20);
       write_children(hash, name, fpp);
-      //free(name);
       pos = hs-object+20;
       printf("Position/count for %s: %d/%u\n", path, pos, count);
     }
@@ -621,11 +525,10 @@ void write_children(char *hash, char *path, FILE *fpp) {
 
 static void gitfetch(void)
 {
-  //size_t l = 0;
   printf("refs\n");
   pid_t pid;
 
-  // TODO:I use herein after two temp files for fetch which git due not offer
+  // TODO:I use herein after two temp files for fetch which git does not offer
   // to 1) avoid a rewrite and 2) messing up the repo files while testing
 
   // TODO: Refactor wget into lib
@@ -634,20 +537,19 @@ static void gitfetch(void)
       "https://github.com/landley/toybox/info/refs?service=git-upload-pack",
       (char*)0});
   perror("execv\n");
-  char h[] = "8cf1722f0fde510ea81d13b31bde1e48917a0306";
+  //char h[] = "8cf1722f0fde510ea81d13b31bde1e48917a0306";
   //TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
-//  char h[] = "52fb04274b3491fdfe91b2e5acc23dc3f3064a86";
-  // FILE *fpr;
-  // fpr = fopen(".git/ref/temp.refs", "r");
-  // fseek();
-  // getline(&h, &l, fpr);
-  // getline(&h, &l, fpr);
-  // getline(&h, &l, fpr);
-  // fclose(fpr);
-  // strcpy(h, &h[4], 4);
-  // h[40] = '\0';
+  FILE *fpr = fopen(".git/ref/temp.refs", "r");
+  char *h;size_t l =0;
+  getline(&h,&l,fpr);
+  getline(&h,&l,fpr);
+  getline(&h,&l,fpr);
+  getline(&h,&l,fpr);
+  fclose(fpr);
+  strcpy(h,&h[4]);
+  h[40]='\0';
+  printf("Master HEAD hash: %s\n",h);
   printf("pack\n");
-  //if ((pid = fork())==0) execv("toybox", (char *[]){"toybox", "wget", "-O", ".git/objects/pack/temp.pack", "-p", "$'0032want 52fb04274b3491fdfe91b2e5acc23dc3f3064a86\n00000009done\n'", "https://github.com/landley/toybox/git-upload-pack", (char*)0}); //TODO: does not skip 0008NAK  printf("init\n");
   if ((pid = fork())==0) execv("toybox", (char *[]){"toybox", "wget", "-O", ".git/objects/pack/temp.pack", "-p", xmprintf("$'0032want %s\n00000009done\n'", h), "https://github.com/landley/toybox/git-upload-pack", (char*)0}); //TODO: does not skip 0008NAK  printf("init\n");
   perror("execv\n");
   FILE *fpp;
@@ -662,18 +564,16 @@ static void gitfetch(void)
 
   printf("skip header\n");
   long offset = 12+8; //8byte from the wget post response are skipped too
-  fseek(fpp, 8+8, SEEK_SET); //header check skipped https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L14
+  fseek(fpp, 8+8, SEEK_SET); //header check skipped //header check skipped https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L37
   printf("read count\n");
   fread(&ocount, 4, 1, fpp);
-  ocount = ntohl(ocount); //https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L21
+  ocount = ntohl(ocount); //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L46
   printf("Count: %d ..Loop pack\n", ocount);
   for (int j = 0; j<ocount; j++){
     printf("Read object %d\n", j);
     count = 0;
     object = unpack_object(fpp, TT.i, offset, &count, &type);
     printf("Count: %d Offset: %ld  ..Set object\n", count, offset);
-    //if (j>5126) printf("SetGetObject %d: %s\n", j, object);
-    //printf("SetGetUnpack %d: %s\n", j, unpack_object(fpp, TT.i, set_object(TT.i, type, object, count, offset), &count, &type));
     set_object(TT.i, type, object, count, offset);
 
     free(object);
@@ -682,11 +582,6 @@ static void gitfetch(void)
     offset = ftell(fpp); //adjust offset to new file position
     printf("Adjusted offset to: %ld\n", offset);
   }
-//  for (int h = 0; h<TT.i->fot[255]; h++){
-//  printf("%d: ", h);
-//  for (int j = 0; j<20; j++) printf("%02x", TT.i->sha1[h][j]);
-//    printf("\n");
-//  }
 
   //TODO: Final pack checksum not calculated and checked
   fclose(fpp);
