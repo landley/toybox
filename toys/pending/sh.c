@@ -636,7 +636,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
       *ss += 2;
 
     // Assignment operators: = *= /= %= += -= <<= >>= &= ^= |=
-    } else if (lvl<=2 && (*ss)[ii = !!strchr("*/%+-", **ss)
+    } else if (lvl<=2 && (*ss)[ii = (-1 != stridx("*/%+-", **ss))
                +2*!xmemcmp(*ss, "<<", 2)+2*!xmemcmp(*ss, ">>", 2)]=='=')
     {
       // TODO: assignments are lower priority BUT must go after variable,
