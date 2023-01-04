@@ -2282,51 +2282,60 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   if ((TT.options&OPT_B) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
     // skip quoted/escaped text
     while ((s = parse_word(old+i, 1, 0)) != old+i) i += s-(old+i);
-    // stop at end of string if we haven't got any more open braces
-    if (!bb && !old[i]) break;
-    // end a brace?
-    if (bb && (!old[i] || old[i] == '}')) {
-      bb->active = bb->commas[bb->cnt+1] = i;
-      // pop brace from bb into bnext
-      for (bnext = bb; bb && bb->active; bb = (bb==blist) ? 0 : bb->prev);
-      // Is this a .. span?
-      j = 1+*bnext->commas;
-      if (old[i] && !bnext->cnt && i-j>=4) {
-        // a..z span? Single digit numbers handled here too. TODO: utf8
-        if (old[j+1]=='.' && old[j+2]=='.') {
-          bnext->commas[2] = old[j];
-          bnext->commas[3] = old[j+3];
-          k = 0;
-          if (old[j+4]=='}' ||
-            (sscanf(old+j+4, "..%u}%n", bnext->commas+4, &k) && k))
-              bnext->cnt = -1;
-        }
-        // 3..11 numeric span?
-        if (!bnext->cnt) {
-          for (k=0, j = 1+*bnext->commas; k<3; k++, j += x)
-            if (!sscanf(old+j, "..%u%n"+2*!k, bnext->commas+2+k, &x)) break;
-          if (old[j] == '}') bnext->cnt = -2;
-        }
-        // Increment goes in the right direction by at least 1
-        if (bnext->cnt) {
-          if (!bnext->commas[4]) bnext->commas[4] = 1;
-          if ((bnext->commas[3]-bnext->commas[2]>0) != (bnext->commas[4]>0))
-            bnext->commas[4] *= -1;
-        }
-      }
-      // discard unterminated span, or commaless span that wasn't x..y
-      if (!old[i] || !bnext->cnt)
-        free(dlist_pop((blist == bnext) ? &blist : &bnext));
-      if (!old[i]) i--;
-    // starting brace
-    } else if (old[i] == '{') {
+
+    // start a new span
+    if (old[i] == '{') {
       dlist_add_nomalloc((void *)&blist,
         (void *)(bb = xzalloc(sizeof(struct sh_brace)+34*4)));
       bb->commas[0] = i;
+    // end of string: abort unfinished spans and end loop
+    } else if (!old[i]) {
+      for (bb = blist; bb;) {
+        if (!bb->active) {
+          if (bb==blist) {
+            dlist_pop(&blist);
+            bb = blist;
+          } else dlist_pop(&bb);
+        } else bb = (bb->next==blist) ? 0 : bb->next;
+      }
+      break;
     // no active span?
     } else if (!bb) continue;
+    // end current span
+    else if (old[i] == '}') {
+      bb->active = bb->commas[bb->cnt+1] = i;
+      // Is this a .. span?
+      j = 1+*bb->commas;
+      if (!bb->cnt && i-j>=4) {
+        // a..z span? Single digit numbers handled here too. TODO: utf8
+        if (old[j+1]=='.' && old[j+2]=='.') {
+          bb->commas[2] = old[j];
+          bb->commas[3] = old[j+3];
+          k = 0;
+          if (old[j+4]=='}' ||
+            (sscanf(old+j+4, "..%u}%n", bb->commas+4, &k) && k))
+              bb->cnt = -1;
+        }
+        // 3..11 numeric span?
+        if (!bb->cnt) {
+          for (k=0, j = 1+*bb->commas; k<3; k++, j += x)
+            if (!sscanf(old+j, "..%u%n"+2*!k, bb->commas+2+k, &x)) break;
+          if (old[j]=='}') bb->cnt = -2;
+        }
+        // Increment goes in the right direction by at least 1
+        if (bb->cnt) {
+          if (!bb->commas[4]) bb->commas[4] = 1;
+          if ((bb->commas[3]-bb->commas[2]>0) != (bb->commas[4]>0))
+            bb->commas[4] *= -1;
+        }
+      }
+      // discard commaless span that wasn't x..y
+      if (!bb->cnt) free(dlist_pop((blist==bb) ? &blist : &bb));
+      // Set bb to last unfinished brace (if any)
+      for (bb = blist ? blist->prev : 0; bb && bb->active;
+           bb = (bb==blist) ? 0 : bb->prev);
     // add a comma to current span
-    else if (bb && old[i] == ',') {
+    } else if (old[i] == ',') {
       if (bb->cnt && !(bb->cnt&31)) {
         dlist_lpop(&blist);
         dlist_add_nomalloc((void *)&blist,
