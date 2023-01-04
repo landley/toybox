@@ -93,7 +93,7 @@ void show_help(FILE *out, int full)
       // If it's an alias, restart search for real name
       if (*s != 255) break;
       i = toy_find(++s)-toy_list;
-      if (full&4) {
+      if ((full&4) && toy_list[i].flags) {
         fprintf(out, "See <a href=#%s>%s</a>\n", s, s);
 
         return;
