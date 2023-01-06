@@ -563,7 +563,8 @@ char *fs_type_name(struct statfs *statfs)
     {0x3434, "nilfs"}, {0x6969, "nfs"}, {0x9fa0, "proc"},
     {0x534F434B, "sockfs"}, {0x62656572, "sysfs"}, {0x517B, "smb"},
     {0x4d44, "msdos"}, {0x4006, "fat"}, {0x43415d53, "smackfs"},
-    {0x73717368, "squashfs"}
+    {0x73717368, "squashfs"}, {0xF2F52010, "f2fs"}, {0xE0F5E1E2, "erofs"},
+    {0x2011BAB0, "exfat"},
   };
   int i;
 
