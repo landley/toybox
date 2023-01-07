@@ -784,8 +784,9 @@ ala the first example in this FAQ answer.</p>
 pointing at a directory full of cross compilers. The ones I test this with are built from the musl-libc
 maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
-project, built by running toybox's scripts/mcm-buildall.sh in that directory,
-and then symlink the resulting "ccc" subdirectory into toybox where CROSS=
+project, built by running toybox's
+<a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in a musl-cross-make checkout directory,
+and then symlinking the resulting "ccc" subdirectory into toybox where CROSS=
 can find them:</p>
 
 <blockquote><b><pre>
@@ -797,8 +798,8 @@ cd musl-cross-make
 ln -s $(realpath ccc) ../toybox/ccc
 </pre></b></blockquote>
 
-<p>If you don't want to do that, you can download <a href=http://mkroot.musl.cc/latest/>prebuilt binary versions</a> from Zach van Rijn's site and
-just extract them into a "ccc" subdirectory under the toybox source.</p>
+<p>If you don't want to do that, you can download <a href=http://landley.net/toybox/downloads/binaries/toolchains/latest>prebuilt binary versions</a>
+and extract them into a "ccc" subdirectory under the toybox source.</p>
 
 <p>Once you've installed the cross compilers, "<b>make root CROSS=help</b>"
 should list all the available cross compilers it recognizes under ccc,
