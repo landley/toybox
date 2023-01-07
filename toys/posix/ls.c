@@ -315,7 +315,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   if (!FLAG(f)) {
     unsigned long long blocks = 0;
 
-    qsort(sort, dtlen, sizeof(void *), (void *)compare);
+    if (dtlen > 0) qsort(sort, dtlen, sizeof(void *), (void *)compare);
     for (ul = 0; ul<dtlen; ul++) {
       entrylen(sort[ul], len);
       for (width = 0; width<8; width++)
