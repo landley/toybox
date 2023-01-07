@@ -2863,6 +2863,7 @@ static struct sh_process *run_command(void)
       }
       toys.rebound = 0;
       pp->exit = toys.exitval;
+      clearerr(stdout);
       if (toys.optargs != toys.argv+1) free(toys.optargs);
       if (toys.old_umask) umask(toys.old_umask);
       memcpy(&toys, &temp, jj);
