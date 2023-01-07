@@ -3726,7 +3726,7 @@ static void run_lines(void)
 // TODO test background a block: { abc; } &
 
       // If we spawn a subshell, pass data off to child process
-      if (TT.ff->blk->pipe || !strcmp(s, "(") || (ctl && !strcmp(ctl, "&"))) {
+      if (TT.ff->blk->next->pipe || !strcmp(s, "(") || (ctl && !strcmp(ctl, "&"))) {
         if (!(pp->pid = run_subshell(0, -1))) {
 
           // zap forked child's cleanup context and advance to next statement
