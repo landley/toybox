@@ -845,7 +845,7 @@ static int get_ps(struct dirtree *new)
     off_t temp = 6;
 
     sprintf(buf, "%lld/exe", slot[SLOT_tid]);
-    if (readfileat(fd, buf, buf, &temp) && !xmemcmp(buf, "\177ELF", 4)) {
+    if (readfileat(fd, buf, buf, &temp) && !smemcmp(buf, "\177ELF", 4)) {
       if (buf[4] == 1) slot[SLOT_bits] = 32;
       else if (buf[4] == 2) slot[SLOT_bits] = 64;
     }

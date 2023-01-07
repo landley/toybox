@@ -9,17 +9,6 @@
 
 #include "toys.h"
 
-// ASAN flips out about memcmp("a", "abc", 4) but the result is well-defined.
-// This one's guaranteed to stop at len _or_ the first difference.
-int xmemcmp(char *one, char *two, unsigned long len)
-{
-  int ii = 0;
-
-  while (len--) if ((ii = *one++ - *two++)) break;
-
-  return ii;
-}
-
 // strcpy and strncat with size checking. Size is the total space in "dest",
 // including null terminator. Exit if there's not enough space for the string
 // (including space for the null terminator), because silently truncating is
@@ -468,9 +457,7 @@ int xdup(int fd)
   return fd;
 }
 
-// Move file descriptor above stdin/stdout/stderr, using /dev/null to consume
-// old one. (We should never be called with stdin/stdout/stderr closed, but...)
-int notstdio(int fd)
+int xnotstdio(int fd)
 {
   if (fd<0) return fd;
 
@@ -503,13 +490,13 @@ int xtempfile(char *name, char **tempname)
 // Create a file but don't return stdin/stdout/stderr
 int xcreate(char *path, int flags, int mode)
 {
-  return notstdio(xcreate_stdio(path, flags, mode));
+  return xnotstdio(xcreate_stdio(path, flags, mode));
 }
 
 // Open a file descriptor NOT in stdin/stdout/stderr
 int xopen(char *path, int flags)
 {
-  return notstdio(xopen_stdio(path, flags));
+  return xnotstdio(xopen_stdio(path, flags));
 }
 
 // Open read only, treating "-" as a synonym for stdin, defaulting to warn only

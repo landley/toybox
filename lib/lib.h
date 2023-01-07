@@ -103,7 +103,6 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 #define ABS_LAST 8 // don't resolve symlink in last path component
 
 // xwrap.c
-int xmemcmp(char *one, char *two, unsigned long len);
 void xstrncpy(char *dest, char *src, size_t size);
 void xstrncat(char *dest, char *src, size_t size);
 _Noreturn void _xexit(void);
@@ -146,7 +145,7 @@ int xopenro(char *path);
 void xpipe(int *pp);
 void xclose(int fd);
 int xdup(int fd);
-int notstdio(int fd);
+int xnotstdio(int fd);
 FILE *xfdopen(int fd, char *mode);
 FILE *xfopen(char *path, char *mode);
 size_t xread(int fd, void *buf, size_t len);
@@ -273,6 +272,7 @@ unsigned tar_cksum(void *data);
 int is_tar_header(void *pkt);
 char *elf_arch_name(int type);
 void octal_deslash(char *s);
+int smemcmp(char *one, char *two, unsigned long len);
 
 #define HR_SPACE  1 // Space between number and units
 #define HR_B      2 // Use "B" for single byte units

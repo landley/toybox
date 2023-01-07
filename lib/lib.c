@@ -738,7 +738,7 @@ void loopfiles_rw(char **argv, int flags, int permissions,
     // Inability to open a file prints a warning, but doesn't exit.
 
     if (!strcmp(*argv, "-")) fd = 0;
-    else if (0>(fd = notstdio(open(*argv, flags, permissions))) && !failok) {
+    else if (0>(fd = xnotstdio(open(*argv, flags, permissions))) && !failok) {
       perror_msg_raw(*argv);
       if (!anyway) continue;
     }
@@ -1492,7 +1492,7 @@ int is_tar_header(void *pkt)
   char *p = pkt;
   int i = 0;
 
-  if (p[257] && xmemcmp("ustar", p+257, 5)) return 0;
+  if (p[257] && smemcmp("ustar", p+257, 5)) return 0;
   if (p[148] != '0' && p[148] != ' ') return 0;
   sscanf(p+148, "%8o", &i);
 
@@ -1550,3 +1550,15 @@ void octal_deslash(char *s)
 
   *o = 0;
 }
+
+// ASAN flips out about memcmp("a", "abc", 4) but the result is well-defined.
+// This one's guaranteed to stop at len _or_ the first difference.
+int smemcmp(char *one, char *two, unsigned long len)
+{
+  int ii = 0;
+
+  while (len--) if ((ii = *one++ - *two++)) break;
+
+  return ii;
+}
+

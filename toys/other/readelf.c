@@ -355,7 +355,7 @@ static void scan_elf()
   char *hdr = TT.elf;
   int type, machine, version, flags, entry, ehsize, phnum, shstrndx, i, j, w;
 
-  if (TT.size < 45 || xmemcmp(hdr, "\177ELF", 4))
+  if (TT.size < 45 || smemcmp(hdr, "\177ELF", 4))
     return error_msg("%s: not ELF", TT.f);
 
   TT.bits = hdr[4] - 1;

@@ -990,7 +990,7 @@ void tar_main(void)
       if (len!=512 || !is_tar_header(hdr)) {
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
-        else if (!xmemcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
+        else if (!smemcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
         else if (peek_be(hdr, 7) == 0xfd377a585a0000UL) toys.optflags |= FLAG_J;
         else error_exit("Not tar");
 

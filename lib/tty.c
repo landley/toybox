@@ -22,7 +22,7 @@ int tty_fd(void)
 
   for (i = 0; i<3; i++) if (isatty(j = (i+1)%3)) return j;
 
-  return notstdio(open("/dev/tty", O_RDWR));
+  return xnotstdio(open("/dev/tty", O_RDWR));
 }
 
 // Query size of terminal (without ANSI probe fallback).
