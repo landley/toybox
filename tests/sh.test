@@ -81,29 +81,9 @@ testing 'syntax' '$SH -c "if true; then echo hello | fi" 2>/dev/null || echo x'\
   'x\n' '' ''
 
 # The bash man page is lying when it says $_ starts with an absolute path.
-ln -s $(which $SH) bash
+ln -s "$(which $SH)" bash
 testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
 rm bash
-testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
-  'true\nabc\n' '' ''
-
-shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
-  E E"$P" I$'echo $_\n' O$'hello\n'
-shxpect '$_ preserved on prefix error' I$'true hello; a=1 b=2 c=${} true\n' \
-  E E"$P" I$'echo $_\n' O$'hello\n'
-shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
-  E E"$P" I$'echo $_\n' O$'hello\n'
-shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
-testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
-shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
-testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
-  '123\n' '' ''
-testing 'prefix localizes magic vars' \
-  'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
-shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
-testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
-testing 'assignment with redirect is persistent, not prefix' \
-  'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
 
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
@@ -133,12 +113,31 @@ testing 'default exports' \
 #  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
 testing "lineno" "$SH input" "5 one\n6 one\n5 two\n6 two\n" \
   '#!/bin/bash\n\nfor i in one two\ndo\n  echo $LINENO $i\n  echo $LINENO $i\ndone\n' ""
-testing "eval0" "sh -c 'eval echo \$*' one two three" "two three\n" "" ""
+testing "eval0" "$SH -c 'eval echo \$*' one two three" "two three\n" "" ""
 
 #########################################################################
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="timeout 10 $SH -c"
 
+shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ preserved on prefix error' I$'true hello; a=1 b=2 c=${} true\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
+testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
+shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
+testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
+  '123\n' '' ''
+testing 'prefix localizes magic vars' \
+  'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
+shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
+testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
+testing 'assignment with redirect is persistent, not prefix' \
+  'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
+testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
+  'true\nabc\n' '' ''
 
 mkdir -p one/two/three
 testing 'cd in renamed dir' \
