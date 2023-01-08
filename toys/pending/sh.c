@@ -645,8 +645,6 @@ static int recalculate(long long *dd, char **ss, int lvl)
       *ss += ii+1;
       if (!recalculate(&ee, ss, noa|1)) return 0; // TODO lvl instead of 1?
       if (cc=='*') *dd *= ee;
-      else if (cc=='/') *dd /= ee;
-      else if (cc=='%') *dd %= ee;
       else if (cc=='+') *dd += ee;
       else if (cc=='-') *dd -= ee;
       else if (cc=='<') *dd <<= ee;
@@ -654,7 +652,13 @@ static int recalculate(long long *dd, char **ss, int lvl)
       else if (cc=='&') *dd &= ee;
       else if (cc=='^') *dd ^= ee;
       else if (cc=='|') *dd |= ee;
-      else *dd = ee;
+      else if (!cc) *dd = ee;
+      else if (!ee) {
+        perror_msg("%c0", cc);
+
+        return 0;
+      } else if (cc=='/') *dd /= ee;
+      else if (cc=='%') *dd %= ee;
       ee = *dd;
     }
     if (cc && !noa) setvar(xmprintf("%.*s=%lld", (int)(val-var), var, ee));
@@ -672,11 +676,12 @@ static int recalculate(long long *dd, char **ss, int lvl)
     ++*ss;
     if (!recalculate(&ee, ss, noa|14)) return 0;
     if (cc=='*') *dd *= ee;
-    else if (cc=='%') *dd %= ee;
     else if (!ee) {
-      perror_msg("/0");
+      perror_msg("%c0", cc);
+
       return 0;
-    } else *dd /= ee;
+    } else if (cc=='%') *dd %= ee;
+    else *dd /= ee;
   }
 
   // x+y-z
@@ -1570,7 +1575,7 @@ char *wildcard_path(char *pattern, int off, struct sh_arg *deck, int *idx,
       j = 0;
     }
 
-    // Got wildcard? Return if start of name if out of count, else skip [] ()
+    // Got wildcard? Return start of name if out of count, else skip [] ()
     if (*idx<deck->c && p-pattern == (long)deck->v[*idx]) {
       if (!j++ && !count--) return old;
       ++*idx;
@@ -1775,7 +1780,8 @@ char *slashcopy(char *s, char *c, struct sh_arg *deck)
 #define SEMI_IFS (1<<6)    // Use ' ' instead of IFS to combine $*
 // expand str appending to arg using above flag defines, add mallocs to delete
 // if ant not null, save wildcard deck there instead of expanding vs filesystem
-// returns 0 for success, 1 for error
+// returns 0 for success, 1 for error.
+// If measure stop at *measure and return input bytes consumed in *measure
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete, struct sh_arg *ant, long *measure)
 {
@@ -1832,10 +1838,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
     ifs = slice = 0;
 
     // handle escapes and quoting
-    if (cc == '\\') {
-      if (!(qq&1) || (str[ii] && strchr("\"\\$`", str[ii])))
-        new[oo++] = str[ii] ? str[ii++] : cc;
-    } else if (cc == '"') qq++;
+    if (cc == '"') qq++;
     else if (cc == '\'') {
       if (qq&1) new[oo++] = cc;
       else {
@@ -1845,12 +1848,12 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
 
     // both types of subshell work the same, so do $( here not in '$' below
 // TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
-    } else if (cc == '`' || (cc == '$' && str[ii] && strchr("([", str[ii]))) {
+    } else if (cc == '`' || (cc == '$' && (str[ii]=='(' || str[ii]=='['))) {
       off_t pp = 0;
 
       s = str+ii-1;
       kk = parse_word(s, 1, 0)-s;
-      if (str[ii] == '[' || *toybuf == 255) {
+      if (str[ii] == '[' || *toybuf == 255) { // (( parsed together, not (( ) )
         struct sh_arg aa = {0};
         long long ll;
 
@@ -1898,10 +1901,13 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
       }
+    } else if (cc=='\\' || !str[ii]) {
+      if (!(qq&1) || (str[ii] && strchr("\"\\$`", str[ii])))
+        new[oo++] = str[ii] ? str[ii++] : cc;
 
     // $VARIABLE expansions
 
-    } else if (cc == '$') {
+    } else if (cc == '$' && str[ii]) {
       cc = *(ss = str+ii++);
       if (cc=='\'') {
         for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));

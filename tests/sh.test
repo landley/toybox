@@ -119,6 +119,9 @@ testing "eval0" "$SH -c 'eval echo \$*' one two three" "two three\n" "" ""
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="timeout 10 $SH -c"
 
+testing 'trailing $ is literal' 'echo $' '$\n' '' ''
+# TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''
+shxpect 'queued work after HERE' I$'<<0;echo hello\n' E"> " I$'0\n' O$'hello\n'
 shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
   E E"$P" I$'echo $_\n' O$'hello\n'
 shxpect '$_ preserved on prefix error' I$'true hello; a=1 b=2 c=${} true\n' \
@@ -263,6 +266,10 @@ testing "&& vs || priority" \
 testing "|| vs && priority" \
   'echo $((w++&&x++||y++&&z++)) w=$w x=$x y=$y z=$z' \
   '0 w=1 x= y=1 z=\n' '' ''
+shxpect '/0' I$'echo $((1/0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+shxpect '%0' I$'echo $((1%0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+shxpect '/=0' I$'echo $((x/=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+shxpect '%=0' I$'echo $((x%=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
@@ -348,6 +355,8 @@ testing "IFS3" 'IFS=x; echo "$(echo abx)"' "abx\n" "" ""
 testing "IFS4" 'IFS=x; echo $(echo abx)y' "ab y\n" "" ""
 testing "IFS5" 'IFS=xy; for i in abcxdefyghi; do echo =$i=; done' \
   "=abc def ghi=\n" "" ""
+testing "curly bracket whitespace" 'for i in {$,} ""{$,}; do echo ="$i"=; done'\
+  '=$=\n=$=\n==\n' '' ''
 
 testing 'empty $! is blank' 'echo $!' "\n" "" ""
 testing '$! = jobs -p' 'true & [ $(jobs -p) = $! ] && echo yes' "yes\n" "" ""
