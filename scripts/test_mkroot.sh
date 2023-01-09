@@ -29,11 +29,10 @@ sleep .25
 
 [ -n "$(toybox wget http://127.0.0.1:65432/ -O - | grep ===)" ] || die "wget"
 
-COUNT=0 CPUS=$(($(nproc)+0))
-for I in root/*/linux-kernel
-do
-  [ ! -e "$I" ] && continue
-  X=$(dirname $I) Y=$(basename $X)
+do_test()
+{
+  X=$(dirname "$1") Y=$(basename $X)
+  [ ! -e "$1" ] && { echo skip "$Y"; return 0; }
   # Alas KARGS=quiet doesn't silence qemu's bios, so filter output ourselves.
   # QEMU broke -hda because too many people know how to use it, this is
   # the new edgier version they added to be -hda without gratuitous breakage.
@@ -46,12 +45,27 @@ do
     toybox timeout -i 10 bash -c "./run-qemu.sh -drive format=raw,file='$TEST'/init.$BASHPID < /dev/null 2>&1"
     rm -f "$TEST/init.$BASHPID"
     cd ../..
-  } | tee root/build/log/$Y-test.txt | { [ -z "$V" ] && cat >/dev/null || { [ "$V" -gt 1 ] && cat || grep '^=== '; } } &
+  } | tee root/build/log/$Y-test.txt | { [ -z "$V" ] && cat >/dev/null || { [ "$V" -gt 1 ] && cat || grep '^=== '; } }
+}
 
-  [ $((++COUNT)) -ge $CPUS ] && { wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .; }
+# Just test targets on command line?
+if [ $# -gt 0 ]; then
+  ((V++))
+  for I in "$@"; do do_test root/"$I"/linux-kernel; done
+  exit
+fi
+
+COUNT=0 CPUS=$(($(nproc)+0))
+for I in root/*/linux-kernel
+do
+  do_test "$I" | { [ -z "$V" ] && cat >/dev/null || { [ "$V" -gt 1 ] && cat || grep '^=== '; } } &
+  [ $((++COUNT)) -ge $CPUS ] &&
+    { wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .; }
 done
 
-while [ $COUNT -gt 0 ]; do wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .; done
+while [ $COUNT -gt 0 ]; do
+  wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .
+done
 echo
 
 PASS= NOPASS=
