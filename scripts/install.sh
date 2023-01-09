@@ -31,7 +31,6 @@ done
 
 echo "Compile instlist..."
 
-NOBUILD=1 scripts/make.sh
 $DEBUG $HOSTCC -I . scripts/install.c -o "$UNSTRIPPED"/instlist || exit 1
 COMMANDS="$("$UNSTRIPPED"/instlist $LONG_PATH)"
 

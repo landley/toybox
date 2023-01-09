@@ -18,7 +18,6 @@ then
   then
     scripts/single.sh "$@" || exit 1
   else
-    scripts/make.sh &&
     scripts/install.sh --symlink --force || exit 1
   fi
 fi

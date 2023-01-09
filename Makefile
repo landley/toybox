@@ -73,7 +73,7 @@ distclean: clean root_clean
 	@rm -f toybox* .config* .singlemake
 	@echo removed .config
 
-tests:
+tests: toybox
 	scripts/test.sh
 
 root:
