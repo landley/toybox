@@ -548,17 +548,21 @@ export "PATH=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin:$PATH"<br />
 LDFLAGS=--static CROSS_COMPILE=m68k-linux-musl- make distclean defconfig toybox
 </p></b></blockquote>
 
-<p>(Both of those examples use static linking so you can install just
+<p>Both of those examples use static linking so you can install just
 the single file to target, or test them with "qemu-m68k toybox". Feel free
 to dynamically link instead if you prefer, mkroot offers a "dynamic"
 add-on to copy the compiler's shared libraries into the new root
-filesystem.)</p>
+filesystem.</p>
+
+<p>Although you can individually override $CC and $STRIP and such,
+providing the prefix twice applies it twice, ala
+"CROSS_COMPILE=prefix- CC=prefix-cc" gives "prefix-prefix-cc".</p>
 
 <p>Toybox's <a href=#mkroot>system builder</a> can use a simpler $CROSS
-variable to specify the target(s) to build for if you've installed
+variable to specify the target name(s) to build for if you've installed
 <a href=#cross2>compatible</a> cross compilers under the "ccc" directory.
-Behind the scenes this uses wildcard expansion to set $CROSS_COMPILER to
-an appropriate path/prefix-.</p>
+Behind the scenes this uses wildcard expansion to set $CROSS_COMPILE to
+an appropriate "path/prefix-".</p>
 
 <hr /><h2><a name="targets">Q: What architectures does toybox support?</h2>
 
@@ -717,7 +721,9 @@ Pages</a>.</p>
 Booting a simple system to a shell prompt requires a kernel to drive the hardware (such as Linux, or BSD with a Linux emulation layer), programs for the system to run (such as toybox's commands), and a C library ("libc") to connect them together.</p>
 
 <p>Toybox has a policy of requiring no external dependencies other than the
-kernel and C library (at least for defconfig builds). You can optionally enable support for
+kernel and C library (at least for defconfig builds). Our "software bill
+of materials" (SBOM) defaults to just "the C library", both at build time
+and and runtime. You can optionally enable support for
 additional libraries in menuconfig (such as openssl, zlib, or selinux),
 but toybox either provides its own built-in versions of such functionality
 (which the libraries provide larger, more complex, often assembly optimized
@@ -757,12 +763,16 @@ auditable version of the cmdline portion of that base.</p>
 root</b>". To enter the resulting root filesystem, "<b>sudo chroot
 root/host/fs /init</b>". Type "exit" to get back out.</p>
 
-<p>You can cross compile simple three package (toybox+libc+linux)
-systems configured to boot to a shell prompt under the emulator
-<a href=https://qemu.org>qemu</a>
-by specifying a target type with CROSS=
-(or by setting CROSS_COMPILE= to a <a href=#cross>cross compiler</a> prefix with optional absolute
-path), and pointing the build at a Linux kernel source directory, ala:</p>
+<p>Prebuilt binary versions of these system images, suitable for running
+under the emulator <a href=https://qemu.org>qemu</a>, are uploaded to
+<a href=https://landley.net/toybox/downloads/binaries/mkroot/>the website</a>
+each release if you'd like to try before building from source.</p>
+
+<p>You can cross compile simple three package (toybox+libc+linux) systems
+configured to boot to a shell prompt under qemu by setting CROSS_COMPILE= to a
+<a href=#cross>cross compiler</a> prefix (or by installing cross compilers
+in the "ccc" subdirectory and specifying a target type with CROSS=)
+and also pointing the build at a Linux kernel source directory, ala:</p>
 
 <blockquote><p><b>make root CROSS=sh4 LINUX=~/linux</b></p></blockquote>
 
@@ -778,11 +788,15 @@ this system because 1) you're in a toybox source directory, 2) your cross
 compiler has a libc built into it, 3) you tell it where to find a Linux kernel
 source directory with LINUX= on the command line. If you don't say LINUX=,
 it skips that part of the build and just produces a root filesystem directory
-ala the first example in this FAQ answer.</p>
+(root/$CROSS/fs or root/host/fs if no $CROSS target specified), which you
+can chroot into if your architecture can run those binaries. (For PID other
+than 1, the /init script at the top of the directory sets up and cleans up
+the /proc mount points, so <b>chroot root/i686/fs /init</b> is a reasonable
+"poke around and look at things" smoketest.)</p>
 
 <p>The CROSS= shortcut expects a "ccc" symlink in the toybox source directory
-pointing at a directory full of cross compilers. The ones I test this with are built from the musl-libc
-maintainer's
+pointing at a directory full of cross compilers. The ones I test this with are
+built from the musl-libc maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
 project, built by running toybox's
 <a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in a musl-cross-make checkout directory,
