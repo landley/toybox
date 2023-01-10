@@ -40,7 +40,7 @@ print "all commands=%s" % len(reverse)
 # Run a couple sanity checks on input
 
 for i in toystuff:
-  if (i in pending): print "barf %s" % i
+  if (i in pending): print "Pending command not roadmap: %s" % i
 
 unknowns=[]
 for i in toystuff + pending:

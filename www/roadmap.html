@@ -131,8 +131,8 @@ val what), fortran support (asa fort77), and batch processing support (batch
 qalter qdel qhold qmove qmsg qrerun qrls qselect qsig qstat qsub).</p>
 
 <p>Some commands are for a compiler toolchain (ar c99 cflow ctags cxref gencat
-iconv lex m4 make nm strings strip tsort yacc) which is outside of toybox's
-mandate and should be supplied externally. (Some of these may be
+iconv lex m4 make nm strings strip tsort yacc) which is out of scope for
+toybox and should be supplied externally. (Some of these might be
 revisited later, but not for toybox 1.0.)</p>
 
 <p>Some commands are part of a command shell, and can't be implemented as
@@ -269,24 +269,25 @@ already decided to include, useless for deciding _what_ to include.</p>
 <p>The RFCs are more about protocols than commands. The noise level is
 extremely high: there's thousands of RFCs, many describing a proposed idea
 that never took off, and less than 1% of the resulting documents are
-currently relevant to toybox. And the documents are numbered based on the
+currently relevant to toybox. The documents are numbered based on the
 order they were received, with no real attempt at coherently indexing
 the result. As with man pages they can be <a href=https://www.ietf.org/rfc/rfc0610.txt>long and complicated</a> or
 <a href=https://www.ietf.org/rfc/rfc1951.txt>terse and impenetrable</a>,
 have developed a certain amount of <a href=https://www.ietf.org/rfc/rfc8179.txt>bureaucracy</a> over the years, and often the easiest way to understand what
-they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.</p>
+they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.
+(The greybeard community problem where all documentation is written by people
+who don't remember NOT already knowing this stuff.)</p>
 
 <p>That said, RFC documents can be useful (especially for networking protocols)
 and the four URL templates the recommended starting files
-for new commands (toys/example/skeleton.c or toys/example/hello.c depending on how much
-plumbing you want to start with) provide point to posix, lsb, man, and
-rfc pages.</p>
+for new commands (toys/example/{skeleton,hello}.c) provide point to posix, lsb,
+man, and rfc pages.</p>
 
 <hr />
 <a name="dev_env">
 <h2><a href="#dev_env">Use case: provide a self-hosting development environment</a></h2>
 
-<p>The following commands were enough to build the <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> development
+<p>Once upon a time, the following commands were enough to build the <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> development
 environment, boot it to a shell prompt, and build <a href=http://www.linuxfromscratch.org/lfs/view/6.8/>Linux From Scratch 6.8</a> under it.</p>
 
 <blockquote><b>
@@ -318,12 +319,12 @@ required bash extensions not present in shells such as busybox ash.
 To replace that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
 
-<p>The above command list was collected using a command line recording wrapper,
-see scripts/record-commands and toys/example/logpath.c, which
-scripts/mkroot.sh uses to populate root/log/*-commands.txt. Try
+<p>The above command list was collected using a command line recording wrapper
+(scripts/record-commands and toys/example/logpath.c) which scripts/mkroot.sh
+also uses to populate root/log/*-commands.txt. Try
 <b>awk '{print $1}' root/build/log/*-commands.txt | sort -u | grep -v musl | xargs</b>
-after building a mkroot target to get a similar command list used by that
-build.</p>
+after building a mkroot target to see the list of commands called out
+of the $PATH during that build.</p>
 
 <h3>Stages and moving targets</h3>
 
