@@ -3176,6 +3176,9 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
     } else if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
       arg->c--;
 
+      // Connecting nonexistent statements is an error
+      if (!arg->c || !smemcmp(ex, "do\0A", 4)) goto flush;
+
       // treat ; as newline so we don't have to check both elsewhere.
       if (!strcmp(s, ";")) {
         arg->v[arg->c] = 0;
@@ -3186,16 +3189,12 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
-
-      // Connecting nonexistent statements is an error
-      if (!arg->c) goto flush;
       pl->count = -1;
 
       continue;
 
     // a for/select must have at least one additional argument on same line
     } else if (ex && !smemcmp(ex, "do\0A", 4)) {
-
       // Sanity check and break the segment
       if (strncmp(s, "((", 2) && *varend(s)) goto flush;
       pl->count = -1;
