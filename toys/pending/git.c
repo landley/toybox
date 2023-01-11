@@ -89,8 +89,8 @@ static void read_index(struct IndexV2 *i)
 {
   FILE *fpi;
 
-  i = malloc(sizeof(i));
-  i->sha1 = malloc(20*sizeof(char));
+  i = xmalloc(sizeof(i));
+  i->sha1 = malloc(20);
   i->crc = malloc(sizeof(unsigned));
   i->offset = malloc(sizeof(unsigned));
   i->offset64 = malloc(sizeof(long long));
@@ -246,7 +246,7 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
 // TODO: Too many allocs in here 1) to concat the search string for hashing
 // 2) to insert into the array (can be reduce to a single malloc in fetch as
 // the pack header contains the number of objects in pack
-  char *c, *p = "", *h = (char*)xmalloc(sizeof(char)*20); //composition,prefix,hash
+  char *c, *p = "", *h = xmalloc(20); //composition,prefix,hash
   long pos = 0;
 
   printf("Alloc... ");
@@ -259,10 +259,9 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
     case 6: printf("REF_DELTA"); break; //not expected in fetch packs as fetch packs are self-containing
     case 7: printf("OBJ_DELTA\n"); break;
   }
-  c = (char*)xmalloc(strlen(p)+count+2); //Robs null terminator embedding
-  if (c == NULL) error_exit("c malloc failed in set_object");
-  memcpy(c, p, strlen(p)+1); //Robs null terminator embedding
-  memcpy(c+strlen(p)+1, o, count+1); //Robs null terminator embedding
+  c = xmalloc(strlen(p)+count+2);
+  memcpy(c, p, strlen(p)+1);
+  memcpy(c+strlen(p)+1, o, count+1);
   h = SHA1(c, strlen(p)+count+1, h); //ToDo: borrowed from OpenSSL to not to pipe or refactor SHA1SUM in toybox
   printf("..Binary search\n");
   for (int j = 0; j<20; j++) printf("%02x", h[j]); //find insert position
@@ -357,12 +356,12 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
 
   *count |= (unsigned long long)(d[pos++]& 0x7F) << bitshift;
   printf("Target Count %d:\n", *count);
-  char *t = malloc(sizeof(char)*(*count+1));
-  if (t == NULL) error_exit("t malloc failed in resolve_delta");
+  char *t = xmalloc(*count+1);
   *count = 0;
   while (pos<dsize) {
     int i = 0, j = 1;
     unsigned offset = 0, size = 0;
+
     if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L87
     //https://stackoverflow.com/a/14303988
       printf("Case 1\n");
@@ -410,16 +409,14 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
   int *type)
 {
   unsigned dcount = unpack(fpp, type, &offset);
-  char *object = malloc((sizeof(char)*(dcount)+1));
+  char *object = xmalloc(dcount);
 
-  if (object == NULL) error_exit("object malloc failed in unpack_object");
   object[*count] = '\0';
   printf("Count: %d \n", *count);
 // see OBJ_REF_DELTA here https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png
   if (*type==7) {
-      char *h = malloc(20*sizeof(char));
+      char *h = xmalloc(20);
 
-      if (h == NULL) error_exit("h malloc failed in unpack_object");
       fread(h, 20, 1, fpp); //fseek(fpp, 20, SEEK_CUR);
       printf("Read base object\n");
       for (int j = 0; j<20; j++) printf("%02x", h[j]);
@@ -447,18 +444,20 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
 char *txtoh(char *p)
 {
   //TODO: Dont like the malloc here, but did not find a solution to sscanf into p again
-  char *h = xmalloc(sizeof(char)*41);
+  char *h = xmalloc(41);
 
   for (int c = 0; c<20; c++) {
     sscanf(&p[2*c], "%2hhx", &(h[c]));
   }
-  h[20] = '\0';
+  h[20] = 0;
   printf("return");
+
   return h;
 }
 
 //traveres the commit tree for checkout
-void write_children(char *hash, char *path, FILE *fpp) {
+void write_children(char *hash, char *path, FILE *fpp)
+{
   FILE *fc;
   char *object;
   int type;
@@ -467,36 +466,36 @@ void write_children(char *hash, char *path, FILE *fpp) {
 
   printf("seek index\n");
 
-  offset= get_index(TT.i, hash);
+  offset = get_index(TT.i, hash);
   printf("Found index: %ld\n", offset);
   printf("read object\n");
   object = unpack_object(fpp, TT.i, offset, &count, &type);
   printf("%s\n", object);
   printf("Type %d\n", type);
   if (type==1) { //at commit object
-    memcpy(hash, &object[5], 40);
+    memcpy(hash, object+5, 40);
     write_children(txtoh(hash), path, fpp);
   } else if (type==2) { //at tree object https://stackoverflow.com/a/21599232
-    char *hs = 0;
+    char *hs, *name;
     int pos = 0;
 
     printf("process folder %s\n", path);
     while (pos<count){
       //find position where the next hash starts
-      hs = strchr(object+pos, '\0')+1;
-      printf("Object+pos: %s\n", object+pos);
-      char *name;
-      // memcpy(mode, object+pos+2, 3)//TODO:String to umask
-      if (*(object+pos)=='1') { //tree object reference is a file
+      hs = object+pos;
+      printf("Object+pos: %s\n", hs);
+      // memcpy(mode, hs+2, 3)//TODO:String to umask
+      if (*hs=='1') { //tree object reference is a file
         // concat file name
-        name = (strlen(path)>0) ? xmprintf("%s/%s", path, object+pos+7) : object+pos+7;
+        name = *path ? xmprintf("%s/%s", path, hs+7) : hs+7;
         printf("prepare file %s\n", name);
       } else { //tree object reference is a folder
         // concat folder name
-        name = (strlen(path)>0) ? xmprintf("%s/%s", path, object+pos+6) : object+pos+6;
+        name = *path ? xmprintf("%s/%s", path, hs+6) : hs+6;
         printf("create folder %s\n", name);
         mkdir(name, 0755); //TODO: umask
       }
+      hs += strlen(hs)+1;
       memcpy(hash, hs, 20);
       write_children(hash, name, fpp);
       pos = hs-object+20;
@@ -520,33 +519,32 @@ void write_children(char *hash, char *path, FILE *fpp) {
 static void gitfetch(void)
 {
   printf("refs\n");
-  pid_t pid;
 
   // TODO:I use herein after two temp files for fetch which git does not offer
   // to 1) avoid a rewrite and 2) messing up the repo files while testing
 
   // TODO: Refactor wget into lib
-  if ((pid = fork())==0)
-    execv("toybox", (char *[]){"toybox", "wget", "-O", ".git/refs/temp.refs",
+  xrun((char *[]){"wget", "-O", ".git/refs/temp.refs",
       "https://github.com/landley/toybox/info/refs?service=git-upload-pack",
-      (char*)0});
-  perror("execv\n");
+      0});
   //char h[] = "8cf1722f0fde510ea81d13b31bde1e48917a0306";
   //TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
   FILE *fpr = fopen(".git/ref/temp.refs", "r");
-  char *h;size_t l =0;
+  char *h;
+  size_t l = 0;
+
   getline(&h,&l,fpr);
   getline(&h,&l,fpr);
   getline(&h,&l,fpr);
   getline(&h,&l,fpr);
   fclose(fpr);
   strcpy(h,&h[4]);
-  h[40]='\0';
+  h[40] = 0;
   printf("Master HEAD hash: %s\n",h);
   //TODO: Persist hash to /refs/master/HEAD
   printf("pack\n");
-  if ((pid = fork())==0) execv("toybox", (char *[]){"toybox", "wget", "-O", ".git/objects/pack/temp.pack", "-p", xmprintf("$'0032want %s\n00000009done\n'", h), "https://github.com/landley/toybox/git-upload-pack", (char*)0}); //TODO: does not skip 0008NAK  printf("init\n");
-  perror("execv\n");
+  xrun((char *[]){"toybox", "wget", "-O", ".git/objects/pack/temp.pack", "-p", xmprintf("$'0032want %s\n00000009done\n'", h), "https://github.com/landley/toybox/git-upload-pack", 0});
+  //TODO: does not skip 0008NAK  printf("init\n");
   FILE *fpp;
   printf("openpack\n");
   fpp = fopen(".git/objects/pack/temp.pack", "r");
@@ -589,6 +587,7 @@ static void gitcheckout(char *name)
 
   FILE *fpp;
   //FILE *fh;
+
   printf("Find branch for checkout\n");
   //fh = fopen(xmprintf(".git/ref/heads/%s", name ? "master" : name), "r"); //TODO: Checkout master as in ref/heads
   printf("Read head\n");
