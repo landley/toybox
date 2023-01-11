@@ -90,10 +90,12 @@ testing "filter timestamps" "patch > /dev/null && cat bork" \
 testing "quoted name" "patch > /dev/null && cat 'fruit bat'" \
   "hello\n" "" '
 --- /dev/null
-+++ "fruit bat"
++++ "fruit ba\164"
 @@ -0,0 +1 @@
 +hello
 '
+
+testing "bad quote" "patch 2>&1" $'patch: bad "filename\n' "" '--- "filename'
 
 testing "dry run doesn't delete file" \
   "patch --dry-run > /dev/null && [ -e 'fruit bat' ] && echo yes" "yes\n" "" '
