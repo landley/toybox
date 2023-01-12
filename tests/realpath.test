@@ -5,6 +5,7 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 TOP="$(readlink -f .)"
+export PWD
 
 touch file
 mkdir -p one/two/three
