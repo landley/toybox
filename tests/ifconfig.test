@@ -31,7 +31,7 @@ then
 fi
 
 # Add a dummy interface to test with
-modprobe dummy 2>/dev/null
+modprobe dummy >/dev/null 2>&1
 if ! ifconfig dummy0 up 2>/dev/null
 then
   echo "$SHOWSKIP: ifconfig dummy0 up failed"
@@ -40,7 +40,7 @@ then
 fi
 
 # Results Expected: After calling ifconfig, no lines with dummy0 are displayed
-testing "Disable the dummy0 interface"
+testing "Disable the dummy0 interface" \
   "ifconfig dummy0 down && ifconfig | grep dummy | wc -l" "0\n" "" ""
 
 # Results Expected: After calling ifconfig, one line with dummy0 is displayed
