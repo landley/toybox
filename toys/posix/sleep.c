@@ -11,7 +11,7 @@ config SLEEP
   bool "sleep"
   default y
   help
-    usage: sleep DURATION
+    usage: sleep DURATION...
 
     Wait before exiting.
 
