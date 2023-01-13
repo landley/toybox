@@ -303,4 +303,5 @@ fi
 # multiplexer binary via truncate-and-write through a symlink.
 do_loudly chmod 555 "$OUTNAME" || exit 1
 
-[ -z "$V" ] && echo >&2
+# Ensure make wrapper sees success return code
+[ -z "$V" ] && echo >&2 || true
