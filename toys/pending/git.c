@@ -117,7 +117,7 @@ static void read_index(struct IndexV2 *i)
   }
 }
 
-long bsearchpos(const void *k, const void *a, size_t h, size_t w)
+long bsearchpos(const char *k, const char *a, size_t h, size_t w)
 {
   long l = 0, m = 0, r = 0;
 
@@ -277,7 +277,7 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
 
   //Did not fix the TODO yet, because set_object could be reused for other commands adding single objects to the index
   idx->sha1 = realloc(idx->sha1, (idx->fot[255]+1)*20*sizeof(char));
-  printf("Mem copy sha1 array..sizeof(idx->sha1)%ld\n", sizeof(idx->sha1));
+  printf("Mem copy sha1 array..sizeof(idx->sha1)%zu\n", sizeof(idx->sha1));
   memmove(&idx->sha1[pos+1], &idx->sha1[pos], (idx->fot[255]-pos)*20*sizeof(char));
   printf("Resize offset\n");
   idx->offset = realloc(idx->offset, (idx->fot[255]+1)*sizeof(unsigned));
@@ -362,7 +362,7 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
     int i = 0, j = 1;
     unsigned offset = 0, size = 0;
 
-    if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L87
+    if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L128
     //https://stackoverflow.com/a/14303988
       printf("Case 1\n");
       while (i<4) {
@@ -374,7 +374,7 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
       }
       while (i<7) {
         if (d[pos]&(1<<i)) {
-          size |= d[pos+j]<<((i+4)*8);
+          size |= d[pos+j]<<(i*8);
           j++;
         }
         i++;
@@ -388,7 +388,7 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
       pos += j;
       printf("Pos\n");
     } else {
-      //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L153
+      //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L158
     printf("Case 0\n");
       size = d[pos++]; //incrememt
       memcpy(t+*count, d+pos, size);
@@ -462,7 +462,7 @@ void write_children(char *hash, char *path, FILE *fpp)
   char *object;
   int type;
   long offset;
-  unsigned count;
+  unsigned count=0;
 
   printf("seek index\n");
 
