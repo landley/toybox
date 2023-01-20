@@ -220,7 +220,7 @@ static int do_find(struct dirtree *new)
   // skip . and .. below topdir, handle -xdev and -depth
   if (new) {
     // Handle stat failures first.
-    if (new->again&2) {
+    if (new->again&DIRTREE_STATLESS) {
       if (!new->parent || errno != ENOENT) {
         perror_msg("'%s'", s = dirtree_path(new, 0));
         free(s);

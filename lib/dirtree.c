@@ -52,11 +52,11 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
   }
 
   // Allocate/populate return structure
-  memset(dt = xmalloc((len = sizeof(struct dirtree)+len+1)+linklen), 0,
-    statless ? sizeof(struct dirtree) : offsetof(struct dirtree, st));
+  dt = xmalloc((len = sizeof(struct dirtree)+len+1)+linklen);
+  memset(dt, 0, sizeof(struct dirtree));
   dt->parent = parent;
-  dt->again = statless ? 2 : 0;
-  if (!statless) memcpy(&dt->st, &st, sizeof(struct stat));
+  if (statless) dt->again = DIRTREE_STATLESS;
+  else memcpy(&dt->st, &st, sizeof(struct stat));
   if (name) strcpy(dt->name, name);
   else *dt->name = 0, dt->st.st_mode = S_IFDIR;
   if (linklen) dt->symlink = memcpy(len+(char *)dt, libbuf, linklen);
@@ -176,7 +176,7 @@ int dirtree_recurse(struct dirtree *node,
   }
 
   if (flags & DIRTREE_COMEAGAIN) {
-    node->again |= 1;
+    node->again |= DIRTREE_COMEAGAIN;
     flags = callback(node);
   }
 

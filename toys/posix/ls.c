@@ -544,7 +544,7 @@ void ls_main(void)
 
     // note: double_list->prev temporarily goes in dirtree->parent
     if (dt) {
-      if (dt->again&2) {
+      if (dt->again&DIRTREE_STATLESS) {
         perror_msg_raw(*s);
         free(dt);
       } else dlist_add_nomalloc((void *)&TT.files->child, (void *)dt);
