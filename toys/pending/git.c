@@ -529,7 +529,7 @@ static void gitfetch(void)
       0});
   //char h[] = "8cf1722f0fde510ea81d13b31bde1e48917a0306";
   //TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
-  FILE *fpr = fopen(".git/ref/temp.refs", "r");
+  FILE *fpr = fopen(".git/refs/temp.refs", "r");
   char *h;
   size_t l = 0;
 
