@@ -124,6 +124,7 @@ static void parse_inittab(void)
 {
   char *line = 0;
   size_t allocated_length = 0;
+  ssize_t line_length = 0;
   int line_number = 0;
   char *act_name = "sysinit\0wait\0once\0respawn\0askfirst\0ctrlaltdel\0"
                     "shutdown\0restart\0";
@@ -136,10 +137,11 @@ static void parse_inittab(void)
     return;
   }
 
-  while (getline(&line, &allocated_length, fp) > 0) {
+  while ((line_length = getline(&line, &allocated_length, fp)) > 0) {
     char *p = line, *x, *tty_name = 0, *command = 0, *extracted_token, *tmp;
     int action = 0, token_count = 0, i;
 
+    if (p[line_length - 1] == '\n') p[line_length - 1] = '\0';
     if ((x = strchr(p, '#'))) *x = '\0';
     line_number++;
     action = 0;
