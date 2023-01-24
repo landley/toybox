@@ -91,7 +91,7 @@ void login_main(void)
       if (x) break;
     }
 
-    syslog(LOG_WARNING, "invalid password for '%s' on %s %s%s", pwd->pw_name,
+    syslog(LOG_WARNING, "invalid password for '%s' on %s %s%s", username,
       ttyname(tty), hh ? "from " : "", hh ? TT.h : "");
 
     sleep(3);
