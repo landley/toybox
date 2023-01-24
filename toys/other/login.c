@@ -78,7 +78,12 @@ void login_main(void)
       if (*(pass = pwd->pw_passwd) == 'x') {
         struct spwd *spwd = getspnam (username);
 
-        if (spwd) pass = spwd->sp_pwdp;
+        if (spwd) {
+          pass = spwd->sp_pwdp;
+
+          // empty shadow password
+          if (pass && !*pass) break;
+        }
       }
     } else if (TT.f) error_exit("bad -f '%s'", TT.f);
 
