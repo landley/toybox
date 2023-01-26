@@ -18,6 +18,7 @@ config STRACE
     -v	Dump all of large structs/arrays.
 */
 
+#include <elf.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
 
@@ -33,9 +34,6 @@ GLOBALS(
   int arg;
 )
 
-  struct user_regs_struct regs;
-
-
 // Syscall args from https://man7.org/linux/man-pages/man2/syscall.2.html
 // REG_ORDER is args 0-6, SYSCALL, RESULT
 #if defined(__ARM_EABI__)
@@ -50,6 +48,9 @@ static const char REG_ORDER[] = {0,1,2,3,4,5,11,6};
 static const char REG_ORDER[] = {0,1,2,3,4,7,16,14};
 #elif defined(__PPC__) || defined(__PPC64__)
 static const char REG_ORDER[] = {3,4,5,6,7,8,0,3};
+#elif defined(__riscv)
+// a0,a1,a2,a3,a4,a5,a7,a0
+static const char REG_ORDER[] = {10,11,12,13,14,15,17,10};
 #elif defined(__s390__) // also covers s390x
 // r2,r3,r4,r5,r6,r7,r1,r2 but mask+addr before r0 so +2
 static const char REG_ORDER[] = {4,5,6,7,8,9,3,4};
@@ -164,12 +165,14 @@ static char *strerrno(int e)
 
 static void xptrace(int req, pid_t pid, void *addr, void *data)
 {
-  if (ptrace(req, pid, addr, data)) perror_exit("ptrace pid %d", pid);
+  if (ptrace(req, pid, addr, data)) perror_exit("ptrace %d pid %d", req, pid);
 }
 
-static void get_regs()
+static void get_regs(void)
 {
-  xptrace(PTRACE_GETREGS, TT.pid, 0, TT.regs);
+  struct iovec v = {.iov_base=&TT.regs, .iov_len=sizeof(TT.regs)};
+
+  xptrace(PTRACE_GETREGSET, TT.pid, (void *)NT_PRSTATUS, &v);
 }
 
 static void ptrace_struct(long addr, void *dst, size_t bytes)
@@ -242,11 +245,12 @@ static void print_struct(long addr)
     if (FLAG(v)) {
       // TODO: full atime/mtime/ctime dump.
       fprintf(stderr, "{st_dev=makedev(%#x, %#x), st_ino=%ld, st_mode=%o, "
-          "st_nlink=%ld, st_uid=%d, st_gid=%d, st_blksize=%ld, st_blocks=%ld, "
-          "st_size=%lld, st_atime=%ld, st_mtime=%ld, st_ctime=%ld}",
-          dev_major(sb.st_dev), dev_minor(sb.st_dev), sb.st_ino, sb.st_mode,
-          (long) sb.st_nlink, sb.st_uid, sb.st_gid, sb.st_blksize, sb.st_blocks,
-          (long long)sb.st_size, sb.st_atime, sb.st_mtime, sb.st_ctime);
+        "st_nlink=%ld, st_uid=%d, st_gid=%d, st_blksize=%ld, st_blocks=%ld, "
+        "st_size=%lld, st_atime=%ld, st_mtime=%ld, st_ctime=%ld}",
+        dev_major(sb.st_dev), dev_minor(sb.st_dev), sb.st_ino, sb.st_mode,
+        (long) sb.st_nlink, sb.st_uid, sb.st_gid, (long) sb.st_blksize,
+        sb.st_blocks, (long long)sb.st_size, sb.st_atime, sb.st_mtime,
+        sb.st_ctime);
     } else {
       fprintf(stderr, "{st_mode=%o, st_size=%lld, ...}", sb.st_mode,
         (long long)sb.st_size);
@@ -356,7 +360,10 @@ static void print_flags(long v)
   if (strstart(&TT.fmt, "access|")) {
     print_bitmask(1, v, "F_OK", C(R_OK), C(W_OK), C(X_OK), 0);
   } else if (strstart(&TT.fmt, "mmap|")) {
-    print_bitmask(1, v, 0, C(MAP_SHARED), C(MAP_PRIVATE), C(MAP_32BIT),
+    print_bitmask(1, v, 0, C(MAP_SHARED), C(MAP_PRIVATE),
+#if defined(MAP_32BIT)
+        C(MAP_32BIT),
+#endif
         C(MAP_ANONYMOUS), C(MAP_FIXED), C(MAP_GROWSDOWN), C(MAP_HUGETLB),
         C(MAP_DENYWRITE), 0);
   } else if (strstart(&TT.fmt, "open|")) {
@@ -367,6 +374,8 @@ static void print_flags(long v)
         0x4000, "O_DIRECT", 0x8000, "O_LARGEFILE", 0x410000, "O_TMPFILE", 0);
   } else if (strstart(&TT.fmt, "prot|")) {
     print_bitmask(1,v,"PROT_NONE",C(PROT_READ),C(PROT_WRITE),C(PROT_EXEC),0);
+  } else if (strstart(&TT.fmt, "grnd|")) {
+    print_bitmask(1,v,"0",C(GRND_RANDOM),C(GRND_NONBLOCK),0);
   } else abort();
 }
 
@@ -469,21 +478,29 @@ static void print_enter(void)
     }
   } else switch (TT.syscall) {
 #define SC(n,f) case __NR_ ## n: name = #n; TT.fmt = f; break
+#if defined(__NR_access)
     SC(access, "s|access|");
+#endif
+#if defined(__NR_arch_prctl)
     SC(arch_prctl, "dp");
+#endif
     SC(brk, "p");
     SC(close, "d");
     SC(connect, "fpd"); // TODO: sockaddr
     SC(dup, "f");
+#if defined(__NR_dup2)
     SC(dup2, "ff");
+#endif
     SC(dup3, "ff|open|");
     SC(execve, "spp");
     SC(exit_group, "d");
+    SC(faccessat, "fs|access|");
     SC(fcntl, "fdp"); // TODO: probably needs special case
     SC(fstat, "f/{stat}");
     SC(futex, "pdxppx");
     SC(getdents64, "dpz");
     SC(geteuid, "");
+    SC(getrandom, "pz|grnd|");
     SC(getuid, "");
 
     SC(getxattr, "sspz");
@@ -491,18 +508,24 @@ static void print_enter(void)
     SC(fgetxattr, "fspz");
 
     SC(lseek, "fo^seek^");
+#if defined(__NR_lstat)
     SC(lstat, "s/{stat}");
+#endif
     SC(mmap, "pz|prot||mmap|fx");
     SC(mprotect, "pz|prot|");
     SC(mremap, "pzzdp"); // TODO: flags
     SC(munmap, "pz");
     SC(nanosleep, "{timespec}/{timespec}");
-#ifdef __NR_newfstatat
+#if defined(__NR_newfstatat)
     SC(newfstatat, "fs/{stat}d");
 #endif
+#if defined(__NR_open)
     SC(open, "sd|open|m");
+#endif
     SC(openat, "fs|open|m");
+#if defined(__NR_poll)
     SC(poll, "pdd");
+#endif
     SC(prlimit64, "d^rlimit^{rlimit}/{rlimit}");
     SC(read, "d/sz");
     SC(readlinkat, "s/sz");
@@ -511,7 +534,9 @@ static void print_enter(void)
     SC(set_robust_list, "pd");
     SC(set_tid_address, "p");
     SC(socket, "ddd"); // TODO: flags
+#if defined(__NR_stat)
     SC(stat, "s/{stat}");
+#endif
     SC(statfs, "sp");
     SC(sysinfo, "p");
     SC(umask, "m");
