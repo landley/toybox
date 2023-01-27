@@ -322,30 +322,30 @@ mkdir uno
 ln -s tres uno/dos
 touch uno/tres
 ln uno/tres uno/quatro
-tt() { $TAR --no-recursion uno uno/{dos,tres,quatro} "$@" | \
-  LST --show-transformed-names $XX | sed 's/^.* 23:31 //'; }
+LL() { LST --show-transformed-names $XX | sed 's/^.* 23:31 //'; }
+TT() { $TAR --no-recursion uno uno/{dos,tres,quatro} "$@" | LL; }
 testing 'xform S' \
-  "tt --xform 's/uno/one/S;s/dos/two/S;s/tres/three/S;s/quatro/four/S'" \
+  "TT --xform 's/uno/one/S;s/dos/two/S;s/tres/three/S;s/quatro/four/S'" \
   "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
 
 testing 'xform flags=rh starts with all disabled' \
-  "tt --xform 's/uno/one/;flags=rh;s/dos/two/;s/tres/three/;s/quatro/four/'" \
+  "TT --xform 's/uno/one/;flags=rh;s/dos/two/;s/tres/three/;s/quatro/four/'" \
   "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
 
 testing 'xform flags=rHhsS toggles' \
-  "tt --xform 's/uno/one/;flags=rHhsS;s/dos/two/;s/tres/three/;s/quatro/four/'"\
+  "TT --xform 's/uno/one/;flags=rHhsS;s/dos/two/;s/tres/three/;s/quatro/four/'"\
   "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
 
 testing 'xform flags= is not a delta from previous' \
-  "tt --xform 'flags=s;flags=rh;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
+  "TT --xform 'flags=s;flags=rh;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
   "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
 
 testing 'xform H' \
-  "tt --xform 'flags=rsH;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
+  "TT --xform 'flags=rsH;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
   "one/\none/two -> three\none/three\none/four link to uno/tres\n" "" ""
 
 testing 'xform R' \
-  "tt --xform 'flags=rshR;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
+  "TT --xform 'flags=rshR;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/'" \
   "uno/\nuno/dos -> three\nuno/tres\nuno/quatro link to one/three\n" "" ""
 
 testing "xform path" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
@@ -356,19 +356,19 @@ testing "xform trailing slash special case" \
 
 # The quoting works because default IFS splits on whitepace not ;
 testing "xform extract all" \
-  "XX='--xform s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' tt" \
+  "XX='--xform s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' TT" \
   'one/\none/two -> three\none/three\none/four link to one/three\n' '' ''
 
 testing 'xform extract S' \
-  "XX='--xform s/uno/one/S;s/dos/two/S;s/tres/three/S;s/quatro/four/S' tt" \
+  "XX='--xform s/uno/one/S;s/dos/two/S;s/tres/three/S;s/quatro/four/S' TT" \
   "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
 
 testing 'xform extract H' \
-  "XX='--xform flags=rs;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' tt"\
+  "XX='--xform flags=rs;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' TT"\
   "one/\none/two -> three\none/three\none/four link to uno/tres\n" "" ""
 
 testing 'xform extract R' \
-  "XX='--xform flags=sh;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' tt"\
+  "XX='--xform flags=sh;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' TT"\
   "uno/\nuno/dos -> three\nuno/tres\nuno/quatro link to one/three\n" "" ""
 
 rm -rf uno
@@ -380,6 +380,33 @@ testing '-P' "$TAR -P --no-recursion -C / /// .. | SUM 3" \
 
 testing 'without -P' "$TAR --no-recursion -C / /// .. 2>/dev/null | SUM 3" \
   "077d03243e247b074806904885e6da272fd5857a\n" "" ""
+
+# Wildcards: --exclude, include (create/extract * cmdline/recursive)
+# --anchored, --wildcards, --wildcards-match-slash
+
+#pattern a.c
+#  abcd dabc a/c da/c
+#  top/*
+
+mkdir sub && cd sub && mkdir -p a da top/a top/da &&
+touch abcd dabc a/c da/c top/abcd top/dabc top/a/c top/da/c &&
+$TAR -f ../sub.tar abcd dabc a da top && cd .. || exit 1
+
+# TODO I have not made wildcard state changes positional.
+
+testing 'wildcards do not affect creation cmdline args' \
+  '$TAR -C sub --wildcards a.cd abcd dabc a da top 2>/dev/null | cmp - sub.tar' \
+  '' '' ''
+
+testing 'creation --exclude --no-wildcards'\
+  '$TAR -C sub --no-wildcards --exclude=d?bc abcd dabc | LL' \
+  'abcd\ndabc\n' '' ''
+
+
+testing 'creation --wildcards --exclude'\
+  '$TAR -C sub --wildcards --exclude=d?bc abcd dabc | LL' \
+  'abcd\n' '' ''
+
 
 if false
 then

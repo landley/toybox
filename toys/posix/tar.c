@@ -14,12 +14,13 @@
  *
  * Toybox will never implement the "pax" command as a matter of policy.
  *
+ * TODO: --wildcard state changes aren't positional.
+ * We always --verbatim-files-from
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
- *
  * No --no-null because the args infrastructure isn't ready.
- *
+ * Until args.c learns about no- toggles, --no-thingy always wins over --thingy
 
-USE_TAR(NEWTOY(tar, "&(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -46,6 +47,13 @@ config TAR
     --strip-components NUM  Ignore first NUM directory components when extracting
     --xform=SED      Modify filenames via SED expression (ala s/find/replace/g)
     -I PROG          Filter through PROG to compress or PROG -d to decompress
+
+    Filename filter types. Create command line args aren't filtered, extract
+    defaults to --anchored, --exclude defaults to --wildcards-match-slash,
+    use no- prefix to disable:
+
+    --anchored  Match name not path       --ignore-case       Case insensitive
+    --wildcards Expand *?[] like shell    --wildcards-match-slash
 */
 
 #define FOR_tar
@@ -163,14 +171,53 @@ static void maybe_prefix_block(char *data, int check, int type)
   if (len>check) write_prefix_block(data, len+1, type);
 }
 
+static int do_filter(char *pattern, char *name, long long flags)
+{
+  int ign = !!(flags&FLAG_ignore_case), wild = !!(flags&FLAG_wildcards),
+      slash = !!(flags&FLAG_wildcards_match_slash), len;
+
+  if (wild || slash) {
+    // 1) match can end with / 2) maybe case insensitive 2) maybe * matches /
+    if (!fnmatch(pattern, name, FNM_LEADING_DIR+FNM_CASEFOLD*ign+FNM_PATHNAME*slash))
+      return 1;
+  } else {
+    len = strlen(pattern);
+    if (!(ign ? strncasecmp : strncmp)(pattern, name, len))
+      if (!name[len] || name[len]=='/') return 1;
+  }
+
+  return 0;
+}
+
 static struct double_list *filter(struct double_list *lst, char *name)
 {
   struct double_list *end = lst;
+  long long flags = toys.optflags;
+  char *ss, *last;
 
-  if (lst)
-    // constant is FNM_LEADING_DIR
-    do if (!fnmatch(lst->data, name, 1<<3)) return lst;
-    while (end != (lst = lst->next));
+  if (!lst || !*name) return 0;
+
+  // --wildcards-match-slash implies --wildcards because I couldn't figure
+  // out a graceful way to explain why it DIDN'T in the help text. We don't
+  // do the positional enable/disable thing (would need to annotate at list
+  // creation, maybe a TODO item).
+
+  // Set defaults for filter type, and apply --no-flags
+  if (lst == TT.excl) flags |= FLAG_wildcards_match_slash;
+  else flags |= FLAG_anchored;
+  flags &= (~(flags&(FLAG_no_ignore_case|FLAG_no_anchored|FLAG_no_wildcards|FLAG_no_wildcards_match_slash)))>>1;
+  if (flags&FLAG_no_wildcards) flags &= ~FLAG_wildcards_match_slash;
+
+  // The +1 instead of ++ is in case of conseutive slashes
+  do {
+    for (ss = last = name; *ss; ss++) {
+      if (*ss!='/' || !ss[1]) continue;
+      if (!(flags & FLAG_anchored)) {
+        if (do_filter(lst->data, ss+1, flags)) return lst;
+      } else last = ss+1;
+    }
+    if (do_filter(lst->data, last, flags)) return lst;
+  } while (end != (lst = lst->next));
 
   return 0;
 }
@@ -227,16 +274,11 @@ static int add_to_tar(struct dirtree *node)
 
   i = 1;
   name = hname = dirtree_path(node, &i);
-
-  // exclusion defaults to --no-anchored and --wildcards-match-slash
-  for (lnk = name; *lnk;) {
-    if (filter(TT.excl, lnk)) goto done;
-    while (*lnk && *lnk!='/') lnk++;
-    while (*lnk=='/') lnk++;
-  }
+  if (filter(TT.excl, name)) goto done;
 
   // Consume the 1 extra byte alocated in dirtree_path()
-  if (S_ISDIR(st->st_mode) && lnk[-1] != '/') strcpy(lnk, "/");
+  if (S_ISDIR(st->st_mode) && (lnk = name+strlen(name))[-1] != '/')
+    strcpy(lnk, "/");
 
   // remove leading / and any .. entries from saved name
   if (!FLAG(P)) {
@@ -927,11 +969,14 @@ void tar_main(void)
   }
   if (TT.mtime) xparsedate(TT.mtime, &TT.mtt, (void *)&s, 1);
 
+  // TODO: collect filter types here and annotate saved include/exclude?
+
   // Collect file list.
   for (; TT.exclude; TT.exclude = TT.exclude->next)
     trim2list(&TT.excl, TT.exclude->arg);
   for (;TT.X; TT.X = TT.X->next) do_lines(xopenro(TT.X->arg), '\n', do_XT);
   for (args = toys.optargs; *args; args++) trim2list(&TT.incl, *args);
+  // -T is always --verbatim-files-from: no quote removal or -arg handling
   for (;TT.T; TT.T = TT.T->next)
     do_lines(xopenro(TT.T->arg), FLAG(null) ? '\0' : '\n', do_XT);
 
@@ -1088,6 +1133,10 @@ void tar_main(void)
     } while (TT.incl != (dl = dl->next));
 
     writeall(TT.fd, toybuf, 1024);
+  }
+  if (TT.pid) {
+    TT.pid = xpclose_both(TT.pid, 0);
+    if (TT.pid) toys.exitval = TT.pid;
   }
   if (toys.exitval) error_msg("had errors");
 

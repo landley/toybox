@@ -8,13 +8,6 @@
 // This must come before we #include any system header file to take effect!
 #define _FILE_OFFSET_BITS 64
 
-// For musl
-#define _ALL_SOURCE
-#include <regex.h>
-#ifndef REG_STARTEND
-#define REG_STARTEND 0
-#endif
-
 #ifdef __APPLE__
 // macOS 10.13 doesn't have the POSIX 2008 direct access to timespec in
 // struct stat, but we can ask it to give us something equivalent...
@@ -24,6 +17,27 @@
 #define st_atim st_atimespec
 #define st_ctim st_ctimespec
 #define st_mtim st_mtimespec
+#endif
+
+// For musl
+#define _ALL_SOURCE
+#include <regex.h>
+#ifndef REG_STARTEND
+#define REG_STARTEND 0
+#endif
+
+// for some reason gnu/libc only sets these if you #define ia_ia_stallman_ftaghn
+// despite FreeBSD and MacOS having both with the same value, and bionic's
+// "upstream-openbsd" directory documenting them as "BSD extensions".
+// (The flexible extension would have been an fnmatch() that returns length
+// matched at location so we could check trailing data ourselves, but no.
+// And it's ANSI only case matching instead of UTF8...)
+#include <fnmatch.h>
+#ifndef FNM_LEADING_DIR
+#define FNM_LEADING_DIR   8
+#endif
+#ifndef FNM_CASEFOLD
+#define FNM_CASEFOLD     16
 #endif
 
 // Test for gcc (using compiler builtin #define)
@@ -39,17 +53,13 @@
 #define printf_format
 #endif
 
-// This isn't in the spec, but it's how we determine what libc we're using.
-
-// Types various replacement prototypes need.
-// This also lets us determine what libc we're using. Systems that
-// have <features.h> will transitively include it, and ones that don't --
-// macOS -- won't break.
+// This lets us determine what libc we're using: systems that have <features.h>
+// will transitively include it, and ones that don't (macOS) won't break.
 #include <sys/types.h>
 
 // Various constants old build environments might not have even if kernel does
 
-#ifndef AT_FDCWD
+#ifndef AT_FDCWD             // Kernel commit 5590ff0d5528 2006
 #define AT_FDCWD -100
 #endif
 
@@ -61,11 +71,11 @@
 #define AT_REMOVEDIR 0x200
 #endif
 
-#ifndef RLIMIT_RTTIME
+#ifndef RLIMIT_RTTIME // Commit 78f2c7db6068f 2008
 #define RLIMIT_RTTIME 15
 #endif
 
-// Introduced in Linux 3.1
+// Introduced in Linux 3.1 (Commit 982d816581eee 2011)
 #ifndef SEEK_DATA
 #define SEEK_DATA 3
 #endif
@@ -84,7 +94,7 @@
 // claim it's in the name of Gnu.
 
 #if defined(__GLIBC__)
-// "Function prototypes shall be provided." but aren't.
+// Glibc violates posix: "Function prototypes shall be provided." but aren't.
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 char *crypt(const char *key, const char *salt);
 
@@ -97,14 +107,14 @@ int wcwidth(wchar_t wc);
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
 
-// They didn't like posix basename so they defined another function with the
+// Gnu didn't like posix basename so they defined another function with the
 // same name and if you include libgen.h it #defines basename to something
 // else (where they implemented the real basename), and that define breaks
 // the table entry for the basename command. They didn't make a new function
 // with a different name for their new behavior because gnu.
 //
-// Solution: don't use their broken header, provide an inline to redirect the
-// correct name to the broken name.
+// Solution: don't use their broken header and provide an inline to redirect
+// the standard name to the renamed function with the standard behavior.
 
 char *dirname(char *path);
 char *__xpg_basename(char *path);
