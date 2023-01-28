@@ -18,7 +18,6 @@ config STRACE
     -v	Dump all of large structs/arrays.
 */
 
-#include <elf.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
 
@@ -172,7 +171,7 @@ static void get_regs(void)
 {
   struct iovec v = {.iov_base=&TT.regs, .iov_len=sizeof(TT.regs)};
 
-  xptrace(PTRACE_GETREGSET, TT.pid, (void *)NT_PRSTATUS, &v);
+  xptrace(PTRACE_GETREGSET, TT.pid, (void *)1, &v); // NT_PRSTATUS
 }
 
 static void ptrace_struct(long addr, void *dst, size_t bytes)
