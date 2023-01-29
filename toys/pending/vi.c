@@ -21,6 +21,7 @@ config VI
 #include "toys.h"
 
 GLOBALS(
+  char *filename;
   char *s;
   int vi_mode, tabstop, list;
   int cur_col, cur_row, scr_row;
@@ -41,7 +42,8 @@ GLOBALS(
     char* data;
   } yank;
 
-  int modified;
+  int modified; // TODO: no editing operations actually set this!
+
   size_t filesize;
 // mem_block contains RO data that is either original file as mmap
 // or heap allocated inserted data
@@ -505,6 +507,22 @@ static void block_list_free(void *node)
   free(d);
 }
 
+static void show_error(char *fmt, ...)
+{
+  va_list va;
+
+  printf("\a\e[%dH\e[41m\e[37m\e[K\e[1m", TT.screen_height+1);
+  va_start(va, fmt);
+  vprintf(fmt, va);
+  va_end(va);
+  printf("\e[0m");
+  xflush(1);
+
+  // TODO: better integration with status line: remove sleep and keep
+  // message until next operation.
+  sleep(1);
+}
+
 static void linelist_unload()
 {
   llist_traverse((void *)TT.slices, llist_free_double);
@@ -512,45 +530,59 @@ static void linelist_unload()
   TT.slices = 0, TT.text = 0;
 }
 
-static int linelist_load(char *filename)
+static void linelist_load(char *filename, int ignore_missing)
 {
-  if (!filename) filename = (char*)*toys.optargs;
+  int fd;
+  long long size;
 
-  if (filename) {
-    int fd = open(filename, O_RDONLY);
-    long long size;
-
-    if (fd == -1 || !(size = fdlength(fd))) {
-      insert_str("", 0, 0, 0, STACK);
-      TT.filesize = 0;
-
-      return 0;
-    }
-    insert_str(xmmap(0, size, PROT_READ, MAP_SHARED, fd, 0), 0, size,size,MMAP);
-    xclose(fd);
-    TT.filesize = text_filesize();
+  if (!filename) filename = TT.filename;
+  if (!filename) {
+    // `vi` with no arguments creates a new unnamed file.
+    return;
   }
 
-  return 1;
+  fd = open(filename, O_RDONLY);
+  if (fd == -1) {
+    if (!ignore_missing) {
+      show_error("Couldn't open \"%s\" for reading: %s", filename,
+          strerror(errno));
+    }
+    return;
+  }
+
+  size = fdlength(fd);
+  if (size > 0) {
+    insert_str(xmmap(0,size,PROT_READ,MAP_SHARED,fd,0), 0, size, size, MMAP);
+    TT.filesize = text_filesize();
+  }
+  xclose(fd);
 }
 
-static void write_file(char *filename)
+static int write_file(char *filename)
 {
   struct slice_list *s = TT.slices;
   struct stat st;
   int fd = 0;
-  if (!s) return;
 
-  if (!filename) filename = (char*)*toys.optargs;
+  if (!filename) filename = TT.filename;
+  if (!filename) {
+    show_error("No file name");
+    return -1;
+  }
 
   sprintf(toybuf, "%s.swp", filename);
 
-  if ( (fd = xopen(toybuf, O_WRONLY | O_CREAT | O_TRUNC)) <0) return;
+  if ((fd = open(toybuf, O_WRONLY | O_CREAT | O_TRUNC)) == -1) {
+    show_error("Couldn't open \"%s\" for writing: %s", toybuf, strerror(errno));
+    return -1;
+  }
 
-  do {
-    xwrite(fd, (void *)s->node->data, s->node->len );
-    s = s->next;
-  } while (s != TT.slices);
+  if (s) {
+    do {
+      xwrite(fd, (void *)s->node->data, s->node->len);
+      s = s->next;
+    } while (s != TT.slices);
+  }
 
   linelist_unload();
 
@@ -558,7 +590,8 @@ static void write_file(char *filename)
   if (!stat(filename, &st)) chmod(toybuf, st.st_mode);
   else chmod(toybuf, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
   xrename(toybuf, filename);
-  linelist_load(filename);
+  linelist_load(filename, 0);
+  return 0;
 }
 
 //jump into valid offset index
@@ -1255,6 +1288,7 @@ static int run_vi_cmd(char *cmd)
 }
 
 
+// Return non-zero to exit.
 static int run_ex_cmd(char *cmd)
 {
   if (cmd[0] == '/') {
@@ -1263,31 +1297,24 @@ static int run_ex_cmd(char *cmd)
     // TODO: backwards search.
   } else if (cmd[0] == ':') {
     if (!strcmp(&cmd[1], "q") || !strcmp(&cmd[1], "q!")) {
-      // TODO: if no !, check whether file modified.
-      //exit_application;
-      return -1;
-    }
-    else if (strstr(&cmd[1], "wq")) {
+      if (cmd[2] != '!' && TT.modified) {
+        show_error("Unsaved changes (\"q!\" to ignore)");
+      } else return 1;
+    } else if (strstr(&cmd[1], "w ")) {
+      write_file(&cmd[3]);
+    } else if (strstr(&cmd[1], "wq")) {
+      return write_file(0);
+    } else if (strstr(&cmd[1], "w")) {
       write_file(0);
-      return -1;
-    }
-    else if (strstr(&cmd[1], "w")) {
-      write_file(0);
-      return 1;
-    }
-    else if (strstr(&cmd[1], "set list")) {
+    } else if (strstr(&cmd[1], "set list")) {
       TT.list = 1;
       TT.vi_mov_flag |= 0x30000000;
-      return 1;
-    }
-    else if (strstr(&cmd[1], "set nolist")) {
+    } else if (strstr(&cmd[1], "set nolist")) {
       TT.list = 0;
       TT.vi_mov_flag |= 0x30000000;
-      return 1;
     }
   }
   return 0;
-
 }
 
 static int vi_crunch(FILE *out, int cols, int wc)
@@ -1506,7 +1533,8 @@ void vi_main(void)
 
   TT.il->alloc = 80, TT.yank.alloc = 128;
 
-  linelist_load(0);
+  TT.filename = *toys.optargs;
+  linelist_load(0, 1);
 
   TT.vi_mov_flag = 0x20000000;
   TT.vi_mode = 1, TT.tabstop = 8;
@@ -1627,7 +1655,7 @@ void vi_main(void)
           break;
         case 0x0A:
         case 0x0D:
-          if (run_ex_cmd(TT.il->data) == -1)
+          if (run_ex_cmd(TT.il->data))
             goto cleanup_vi;
           TT.vi_mode = 1;
           TT.il->len = 0;
