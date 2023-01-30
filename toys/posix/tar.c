@@ -20,7 +20,7 @@
  * No --no-null because the args infrastructure isn't ready.
  * Until args.c learns about no- toggles, --no-thingy always wins over --thingy
 
-USE_TAR(NEWTOY(tar, "&(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(sort);:(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):as[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -33,9 +33,10 @@ config TAR
     Options:
     c  Create                x  Extract               t  Test (list)
     f  tar FILE (default -)  C  Change to DIR first   v  Verbose display
-    o  Ignore owner          h  Follow symlinks       m  Ignore mtime
     J  xz compression        j  bzip2 compression     z  gzip compression
+    o  Ignore owner          h  Follow symlinks       m  Ignore mtime
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
+    s  Sort dirs (--sort)
 
     --exclude        FILENAME to exclude  --full-time         Show seconds with -tv
     --mode MODE      Adjust permissions   --owner NAME[:UID]  Set file ownership
@@ -63,7 +64,7 @@ GLOBALS(
   char *f, *C, *I;
   struct arg_list *T, *X, *xform;
   long strip;
-  char *to_command, *owner, *group, *mtime, *mode;
+  char *to_command, *owner, *group, *mtime, *mode, *sort;
   struct arg_list *exclude;
 
   struct double_list *incl, *excl, *seen;
@@ -256,6 +257,11 @@ static char *xform(char **name, char type)
   return *name;
 }
 
+int dirtree_sort(struct dirtree **aa, struct dirtree **bb)
+{
+  return (FLAG(ignore_case) ? strcasecmp : strcmp)(aa[0]->name, bb[0]->name);
+}
+
 // callback from dirtree to create archive
 static int add_to_tar(struct dirtree *node)
 {
@@ -275,6 +281,26 @@ static int add_to_tar(struct dirtree *node)
   i = 1;
   name = hname = dirtree_path(node, &i);
   if (filter(TT.excl, name)) goto done;
+
+  if ((FLAG(s)|FLAG(sort)) && !FLAG(no_recursion)) {
+    if (S_ISDIR(st->st_mode) && !node->again) {
+      free(name);
+
+      return DIRTREE_BREADTH;
+    } else if (node->again&DIRTREE_BREADTH) {
+      struct dirtree *dt, **sort = xmalloc(sizeof(void *)*node->extra);
+
+      for (node->extra = 0, dt = node->child; dt; dt = dt->next) 
+        sort[node->extra++] = dt;
+      qsort(sort, node->extra--, sizeof(void *), (void *)dirtree_sort);
+      node->child = *sort;
+      for (i = 0; i<node->extra; i++) sort[i]->next = sort[i+1];
+      sort[i]->next = 0;
+      free(sort);
+
+      // fall through to add directory
+    }
+  }
 
   // Consume the 1 extra byte alocated in dirtree_path()
   if (S_ISDIR(st->st_mode) && (lnk = name+strlen(name))[-1] != '/')
@@ -1129,6 +1155,8 @@ void tar_main(void)
     }
     do {
       TT.warn = 1;
+      ii = FLAG(h) ? DIRTREE_SYMFOLLOW : 0;
+      if (FLAG(sort)|FLAG(s)) ii |= DIRTREE_BREADTH;
       dirtree_flagread(dl->data, FLAG(h) ? DIRTREE_SYMFOLLOW : 0, add_to_tar);
     } while (TT.incl != (dl = dl->next));
 

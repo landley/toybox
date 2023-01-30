@@ -407,6 +407,11 @@ testing 'creation --wildcards --exclude'\
   '$TAR -C sub --wildcards --exclude=d?bc abcd dabc | LL' \
   'abcd\n' '' ''
 
+mkdir sub2
+touch sub2/{ephebe,klatch,djelibeybi}
+testing 'tsort' '$TAR -c sub2 --sort=name | tar t' \
+  'sub2/\nsub2/djelibeybi\nsub2/ephebe\nsub2/klatch\n' \
+  '' ''
 
 if false
 then
