@@ -24,7 +24,7 @@ void nohup_main(void)
   xsignal(SIGHUP, SIG_IGN);
   if (isatty(1)) {
     close(1);
-    if (-1 == open("nohup.out", O_CREAT|O_APPEND|O_WRONLY, S_IRUSR|S_IWUSR)) {
+    if (open("nohup.out", O_CREAT|O_APPEND|O_WRONLY, 0600) == -1) {
       char *temp = getenv("HOME");
 
       xcreate(temp ? temp = xmprintf("%s/nohup.out", temp) : "nohup.out",
