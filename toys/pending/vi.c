@@ -570,9 +570,11 @@ static int write_file(char *filename)
     return -1;
   }
 
+  if (stat(filename, &st) == -1) st.st_mode = 0644;
+
   sprintf(toybuf, "%s.swp", filename);
 
-  if ((fd = open(toybuf, O_WRONLY | O_CREAT | O_TRUNC)) == -1) {
+  if ((fd = open(toybuf, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode)) == -1) {
     show_error("Couldn't open \"%s\" for writing: %s", toybuf, strerror(errno));
     return -1;
   }
@@ -587,8 +589,6 @@ static int write_file(char *filename)
   linelist_unload();
 
   xclose(fd);
-  if (!stat(filename, &st)) chmod(toybuf, st.st_mode);
-  else chmod(toybuf, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
   xrename(toybuf, filename);
   linelist_load(filename, 0);
   return 0;
