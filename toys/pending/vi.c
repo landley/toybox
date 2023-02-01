@@ -869,6 +869,18 @@ static int vi_x(char reg, int count0, int count1)
   return 1;
 }
 
+static int backspace(char reg, int count0, int count1)
+{
+  size_t from = 0;
+  size_t to = TT.cursor;
+  cur_left(1, 1, 0);
+  from = TT.cursor;
+  if (from != to)
+    vi_delete(reg, to, 0);
+  check_cursor_bounds();
+  return 1;
+}
+
 static int vi_movw(int count0, int count1, char *unused)
 {
   int count = count0*count1;
@@ -1576,6 +1588,12 @@ void vi_main(void)
     // TODO: support cursor keys in ex mode too.
     if (TT.vi_mode && key>=256) {
       key -= 256;
+      //if handling arrow keys insert what ever is in input buffer before moving
+      if (TT.il->len) {
+          i_insert(TT.il->data, TT.il->len);
+          TT.il->len = 0;
+          memset(TT.il->data, 0, TT.il->alloc);
+      }
       if (key==KEY_UP) cur_up(1, 1, 0);
       else if (key==KEY_DOWN) cur_down(1, 1, 0);
       else if (key==KEY_LEFT) cur_left(1, 1, 0);
@@ -1621,6 +1639,10 @@ void vi_main(void)
         case 27:
           vi_buf[0] = 0;
           vi_buf_pos = 0;
+          break;
+        case 0x7F: //FALLTHROUGH
+        case 0x08:
+          backspace(TT.vi_reg, 1, 1);
           break;
         default:
           if (key > 0x20 && key < 0x7B) {
@@ -1688,6 +1710,8 @@ void vi_main(void)
             int shrink = strlen(last);
             memset(last, 0, shrink);
             TT.il->len -= shrink;
+          } else {
+            backspace(TT.vi_reg, 1, 1);
           }
           break;
         case 0x0A:
