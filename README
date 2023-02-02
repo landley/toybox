@@ -39,12 +39,12 @@ toybox to run on the current machine. Cross compiling requires an appropriately
 prefixed cross compiler toolchain, several example toolchains (built using
 the file "scripts/mcm-buildall.sh" in the toybox source) are available at:
 
-  https://mkroot.musl.cc/latest/
+  https://landley.net/toybox/downloads/binaries/toolchains/latest
 
 For the "CROSS_COMPILE=armv5l-" example above, download
-cross-compiler-armv5l.tar.bz2, extract it, and add its "bin" subdirectory to
-your $PATH. (And yes, the trailing - is significant, because the prefix
-includes a dash.)
+armv5l-linux-musleabihf-cross.tar.xz, extract it, and add its "bin"
+subdirectory to your $PATH. (And yes, the trailing - is significant,
+because the prefix includes a dash.)
 
 For more about cross compiling, see:
 
