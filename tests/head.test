@@ -32,3 +32,5 @@ testcmd "-c 3" "-c 3" "one" "" "one\ntwo"
 testcmd "-c bigger than input" "-c 3" "a" "" "a"
 testcmd "-c 3 -n 1" "-c 3 -n 1" "one\n" "" "one\ntwo"
 testcmd "-n 1 -c 3" "-n 1 -c 3" "one" "" "one\ntwo"
+testing "unget" 'while read i; do echo =$i; head -n 1; done < input' \
+  '=one\ntwo\n=three\nfour\n=five\n' 'one\ntwo\nthree\nfour\nfive\n' ''
