@@ -42,8 +42,6 @@ GLOBALS(
     char* data;
   } yank;
 
-  int modified; // TODO: no editing operations actually set this!
-
   size_t filesize;
 // mem_block contains RO data that is either original file as mmap
 // or heap allocated inserted data
@@ -292,6 +290,17 @@ static int cut_str(size_t offset, size_t len)
 
   return 0;
 }
+static int modified()
+{
+  if (TT.text->next !=  TT.text->prev) return 1;
+  if (TT.slices->next != TT.slices->prev) return 1;
+  if (!TT.text || !TT.slices) return 0;
+  if (!TT.text->node || !TT.slices->node) return 0;
+  if (TT.text->node->alloc != MMAP) return 1;
+  if (TT.text->node->len != TT.slices->node->len) return 1;
+  if (!TT.text->node->len) return 1;
+  return 0;
+}
 
 //find offset position in slices
 static struct slice_list *slice_offset(size_t *start, size_t offset)
@@ -538,6 +547,7 @@ static void linelist_load(char *filename, int ignore_missing)
   if (!filename) filename = TT.filename;
   if (!filename) {
     // `vi` with no arguments creates a new unnamed file.
+    insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
     return;
   }
 
@@ -547,6 +557,7 @@ static void linelist_load(char *filename, int ignore_missing)
       show_error("Couldn't open \"%s\" for reading: %s", filename,
           strerror(errno));
     }
+    insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
     return;
   }
 
@@ -554,6 +565,8 @@ static void linelist_load(char *filename, int ignore_missing)
   if (size > 0) {
     insert_str(xmmap(0,size,PROT_READ,MAP_SHARED,fd,0), 0, size, size, MMAP);
     TT.filesize = text_filesize();
+  } else if (!size) {
+    insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
   }
   xclose(fd);
 }
@@ -563,6 +576,9 @@ static int write_file(char *filename)
   struct slice_list *s = TT.slices;
   struct stat st;
   int fd = 0;
+  if (!modified()) {
+    show_error("Not modified");
+  }
 
   if (!filename) filename = TT.filename;
   if (!filename) {
@@ -1309,13 +1325,14 @@ static int run_ex_cmd(char *cmd)
     // TODO: backwards search.
   } else if (cmd[0] == ':') {
     if (!strcmp(&cmd[1], "q") || !strcmp(&cmd[1], "q!")) {
-      if (cmd[2] != '!' && TT.modified) {
+      if (cmd[2] != '!' && modified()) {
         show_error("Unsaved changes (\"q!\" to ignore)");
       } else return 1;
     } else if (strstr(&cmd[1], "w ")) {
       write_file(&cmd[3]);
     } else if (strstr(&cmd[1], "wq")) {
-      return write_file(0);
+      if (!write_file(0)) return 1;
+      show_error("Unsaved changes (\"q!\" to ignore)");
     } else if (strstr(&cmd[1], "w")) {
       write_file(0);
     } else if (strstr(&cmd[1], "set list")) {
