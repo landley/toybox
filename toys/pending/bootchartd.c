@@ -14,11 +14,11 @@ config BOOTCHARTD
   help
     usage: bootchartd {start [PROG ARGS]}|stop|init
 
-    Create /var/log/bootlog.tgz with boot chart data
+    Record boot chart data into /var/log/bootlog.tgz
 
     start: start background logging; with PROG, run PROG,
-           then kill logging with USR1
-    stop:  send USR1 to all bootchartd processes
+           then kill logging with SIGUSR1
+    stop:  send SIGUSR1 to all bootchartd processes
     init:  start background logging; stop when getty/xdm is seen
           (for init scripts)
 
@@ -71,18 +71,18 @@ static int dump_proc_data(FILE *fp)
         xclose(fd);
         continue;
       }
-      toybuf[len] = '\0';
+      toybuf[len] = 0;
       close(fd);
       fputs(toybuf, fp);
       if (TT.pid != 1) continue;
       if ((ptr = strchr(toybuf, '('))) {
         char *tmp = strchr(++ptr, ')');
 
-        if (tmp) *tmp = '\0';
+        if (tmp) *tmp = 0;
       }
       // Checks for gdm, kdm or getty
-      if (((ptr[0] == 'g' || ptr[0] == 'k' || ptr[0] == 'x') && ptr[1] == 'd'
-            && ptr[2] == 'm') || strstr(ptr, "getty")) login_flag = 1;
+      if ((strchr("gkx", *ptr) && ptr[1] == 'd' && ptr[2] == 'm')
+        || strstr(ptr, "getty")) login_flag = 1;
     }
   }
   closedir(proc_dir);
@@ -103,16 +103,15 @@ static int parse_config_file(char *fname)
     while (*ptr == ' ' || *ptr == '\t') ptr++;
     if (!*ptr || *ptr == '#' || *ptr == '\n') continue;
     if (strstart(&ptr, "SAMPLE_PERIOD=")) {
-      double dd;
-
-      sscanf(ptr, "%lf", &dd);
-      if ((TT.msec = dd*1000)<1) TT.msec = 1;
+      TT.msec = xparsemillitime(ptr);
+      if (TT.msec<1) TT.msec = 1;
     } else if (strstart(&ptr, "PROCESS_ACCOUNTING="))
       if (strstart(&ptr, "\"on\"") || strstart(&ptr, "\"yes\""))
         TT.proc_accounting = 1;
     free(line);
   }
   fclose(fp);
+
   return 1;
 }
 
@@ -123,46 +122,44 @@ static char *create_tmp_dir()
 
   if ((dir = mkdtemp(dir_path))) {
     xchdir((dir = xstrdup(dir)));
+
     return dir;
   }
   while (mount("none", *target, "tmpfs", (1<<15), "size=16m")) //MS_SILENT
     if (!++target) perror_exit("can't mount tmpfs");
   xchdir(*target);
   if (umount2(*target, MNT_DETACH)) perror_exit("Can't unmount tmpfs");
+
   return *target;
 }
 
 static void start_logging()
 {
   struct timespec ts;
-  int proc_stat_fd = xcreate("proc_stat.log",  
-      O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  int proc_diskstats_fd = xcreate("proc_diskstats.log",  
-      O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  int sfd = xcreate("proc_stat.log",  O_WRONLY|O_CREAT|O_TRUNC, 0644),
+      dfd = xcreate("proc_diskstats.log",  O_WRONLY|O_CREAT|O_TRUNC, 0644);
   FILE *proc_ps_fp = xfopen("proc_ps.log", "w");
   long tcnt = 60 * 1000 / TT.msec;
 
   if (tcnt <= 0) tcnt = 1;
   if (TT.proc_accounting) {
-    int kp_fd = xcreate("kernel_procs_acct", O_WRONLY | O_CREAT | O_TRUNC,0666);
-
-    xclose(kp_fd);
+    xclose(xcreate("kernel_procs_acct", O_WRONLY|O_CREAT|O_TRUNC, 0666));
     acct("kernel_procs_acct");
   }
   while (--tcnt && !toys.signal) {
     clock_gettime(CLOCK_BOOTTIME, &ts);
     sprintf(TT.timestamp, "%ld.%02d\n", (long) ts.tv_sec,
         (int) (ts.tv_nsec/10000000));
-    dump_data_in_file("/proc/stat", proc_stat_fd);
-    dump_data_in_file("/proc/diskstats", proc_diskstats_fd);
+    dump_data_in_file("/proc/stat", sfd);
+    dump_data_in_file("/proc/diskstats", dfd);
     // stop proc dumping in 2 secs if getty or gdm, kdm, xdm found 
     if (dump_proc_data(proc_ps_fp))
       if (tcnt > 2 * 1000 / TT.msec) tcnt = 2 * 1000 / TT.msec;
     fflush(0);
     msleep(TT.msec);
   }
-  xclose(proc_stat_fd);
-  xclose(proc_diskstats_fd);
+  xclose(sfd);
+  xclose(dfd);
   fclose(proc_ps_fp);
 }
 
@@ -204,6 +201,8 @@ static void stop_logging(char *tmp_dir, char *prog)
   snprintf(toybuf, sizeof(toybuf), "tar -zcf /var/log/bootlog.tgz header %s *.log", 
       TT.proc_accounting ? "kernel_procs_acct" : "");
   system(toybuf);
+
+  // We created a tmpdir then lazy unmounted it, why are we deleting files...?
   if (tmp_dir) {
     unlink("header");
     unlink("proc_stat.log");
