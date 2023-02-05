@@ -41,22 +41,6 @@ config REALPATH
     --relative-base  If path under DIR trim off prefix
 */
 
-/* TODO
-# relative-to is affected by flags
-$ realpath --relative-to=nothing/potato .
-realpath: nothing/potato: No such file or directory
-$ realpath -m --relative-to=nothing/potato .
-../..
-
-# -L and -s are similar but not the same
-$ realpath -s --relative-to=. ccc
-ccc
-$ realpath -L --relative-to=. ccc
-../../mcm/ccc
-*/
-
-
-
 #define FOR_realpath
 #define FORCE_FLAGS
 #define TT this.readlink // workaround: first FOR_ doesn't match filename
