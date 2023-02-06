@@ -28,6 +28,9 @@ testing "ext4" "BLKID ext4" \
 testing "f2fs" "BLKID f2fs" \
   'temp.img: LABEL="myf2fs" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
   "" ""
+testing "iso" "BLKID iso" \
+  'temp.img: SEC_TYPE="msdos" LABEL="MYISO" UUID="1970-01-02-12-55-42-00" TYPE="iso9660"\n' \
+  "" ""
 testing "msdos" "BLKID msdos" \
   'temp.img: SEC_TYPE="msdos" LABEL="mymsdos" UUID="6E1E-0851" TYPE="vfat"\n' \
   "" ""

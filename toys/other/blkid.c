@@ -54,6 +54,7 @@ struct fstype {
   {"btrfs", 0x4D5F53665248425FULL, 8, 65600, 65803, 256, 65819},
   {"cramfs", 0x28cd3d45, 4, 0, 0, 16, 48},
   {"f2fs", 0xF2F52010, 4, 1024, 1132, 512, 0x47c},
+  {"iso9660", 0x444301, 3, 0x8000, 0x832d, 32, 0x8028},
   {"jfs", 0x3153464a, 4, 32768, 32920, 16, 32904},
   {"nilfs", 0x3434, 2, 1030, 1176, 80, 1192},
   {"reiserfs", 0x724573496552ULL, 6, 8244, 8276, 16, 8292},
@@ -166,7 +167,7 @@ static void do_blkid(int fd, char *name)
   len = fstypes[i].label_len;
   if (!FLAG(U) && len) {
     s = toybuf+fstypes[i].label_off-off;
-    if (!strcmp(type, "vfat")) {
+    if (!strcmp(type, "vfat") || !strcmp(type, "iso9660")) {
       show_tag("SEC_TYPE", "msdos");
       while (len && s[len-1]==' ') len--;
       if (strstart(&s, "NO NAME")) len=0;
@@ -198,6 +199,15 @@ static void do_blkid(int fd, char *name)
     } else if (!strcmp(type, "vfat")) {
         s += sprintf(s, "%02X%02X-%02X%02X", toybuf[uoff+3], toybuf[uoff+2],
                      toybuf[uoff+1], toybuf[uoff]);
+    } else if (!strcmp(type, "iso9660")) {
+        s += sprintf(s, "%c%c%c%c-", toybuf[uoff], toybuf[uoff+1],
+                     toybuf[uoff+2], toybuf[uoff+3]);
+        s += sprintf(s, "%c%c-", toybuf[uoff+4], toybuf[uoff+5]);
+        s += sprintf(s, "%c%c-", toybuf[uoff+6], toybuf[uoff+7]);
+        s += sprintf(s, "%c%c-", toybuf[uoff+8], toybuf[uoff+9]);
+        s += sprintf(s, "%c%c-", toybuf[uoff+10], toybuf[uoff+11]);
+        s += sprintf(s, "%c%c-", toybuf[uoff+12], toybuf[uoff+13]);
+        s += sprintf(s, "%c%c", toybuf[uoff+14], toybuf[uoff+15]);
     } else {
       for (j = 0; j < 16; j++)
         s += sprintf(s, "-%02x"+!(0x550 & (1<<j)), toybuf[uoff+j]);
