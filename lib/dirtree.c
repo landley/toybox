@@ -125,6 +125,7 @@ static struct dirtree *dirtree_handle_callback(struct dirtree *new,
   flags = callback(new);
 
   if (S_ISDIR(new->st.st_mode) && (flags & df)) {
+    // TODO: check openat returned fd for errors... and do what about it?
     if (*new->name) fd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
     if (flags&DIRTREE_BREADTH) {
       new->again |= DIRTREE_BREADTH;
@@ -133,10 +134,11 @@ static struct dirtree *dirtree_handle_callback(struct dirtree *new,
         return DIRTREE_ABORTVAL;
     }
     flags = dirtree_recurse(new, callback, fd, flags);
+    close(fd);
   }
 
   // Free node that didn't request saving and has no saved children.
-  if (!new->child && !(flags & DIRTREE_SAVE) && (!new->parent || !(new->parent->again&DIRTREE_BREADTH))) {
+  if (!new->child && !(flags & DIRTREE_SAVE)) {
     free(new);
     new = 0;
   }
@@ -145,7 +147,7 @@ static struct dirtree *dirtree_handle_callback(struct dirtree *new,
 }
 
 // Recursively read/process children of directory node, filtering through
-// callback(). Uses and closes supplied ->dirfd.
+// callback().
 
 int dirtree_recurse(struct dirtree *node,
           int (*callback)(struct dirtree *node), int dirfd, int flags)
