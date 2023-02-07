@@ -12,17 +12,20 @@ config VI
   default n
   help
     usage: vi [-s script] FILE
-    -s script: run script file
+
     Visual text editor. Predates the existence of standardized cursor keys,
     so the controls are weird and historical.
+
+    -s script: run script file
 */
 
 #define FOR_vi
 #include "toys.h"
 
 GLOBALS(
-  char *filename;
   char *s;
+
+  char *filename;
   int vi_mode, tabstop, list;
   int cur_col, cur_row, scr_row;
   int drawn_row, drawn_col;
@@ -45,9 +48,6 @@ GLOBALS(
   size_t filesize;
 // mem_block contains RO data that is either original file as mmap
 // or heap allocated inserted data
-//
-//
-//
   struct block_list {
     struct block_list *next, *prev;
     struct mem_block {
@@ -122,6 +122,7 @@ static char* utf8_last(char* str, int size)
 {
   char* end = str+size;
   int pos = size, len, width = 0;
+
   for (;pos >= 0; end--, pos--) {
     len = utf8_lnw(&width, end, size-pos);
     if (len && width) return end;
@@ -168,6 +169,7 @@ static int insert_str(const char *data, size_t offset, size_t size, size_t len,
   struct mem_block *b = xmalloc(sizeof(struct mem_block));
   struct slice *next = xmalloc(sizeof(struct slice));
   struct slice_list *s = TT.slices;
+
   b->size = size;
   b->len = len;
   b->alloc = type;
@@ -216,9 +218,7 @@ static int insert_str(const char *data, size_t offset, size_t size, size_t len,
         (char *)next);
     } else {
       // insert after
-      s = (struct slice_list *)dlist_add_after((struct double_list **)&TT.slices,
-      (struct double_list **)&s,
-      (char *)next);
+      s = (void *)dlist_add_after((void *)&TT.slices, (void *)&s, (void *)next);
     }
   }
   return 0;
@@ -231,6 +231,7 @@ static int cut_str(size_t offset, size_t len)
   struct slice_list *e, *s = TT.slices;
   size_t end = offset+len;
   size_t epos, spos = 0;
+
   if (!s) return -1;
 
   //find start and end slices
@@ -367,11 +368,10 @@ static size_t text_filesize()
 {
   struct slice_list *s = TT.slices;
   size_t pos = 0;
-  if (s) do {
 
+  if (s) do {
     pos += s->node->len;
     s = s->next;
-
   } while (s != TT.slices);
 
   return pos;
@@ -401,6 +401,7 @@ static char text_byte(size_t offset)
 {
   struct slice_list *s = TT.slices;
   size_t spos = 0;
+
   //find start
   if (!(s = slice_offset(&spos, offset))) return 0;
   return s->node->data[offset-spos];
@@ -425,6 +426,7 @@ static int text_codepoint(char *dest, size_t offset)
 static size_t text_sol(size_t offset)
 {
   size_t pos;
+
   if (!TT.filesize || !offset) return 0;
   else if (TT.filesize <= offset) return TT.filesize-1;
   else if ((pos = text_strrchr(offset-1, '\n')) == SIZE_MAX) return 0;
@@ -495,6 +497,7 @@ static size_t text_strstr(size_t offset, char *str)
 {
   size_t bytes, pos = offset;
   char *s = 0;
+
   do {
     bytes = text_getline(toybuf, pos, ARRAY_LEN(toybuf));
     if (!bytes) pos++; //empty line
@@ -553,10 +556,9 @@ static void linelist_load(char *filename, int ignore_missing)
 
   fd = open(filename, O_RDONLY);
   if (fd == -1) {
-    if (!ignore_missing) {
+    if (!ignore_missing)
       show_error("Couldn't open \"%s\" for reading: %s", filename,
           strerror(errno));
-    }
     insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
     return;
   }
@@ -565,9 +567,7 @@ static void linelist_load(char *filename, int ignore_missing)
   if (size > 0) {
     insert_str(xmmap(0,size,PROT_READ,MAP_SHARED,fd,0), 0, size, size, MMAP);
     TT.filesize = text_filesize();
-  } else if (!size) {
-    insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
-  }
+  } else if (!size) insert_str(xstrdup("\n"), 0, 1, 1, HEAP);
   xclose(fd);
 }
 
@@ -576,10 +576,8 @@ static int write_file(char *filename)
   struct slice_list *s = TT.slices;
   struct stat st;
   int fd = 0;
-  if (!modified()) {
-    show_error("Not modified");
-  }
 
+  if (!modified()) show_error("Not modified");
   if (!filename) filename = TT.filename;
   if (!filename) {
     show_error("No file name");
@@ -616,8 +614,8 @@ static void check_cursor_bounds()
 {
   char buf[8] = {0};
   int len, width = 0;
-  if (!TT.filesize) TT.cursor = 0;
 
+  if (!TT.filesize) TT.cursor = 0;
   for (;;) {
     if (TT.cursor < 1) {
       TT.cursor = 0;
@@ -626,11 +624,9 @@ static void check_cursor_bounds()
       TT.cursor = TT.filesize-1;
       return;
     }
-    if ((len = text_codepoint(buf, TT.cursor)) < 1) {
-      TT.cursor--; //we are not in valid data try jump over
-      continue;
-    }
-    if (utf8_lnw(&width, buf, len) && width) break;
+    // if we are not in valid data try jump over
+    if ((len = text_codepoint(buf, TT.cursor)) < 1) TT.cursor--;
+    else if (utf8_lnw(&width, buf, len) && width) break;
     else TT.cursor--; //combine char jump over
   }
 }
@@ -684,7 +680,6 @@ static void adjust_screen_buffer()
 
   TT.scr_row = s;
   TT.cur_row = c;
-
 }
 
 //TODO search yank buffer by register
@@ -721,8 +716,7 @@ static int vi_delete(char reg, size_t from, int flags)
 
   vi_yank(reg, from, flags);
 
-  if (TT.vi_mov_flag&0x80000000)
-    start = TT.cursor, end = from;
+  if (TT.vi_mov_flag&0x80000000) start = TT.cursor, end = from;
 
   //pre adjust cursor move one right until at next valid rune
   if (TT.vi_mov_flag&2) {
@@ -751,6 +745,7 @@ static int vi_change(char reg, size_t to, int flags)
 static int cur_left(int count0, int count1, char *unused)
 {
   int count = count0*count1;
+
   TT.vi_mov_flag |= 0x80000000;
   for (;count && TT.cursor; count--) {
     TT.cursor--;
@@ -790,8 +785,8 @@ static int cur_right(int count0, int count1, char *unused)
 static int cur_up(int count0, int count1, char *unused)
 {
   int count = count0*count1;
-  for (;count--;) TT.cursor = text_psol(TT.cursor);
 
+  for (;count--;) TT.cursor = text_psol(TT.cursor);
   TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
   return 1;
@@ -801,6 +796,7 @@ static int cur_up(int count0, int count1, char *unused)
 static int cur_down(int count0, int count1, char *unused)
 {
   int count = count0*count1;
+
   for (;count--;) TT.cursor = text_nsol(TT.cursor);
   check_cursor_bounds();
   return 1;
@@ -1072,8 +1068,7 @@ static int vi_push(char reg, int count0, int count1)
   //vi inconsistancy
   //if yank ends with \n push is linemode else push in place+1
   size_t history = TT.cursor;
-  char *start = TT.yank.data;
-  char *eol = strchr(start, '\n');
+  char *start = TT.yank.data, *eol = strchr(start, '\n');
 
   if (start[strlen(start)-1] == '\n') {
     if ((TT.cursor = text_strchr(TT.cursor, '\n')) == SIZE_MAX)
@@ -1194,24 +1189,12 @@ static int vi_find_next(char reg, int count0, int count1)
 //  have special cases such as dd, yy, also movements can work without
 //  CMD
 //ex commands can be even more complicated than this....
-//
-struct vi_cmd_param {
-  const char* cmd;
-  unsigned flags;
-  int (*vi_cmd)(char, size_t, int);//REG,from,FLAGS
-};
-struct vi_mov_param {
-  const char* mov;
-  unsigned flags;
-  int (*vi_mov)(int, int, char*);//COUNT0,COUNT1,params
-};
+
 //special cases without MOV and such
 struct vi_special_param {
   const char *cmd;
   int (*vi_special)(char, int, int);//REG,COUNT0,COUNT1
-};
-struct vi_special_param vi_special[] =
-{
+} vi_special[] = {
   {"D", &vi_D},
   {"I", &vi_I},
   {"J", &vi_join},
@@ -1223,11 +1206,12 @@ struct vi_special_param vi_special[] =
   {"dd", &vi_dd},
   {"yy", &vi_yy},
 };
-//there is around ~47 vi moves
-//some of them need extra params
-//such as f and '
-struct vi_mov_param vi_movs[] =
-{
+//there is around ~47 vi moves, some of them need extra params such as f and '
+struct vi_mov_param {
+  const char* mov;
+  unsigned flags;
+  int (*vi_mov)(int, int, char*);//COUNT0,COUNT1,params
+} vi_movs[] = {
   {"0", 0, &vi_zero},
   {"b", 0, &vi_movb},
   {"e", 0, &vi_move},
@@ -1249,8 +1233,11 @@ struct vi_mov_param vi_movs[] =
 //also dw stops at w position and cw seem to stop at e pos+1...
 //so after movement we need to possibly set up some flags before executing
 //command, and command needs to adjust...
-struct vi_cmd_param vi_cmds[] =
-{
+struct vi_cmd_param {
+  const char* cmd;
+  unsigned flags;
+  int (*vi_cmd)(char, size_t, int);//REG,from,FLAGS
+} vi_cmds[] = {
   {"c", 1, &vi_change},
   {"d", 1, &vi_delete},
   {"y", 1, &vi_yank},
@@ -1260,16 +1247,14 @@ static int run_vi_cmd(char *cmd)
 {
   int i = 0, val = 0;
   char *cmd_e;
-  int (*vi_cmd)(char, size_t, int) = 0;
-  int (*vi_mov)(int, int, char*) = 0;
+  int (*vi_cmd)(char, size_t, int) = 0, (*vi_mov)(int, int, char*) = 0;
 
   TT.count0 = 0, TT.count1 = 0, TT.vi_mov_flag = 0;
   TT.vi_reg = '"';
 
   if (*cmd == '"') {
     cmd++;
-    TT.vi_reg = *cmd; //TODO check validity
-    cmd++;
+    TT.vi_reg = *cmd++; //TODO check validity
   }
   errno = 0;
   val = strtol(cmd, &cmd_e, 10);
@@ -1277,11 +1262,9 @@ static int run_vi_cmd(char *cmd)
   else cmd = cmd_e;
   TT.count0 = val;
 
-  for (i = 0; i < ARRAY_LEN(vi_special); i++) {
-    if (strstr(cmd, vi_special[i].cmd)) {
+  for (i = 0; i < ARRAY_LEN(vi_special); i++)
+    if (strstr(cmd, vi_special[i].cmd))
       return vi_special[i].vi_special(TT.vi_reg, TT.count0, TT.count1);
-    }
-  }
 
   for (i = 0; i < ARRAY_LEN(vi_cmds); i++) {
     if (!strncmp(cmd, vi_cmds[i].cmd, strlen(vi_cmds[i].cmd))) {
@@ -1319,26 +1302,23 @@ static int run_vi_cmd(char *cmd)
 // Return non-zero to exit.
 static int run_ex_cmd(char *cmd)
 {
-  if (cmd[0] == '/') {
-    search_str(&cmd[1]);
-  } else if (cmd[0] == '?') {
+  if (cmd[0] == '/') search_str(cmd+1);
+  else if (cmd[0] == '?') {
     // TODO: backwards search.
   } else if (cmd[0] == ':') {
     if (!strcmp(&cmd[1], "q") || !strcmp(&cmd[1], "q!")) {
-      if (cmd[2] != '!' && modified()) {
+      if (cmd[2] != '!' && modified())
         show_error("Unsaved changes (\"q!\" to ignore)");
-      } else return 1;
-    } else if (strstr(&cmd[1], "w ")) {
-      write_file(&cmd[3]);
-    } else if (strstr(&cmd[1], "wq")) {
+      else return 1;
+    } else if (strstr(cmd+1, "w ")) write_file(&cmd[3]);
+    else if (strstr(cmd+1, "wq")) {
       if (!write_file(0)) return 1;
       show_error("Unsaved changes (\"q!\" to ignore)");
-    } else if (strstr(&cmd[1], "w")) {
-      write_file(0);
-    } else if (strstr(&cmd[1], "set list")) {
+    } else if (strstr(cmd+1, "w")) write_file(0);
+    else if (strstr(cmd+1, "set list")) {
       TT.list = 1;
       TT.vi_mov_flag |= 0x30000000;
-    } else if (strstr(&cmd[1], "set nolist")) {
+    } else if (strstr(cmd+1, "set nolist")) {
       TT.list = 0;
       TT.vi_mov_flag |= 0x30000000;
     }
@@ -1400,21 +1380,12 @@ static int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
 static void draw_page()
 {
   unsigned y = 0;
-  int x = 0;
-
+  int x = 0, bytes = 0;
   char *line = 0, *end = 0;
-  int bytes = 0;
-
   //screen coordinates for cursor
   int cy_scr = 0, cx_scr = 0;
-
   //variables used only for cursor handling
-  int aw = 0, iw = 0, clip = 0, margin = 8;
-
-  int scroll = 0, redraw = 0;
-
-  int SSOL, SOL;
-
+  int aw = 0, iw = 0, clip = 0, margin = 8, scroll = 0, redraw = 0, SSOL, SOL;
 
   adjust_screen_buffer();
   //redraw = 3; //force full redraw
@@ -1694,8 +1665,7 @@ void vi_main(void)
           break;
         case 0x0A:
         case 0x0D:
-          if (run_ex_cmd(TT.il->data))
-            goto cleanup_vi;
+          if (run_ex_cmd(TT.il->data)) goto cleanup_vi;
           TT.vi_mode = 1;
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
@@ -1727,14 +1697,11 @@ void vi_main(void)
             int shrink = strlen(last);
             memset(last, 0, shrink);
             TT.il->len -= shrink;
-          } else {
-            backspace(TT.vi_reg, 1, 1);
-          }
+          } else backspace(TT.vi_reg, 1, 1);
           break;
         case 0x0A:
         case 0x0D:
           //insert newline
-          //
           TT.il->data[TT.il->len++] = '\n';
           i_insert(TT.il->data, TT.il->len);
           TT.il->len = 0;
@@ -1742,8 +1709,8 @@ void vi_main(void)
           break;
         default:
           if ((key >= 0x20 || key == 0x09) &&
-              utf8_dec(key, utf8_code, &utf8_dec_p)) {
-
+              utf8_dec(key, utf8_code, &utf8_dec_p))
+          {
             if (TT.il->len+utf8_dec_p+1 >= TT.il->alloc) {
               TT.il->data = realloc(TT.il->data, TT.il->alloc*2);
               TT.il->alloc *= 2;
@@ -1752,7 +1719,6 @@ void vi_main(void)
             TT.il->len += utf8_dec_p;
             utf8_dec_p = 0;
             *utf8_code = 0;
-
           }
           break;
       }
