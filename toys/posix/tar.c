@@ -1118,7 +1118,7 @@ void tar_main(void)
     unpack_tar(hdr);
     dirflush(0, 0);
     // Shut up archiver about inability to write all trailing NULs to pipe buf
-    if (TT.pid>0) kill(TT.pid, 9);
+    while (0<read(TT.fd, toybuf, sizeof(toybuf)));
 
     // Each time a TT.incl entry is seen it's moved to the end of the list,
     // with TT.seen pointing to first seen list entry. Anything between
