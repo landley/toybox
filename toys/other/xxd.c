@@ -10,18 +10,19 @@
  * xxd -p "plain" output:
  *   "4c696e75782076657273696f6e20342e392e302d342d616d643634202864"
 
-USE_XXD(NEWTOY(xxd, ">1c#<0>256l#o#g#<0=2iprs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#<0>256l#o#g#<0=2eiprs#[!rs][!re]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
   default y
   help
-    usage: xxd [-c n] [-g n] [-i] [-l n] [-o n] [-p] [-r] [-s n] [file]
+    usage: xxd [-c n] [-g n] [-eipr] [-l n] [-o n] [-s n] [file]
 
     Hexdump a file to stdout. If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 
     -c n	Show n bytes per line (default 16)
+    -e	Little-endian
     -g n	Group bytes by adding a ' ' every n bytes (default 2)
     -i	Output include file (CSV hex bytes, plus C header/footer if not stdin)
     -l n	Limit of n bytes before stopping (default is no limit)
@@ -42,7 +43,7 @@ static void do_xxd(int fd, char *name)
 {
   long long pos = 0;
   long long limit = TT.l;
-  int i, len, space, c = TT.c ? : sizeof(toybuf);
+  int i, j, k, len, space, c = TT.c ? : sizeof(toybuf);
 
   if (FLAG(s)) {
     xlseek(fd, TT.s, SEEK_SET);
@@ -58,11 +59,21 @@ static void do_xxd(int fd, char *name)
     space = 2*TT.c;
     space += TT.g ? (TT.c+TT.g-1)/TT.g+1 : 2;
 
-    for (i=0; i<len;) {
-      space -= printf("%02x", toybuf[i++]);
+    for (i=0, j=1; i<len; ) {
+      // Insert padding for short groups in little-endian mode.
+      if (FLAG(e) && j==1 && (len-i)<TT.g) {
+        for (k=0; k<(TT.g-(len-i)); k++) {
+          space -= printf("  ");
+          j++;
+        }
+      }
+
+      space -= printf("%02x", toybuf[FLAG(e) ? (i + TT.g - j) : i]);
+      i++,j+=2;
       if (TT.g && !(i%TT.g)) {
         putchar(' ');
         space--;
+        j=1;
       }
     }
 
@@ -159,6 +170,7 @@ void xxd_main(void)
 {
   // Plain style is 30 bytes/line, no grouping.
   if (!FLAG(c)) TT.c = FLAG(p) ? 30 : FLAG(i) ? 12 : 16;
+  if (FLAG(e) && !FLAG(g)) TT.g = 4;
   if (FLAG(p) && !FLAG(g)) TT.g = TT.c;
 
   loopfiles(toys.optargs,
