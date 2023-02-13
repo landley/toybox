@@ -16,20 +16,20 @@ config XXD
   bool "xxd"
   default y
   help
-    usage: xxd [-c n] [-g n] [-eipr] [-l n] [-o n] [-s n] [file]
+    usage: xxd [-eipr] [-cglos N] [file]
 
     Hexdump a file to stdout. If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 
-    -c n	Show n bytes per line (default 16)
+    -c N	Show N bytes per line (default 16)
     -e	Little-endian
-    -g n	Group bytes by adding a ' ' every n bytes (default 2)
+    -g N	Group bytes by adding a ' ' every N bytes (default 2)
     -i	Output include file (CSV hex bytes, plus C header/footer if not stdin)
-    -l n	Limit of n bytes before stopping (default is no limit)
-    -o n	Add n to display offset
+    -l N	Limit of N bytes before stopping (default is no limit)
+    -o N	Add N to display offset
     -p	Plain hexdump (30 bytes/line, no grouping. With -c 0 no wrap/group)
     -r	Reverse operation: turn a hexdump into a binary file
-    -s n	Skip to offset n
+    -s N	Skip to offset N
 */
 
 #define FOR_xxd
