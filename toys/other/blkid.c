@@ -168,7 +168,7 @@ static void do_blkid(int fd, char *name)
   if (!FLAG(U) && len) {
     s = toybuf+fstypes[i].label_off-off;
     if (!strcmp(type, "vfat") || !strcmp(type, "iso9660")) {
-      show_tag("SEC_TYPE", "msdos");
+      if (*type=='v') show_tag("SEC_TYPE", "msdos");
       while (len && s[len-1]==' ') len--;
       if (strstart(&s, "NO NAME")) len=0;
     }
