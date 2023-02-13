@@ -149,16 +149,17 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     for (toys.optc = 0; toys.optargs[toys.optc]; toys.optc++);
   }
 
+  // Setup we only want to do once: skip for multiplexer or NOFORK reentry
   if (!(CFG_TOYBOX && which == toy_list) && !(which->flags & TOYFLAG_NOFORK)) {
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 
-    // Try user's locale, but merge in the en_US.UTF-8 locale's character
-    // type data if the user's locale isn't UTF-8. (We can't merge in C.UTF-8
-    // because that locale doesn't exist on macOS.)
+    // Try user's locale, but if that isn't UTF-8 merge in a UTF-8 locale's
+    // character type data. (Fall back to en_US for MacOS.)
     setlocale(LC_CTYPE, "");
     if (strcmp("UTF-8", nl_langinfo(CODESET)))
-      uselocale(newlocale(LC_CTYPE_MASK, "en_US.UTF-8", NULL));
+      uselocale(newlocale(LC_CTYPE_MASK, "C.UTF-8", 0) ? :
+        newlocale(LC_CTYPE_MASK, "en_US.UTF-8", 0));
 
     setvbuf(stdout, 0, (which->flags & TOYFLAG_LINEBUF) ? _IOLBF : _IONBF, 0);
   }
