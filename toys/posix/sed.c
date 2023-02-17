@@ -489,7 +489,7 @@ static void sed_line(char **pline, long plen)
         // Zero length matches don't count immediately after a previous match
         if (!mlen && !zmatch) {
           if (rline-line == len) break;
-          l2[l2used++] = *rline++;
+          if (l2) l2[l2used++] = *rline++;
           zmatch++;
           continue;
         } else zmatch = 0;
@@ -524,7 +524,11 @@ static void sed_line(char **pline, long plen)
 
         // Adjust allocation size of new string, copy data we know we'll keep
         l2l += newlen-mlen;
-        if ((l2l|0xfff) > l2old) l2 = xrealloc(l2, l2old = (l2l|0xfff)+1);
+        if ((mlen = l2l|0xfff) > l2old) {
+          l2 = xrealloc(l2, ++mlen);
+          if (l2used && !l2old) memcpy(l2, rline-l2used, l2used);
+          l2old = mlen;
+        }
         if (match[0].rm_so) {
           memcpy(l2+l2used, rline, match[0].rm_so);
           l2used += match[0].rm_so;
