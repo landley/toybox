@@ -17,7 +17,7 @@ chmod +x toybox-x86_64
 ./toybox-x86_64 echo hello world
 ```
 
---- Building toybox
+## Building toybox
 
 Type `make help` for build instructions.
 
