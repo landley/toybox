@@ -1559,6 +1559,11 @@ int smemcmp(char *one, char *two, unsigned long len)
 {
   int ii = 0;
 
+  // NULL sorts after anything else
+  if (one == two) return 0;
+  if (!one) return 1;
+  if (!two) return -1;
+
   while (len--) if ((ii = *one++ - *two++)) break;
 
   return ii;

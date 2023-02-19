@@ -2589,7 +2589,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
           if (len != writeall(from, ss, len)) bad++;
           if (ss != sss) free(ss);
         } else {
-          struct sh_arg *hh = arg+here++;
+          struct sh_arg *hh = arg+ ++here;
 
           for (i = 0; i<hh->c; i++) {
             ss = hh->v[i];
@@ -2961,7 +2961,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       arg = pl->arg+1+pl->here;
 
       // Match unquoted EOF.
-      for (s = line, end = arg->v[arg->c]; *end; s++) {
+      for (s = line, end = arg->v[arg->c]; *end; s++, end++) {
         s += strspn(s, "\\\"'");
         if (!*s || *s != *end) break;
       }
@@ -2997,11 +2997,16 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         if (i+1 == arg->c) goto flush;
 
         // Add another arg[] to the pipeline segment (removing/re-adding
-        // to list because realloc can move pointer)
+        // to list because realloc can move pointer, and adjusing end pointers)
         dlist_lpop(ppl);
+        pl2 = pl;
         pl = xrealloc(pl, sizeof(*pl)+(++pl->count+1)*sizeof(struct sh_arg));
         arg = pl->arg;
         dlist_add_nomalloc((void *)ppl, (void *)pl);
+        for (pl3 = *ppl;;) {
+          if (pl3->end == pl2) pl3->end = pl;
+          if ((pl3 = pl3->next) == *ppl) break;
+        }
 
         // queue up HERE EOF so input loop asks for more lines.
         *(arg[pl->count].v = xzalloc(2*sizeof(void *))) = arg->v[++i];
@@ -3088,7 +3093,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       }
 
       // "for" on its own line is an error.
-      if (arg->c == 1 && ex && !smemcmp(ex, "do\0A", 4)) {
+      if (arg->c == 1 && !smemcmp(ex, "do\0A", 4)) {
         s = "newline";
         goto flush;
       }
@@ -3185,7 +3190,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         free(s);
         s = 0;
 // TODO can't have ; between "for i" and in or do. (Newline yes, ; no. Why?)
-        if (!arg->c && ex && !smemcmp(ex, "do\0C", 4)) continue;
+        if (!arg->c && !smemcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
@@ -3194,7 +3199,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       continue;
 
     // a for/select must have at least one additional argument on same line
-    } else if (ex && !smemcmp(ex, "do\0A", 4)) {
+    } else if (!smemcmp(ex, "do\0A", 4)) {
       // Sanity check and break the segment
       if (strncmp(s, "((", 2) && *varend(s)) goto flush;
       pl->count = -1;
@@ -3212,7 +3217,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // The "test" part of for/select loops can have (at most) one "in" line,
     // for {((;;))|name [in...]} do
-    if (ex && !smemcmp(ex, "do\0C", 4)) {
+    if (!smemcmp(ex, "do\0C", 4)) {
       if (strcmp(s, "do")) {
         // can only have one "in" line between for/do, but not with for(())
         if (pl->prev->type == 's') goto flush;
