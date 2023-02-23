@@ -1348,7 +1348,7 @@ void ps_main(void)
     not_o = "F,S,UID,%sPPID,C,PRI,NI,BIT,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
     sprintf(not_o = toybuf+128,
-            "USER,%%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10,S,%s",
+            "USER,%%sPPID,VSIZE:10,RSS,WCHAN:10,ADDR:10,S,%s",
             FLAG(T) ? "CMD" : "NAME");
   sprintf(toybuf, not_o, FLAG(T) ? "PID,TID," : "PID,");
 
