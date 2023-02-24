@@ -1520,7 +1520,7 @@ static void draw_page()
 
 void vi_main(void)
 {
-  char stdout_buf[BUFSIZ];
+  char stdout_buf[8192];
   char keybuf[16] = {0};
   char vi_buf[16] = {0};
   char utf8_code[8] = {0};
@@ -1544,7 +1544,7 @@ void vi_main(void)
   TT.screen_height -= 1;
 
   // Avoid flicker.
-  setbuf(stdout, stdout_buf);
+  setbuffer(stdout, stdout_buf, sizeof(stdout_buf));
 
   xsignal(SIGWINCH, generic_signal);
   set_terminal(0, 1, 0, 0);
