@@ -29,19 +29,19 @@ config FIND
     -group GROUP     belongs to group GROUP    -nogroup    group ID not known
     -perm  [-/]MODE  permissions (-=min /=any) -prune      ignore dir contents
     -size  N[c]      512 byte blocks (c=bytes) -xdev       only this filesystem
-    -links N         hardlink count            -atime N[u] accessed N units ago
-    -ctime N[u]      created N units ago       -mtime N[u] modified N units ago
-    -inum N          inode number N            -empty      empty files and dirs
-    -true            always true               -false      always false
-    -context PATTERN security context          -executable access(X_OK) perm+ACL
-    -samefile FILE   hardlink to FILE          -quit       exit immediately
-    -depth           contents first, then dir  -maxdepth N at most N dirs down
-    -newer FILE      newer mtime than FILE     -mindepth N at least N dirs down
-    -newerXY FILE    X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
+    -links N         hardlink count            -empty      empty files and dirs
+    -atime N[u]      accessed N units ago      -true       always true
+    -ctime N[u]      created N units ago       -false      always false
+    -mtime N[u]      modified N units ago      -executable access(X_OK) perm+ACL
+    -inum  N         inode number N            -readable   access(R_OK) perm+ACL
+    -context PATTERN security context          -depth      contents before dir
+    -samefile FILE   hardlink to FILE          -maxdepth N at most N dirs down
+    -newer    FILE   newer mtime than FILE     -mindepth N at least N dirs down
+    -newerXY  FILE   X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
     -type [bcdflps]  type is (block, char, dir, file, symlink, pipe, socket)
 
-    Numbers N may be prefixed by a - (less than) or + (greater than). Units for
-    -Xtime are d (days, default), h (hours), m (minutes), or s (seconds).
+    Numbers N may be prefixed by - (less than) or + (greater than). Units for
+    -[acm]time are d (days, default), h (hours), m (minutes), or s (seconds).
 
     Combine matches with:
     !, -a, -o, ( )    not, and, or, group expressions
@@ -51,6 +51,7 @@ config FIND
     -exec   Run command with path     -execdir       Run command in file's dir
     -ok     Ask before exec           -okdir         Ask before execdir
     -delete Remove matching file/dir  -printf FORMAT Print using format string
+    -quit   Exit immediately
 
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
@@ -352,8 +353,9 @@ static int do_find(struct dirtree *new)
       if (check && bufgetgrgid(new->st.st_gid)) test = 0;
     } else if (!strcmp(s, "prune")) {
       if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
-    } else if (!strcmp(s, "executable")) {
-      if (check && faccessat(dirtree_parentfd(new), new->name,X_OK,0)) test = 0;
+    } else if (!strcmp(s, "executable") || !strcmp(s, "readable")) {
+      if (check && faccessat(dirtree_parentfd(new), new->name,
+          *s=='r' ? R_OK : X_OK, 0)) test = 0;
     } else if (!strcmp(s, "quit")) {
       if (check) {
         execdir(0, 1);
