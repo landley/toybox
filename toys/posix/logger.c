@@ -26,6 +26,8 @@ config LOGGER
 
 GLOBALS(
   char *p, *t;
+
+  int priority;
 )
 
 // find str in names[], accepting unambiguous short matches
@@ -48,9 +50,15 @@ static int arrayfind(char *str, char *names[], int len)
   return maybe;
 }
 
+static void syslog_line(char **pline, long len)
+{
+  if (!pline) return;
+  syslog(TT.priority, "%s", *pline);
+}
+
 void logger_main(void)
 {
-  int facility = LOG_USER, priority = LOG_NOTICE, len = 0;
+  int facility = LOG_USER, len = 0;
   char *s1, *s2, **arg,
     *priorities[] = {"emerg", "alert", "crit", "error", "warning", "notice",
                      "info", "debug"},
@@ -58,6 +66,7 @@ void logger_main(void)
                      "lpr", "news", "uucp", "cron", "authpriv", "ftp"};
 
   if (!TT.t) TT.t = xgetpwuid(geteuid())->pw_name;
+  TT.priority = LOG_NOTICE;
   if (TT.p) {
     if (!(s1 = strchr(TT.p, '.'))) s1 = TT.p;
     else {
@@ -71,10 +80,11 @@ void logger_main(void)
       facility *= 8;
     }
 
-    priority = arrayfind(s1, priorities, ARRAY_LEN(priorities));
-    if (priority<0) error_exit("bad priority: %s", s1);
+    TT.priority = arrayfind(s1, priorities, ARRAY_LEN(priorities));
+    if (TT.priority<0) error_exit("bad priority: %s", s1);
   }
 
+  openlog(TT.t, LOG_PERROR*FLAG(s), facility);
   if (toys.optc) {
     for (arg = toys.optargs; *arg; arg++) len += strlen(*arg)+1;
     s1 = s2 = xmalloc(len);
@@ -82,9 +92,7 @@ void logger_main(void)
       if (arg != toys.optargs) *s2++ = ' ';
       s2 = stpcpy(s2, *arg);
     }
-  } else toybuf[readall(0, s1 = toybuf, sizeof(toybuf)-1)] = 0;
-
-  openlog(TT.t, LOG_PERROR*FLAG(s), facility);
-  syslog(priority, "%s", s1);
+    syslog(TT.priority, "%s", s1);
+  } else do_lines(0, '\n', syslog_line);
   closelog();
 }
