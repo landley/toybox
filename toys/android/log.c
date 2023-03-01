@@ -23,18 +23,26 @@ config LOG
 
 GLOBALS(
   char *t, *p;
+
+  int pri;
 )
+
+static void log_line(char **pline, long len)
+{
+  if (!pline) return;
+  __android_log_write(TT.pri, TT.t, *pline);
+}
 
 void log_main(void)
 {
-  android_LogPriority pri = ANDROID_LOG_INFO;
   char *s = toybuf;
   int i;
 
+  TT.pri = ANDROID_LOG_INFO;
   if (TT.p) {
     i = stridx("defisvw", tolower(*TT.p));
     if (i==-1 || strlen(TT.p)!=1) error_exit("bad -p '%s'", TT.p);
-    pri = (android_LogPriority []){ANDROID_LOG_DEBUG, ANDROID_LOG_ERROR,
+    TT.pri = (int[]) {ANDROID_LOG_DEBUG, ANDROID_LOG_ERROR,
       ANDROID_LOG_FATAL, ANDROID_LOG_INFO, ANDROID_LOG_SILENT,
       ANDROID_LOG_VERBOSE, ANDROID_LOG_WARN}[i];
   }
@@ -51,7 +59,7 @@ void log_main(void)
       }
       s = stpcpy(s, toys.optargs[i]);
     }
-  } else toybuf[readall(0, toybuf, 1024-1)] = 0;
+  } else do_lines(0, '\n', log_line);
 
-  __android_log_write(pri, TT.t, toybuf);
+  __android_log_write(TT.pri, TT.t, toybuf);
 }
