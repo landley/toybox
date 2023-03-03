@@ -50,7 +50,7 @@ static void do_cmp(int fd, char *name)
 
   toys.exitval = 0;
 
-  for (;!FLAG(n) || TT.n;) {
+  while (!FLAG(n) || TT.n) {
     if (FLAG(n)) TT.n -= size = minof(size, TT.n);
     len1 = readall(TT.fd, toybuf, size);
     len2 = readall(fd, buf2, size);
@@ -86,6 +86,6 @@ out:
 void cmp_main(void)
 {
   toys.exitval = 2;
-  loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!FLAG(s)), 0, do_cmp);
+  loopfiles_rw(toys.optargs, O_CLOEXEC|WARN_ONLY*!FLAG(s), 0, do_cmp);
   if (toys.optc == 1) do_cmp(0, "-");
 }

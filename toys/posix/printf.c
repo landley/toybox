@@ -5,7 +5,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/printf.html
  *
- * todo: *m$ ala printf("%1$d:%2$.*3$d:%4$.*3$d\n", hour, min, precision, sec);
+ * TODO: *m$ ala printf("%1$d:%2$.*3$d:%4$.*3$d\n", hour, min, precision, sec);
 
 USE_PRINTF(NEWTOY(printf, "<1?^", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 

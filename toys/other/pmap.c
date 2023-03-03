@@ -32,7 +32,7 @@ void pmap_main(void)
 
   for (optargs = toys.optargs; *optargs; optargs++) {
     long long start, end, pss, tpss=0, dirty, tdirty=0, swap, tswap=0, total=0;
-    char *name = 0, *k = FLAG(x) ? "" : "K", mode[5];
+    char *name = 0, *k = "K"+FLAG(x), mode[5];
     pid_t pid = atolx(*optargs);
     int extras = 0, off, count;
     FILE *fp;
@@ -63,7 +63,7 @@ void pmap_main(void)
         name = line[off] ? line+off : "  [anon]\n";
         if (mode[3] == 'p') mode[3] = '-';
         total += end = (end-start)/1024;
-        printf("%0*llx % *lld%s ", (int)(2*sizeof(long)), start, 6+!!FLAG(x),
+        printf("%0*llx % *lld%s ", (int)(2*sizeof(long)), start, 6+FLAG(x),
             end, k);
         if (FLAG(x)) {
           strcpy(toybuf, name);
@@ -92,7 +92,7 @@ void pmap_main(void)
         xprintf("----------------  ------  ------  ------  ------\n" +
             ((sizeof(long)==4)?8:0));
       }
-      printf("total% *lld%s", 2*(int)(sizeof(long)+1)+!!FLAG(x), total, k);
+      printf("total% *lld%s", 2*(int)(sizeof(long)+1)+FLAG(x), total, k);
       if (FLAG(x)) printf("% 8lld% 8lld% 8lld", tpss, tdirty, tswap);
       xputc('\n');
     }

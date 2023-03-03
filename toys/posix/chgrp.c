@@ -49,7 +49,7 @@ static int do_chgrp(struct dirtree *node)
   // Depth first search
   if (!dirtree_notdotdot(node)) return 0;
   if (FLAG(R) && !node->again && S_ISDIR(node->st.st_mode))
-    return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!FLAG(L));
+    return DIRTREE_COMEAGAIN|DIRTREE_SYMFOLLOW*FLAG(L);
 
   fd = dirtree_parentfd(node);
   ret = fchownat(fd, node->name, TT.owner, TT.group,
@@ -94,7 +94,7 @@ void chgrp_main(void)
     TT.group = xgetgid(TT.group_name);
 
   for (s=toys.optargs+1; *s; s++)
-    dirtree_flagread(*s, DIRTREE_SYMFOLLOW*!!(FLAG(H)|FLAG(L)), do_chgrp);
+    dirtree_flagread(*s, DIRTREE_SYMFOLLOW*(FLAG(H)|FLAG(L)), do_chgrp);
 
   if (CFG_TOYBOX_FREE && ischown) free(own);
 }

@@ -837,7 +837,7 @@ static void parse_pattern(char **pline, long len)
         if (!(s = unescape_delimited_string(&line, 0))) goto error;
         if (!*s) command->rmatch[i] = 0;
         else {
-          xregcomp((void *)reg, s, REG_EXTENDED*!!FLAG(r));
+          xregcomp((void *)reg, s, REG_EXTENDED*FLAG(r));
           command->rmatch[i] = reg-toybuf;
           reg += sizeof(regex_t);
         }
@@ -1124,5 +1124,5 @@ void sed_main(void)
     sed_line(0, 0);
   }
 
-  // todo: need to close fd when done for TOYBOX_FREE?
+  // TODO: need to close fd when done for TOYBOX_FREE?
 }

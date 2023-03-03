@@ -66,7 +66,7 @@ void hostname_main(void)
     snprintf(toybuf, sizeof(toybuf), "%s", h->h_name);
   }
   dot = toybuf+strcspn(toybuf, ".");
-  if (FLAG(s)) *dot = '\0';
+  if (FLAG(s)) *dot = 0;
   xputs(FLAG(d) ? dot+1 : toybuf);
 }
 

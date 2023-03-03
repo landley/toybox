@@ -47,11 +47,11 @@ void hwclock_main()
     if (!TT.f) TT.f = "/dev/rtc0";
     fd = xopen(TT.f, O_WRONLY*FLAG(w));
 
-    // Get current time in seconds from rtc device. todo: get subsecond time
+    // Get current time in seconds from rtc device. TODO: get subsecond time
     if (!FLAG(w)) {
       xioctl(fd, RTC_RD_TIME, &tm);
       timeval.tv_sec = xmktime(&tm, utc);
-      timeval.tv_usec = 0; // todo: fixit
+      timeval.tv_usec = 0; // TODO: fixit
     }
   }
 
@@ -64,7 +64,7 @@ void hwclock_main()
   if (FLAG(w)) {
     /* The value of tm_isdst is positive if daylight saving time is in effect,
      * zero if it is not and negative if the information is not available. 
-     * todo: so why isn't this negative...? */
+     * TODO: so why isn't this negative...? */
     tm.tm_isdst = 0;
     xioctl(fd, RTC_SET_TIME, &tm);
   } else if (FLAG(s)) {

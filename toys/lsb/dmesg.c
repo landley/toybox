@@ -136,7 +136,7 @@ void dmesg_main(void)
 
     // Each read returns one message. By default, we block when there are no
     // more messages (--follow); O_NONBLOCK is needed for for usual behavior.
-    fd = open("/dev/kmsg", O_RDONLY|(O_NONBLOCK*!FLAG(w)));
+    fd = open("/dev/kmsg", O_RDONLY|O_NONBLOCK*!FLAG(w));
     if (fd == -1) goto klogctl_mode;
 
     // SYSLOG_ACTION_CLEAR(5) doesn't actually remove anything from /dev/kmsg,
@@ -163,7 +163,7 @@ klogctl_mode:
     // Figure out how much data we need, and fetch it.
     if (!(size = TT.s)) size = xklogctl(10, 0, 0);
     data = from = xmalloc(size+1);
-    data[size = xklogctl(3+!!FLAG(c), data, size)] = 0;
+    data[size = xklogctl(3+FLAG(c), data, size)] = 0;
 
     // Send each line to format_message.
     to = data + size;

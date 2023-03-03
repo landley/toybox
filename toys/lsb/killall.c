@@ -50,6 +50,7 @@ static int kill_process(pid_t pid, char *name)
   kill(pid, TT.signum);
   if (FLAG(w)) {
     struct int_list *new = xmalloc(sizeof(*TT.pids));
+
     new->val = pid;
     new->next = TT.pids;
     TT.pids = new;

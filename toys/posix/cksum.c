@@ -64,7 +64,7 @@ static void do_cksum(int fd, char *name)
     if (len<1) break;
 
     llen += len;
-    for (i=0; i<len; i++) crc=cksum(crc, toybuf[i]);
+    for (i = 0; i<len; i++) crc = cksum(crc, toybuf[i]);
   }
 
   // CRC the length

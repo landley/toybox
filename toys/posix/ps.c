@@ -1634,8 +1634,8 @@ static void top_common(
             run[1+stridx("RTtZ", *string_field(mix.tb[i], &field))]++;
           sprintf(toybuf,
             "%ss: %d total, %3ld running, %3ld sleeping, %3ld stopped, "
-            "%3ld zombie", FLAG(H)?"Thread":"Task", mix.count, run[1], run[0],
-            run[2]+run[3], run[4]);
+            "%3ld zombie", FLAG(H) ? "Thread" : "Task", mix.count, run[1],
+            run[0], run[2]+run[3], run[4]);
           lines = header_line(lines, 0);
 
           if (readfile("/proc/meminfo", toybuf+256, sizeof(toybuf)-256)) {
@@ -1843,12 +1843,12 @@ static int iotop_filter(long long *oslot, long long *nslot, int milis)
   if (!FLAG(a)) merge_deltas(oslot, nslot, milis);
   else oslot[SLOT_upticks] = ((millitime()-TT.time)*TT.ticks)/1000;
 
-  return !FLAG(O)||oslot[SLOT_iobytes+!FLAG(A)];
+  return !FLAG(O) || oslot[SLOT_iobytes+!FLAG(A)];
 }
 
 void iotop_main(void)
 {
-  char *s1 = 0, *s2 = 0, *d = "D"+!!FLAG(A);
+  char *s1 = 0, *s2 = 0, *d = "D"+FLAG(A);
 
   if (FLAG(K)) TT.forcek++;
 
@@ -1883,9 +1883,7 @@ static void do_pgk(struct procpid *tb)
   }
   if (!FLAG(c) && (!TT.pgrep.signal || TT.tty)) {
     printf("%lld", *tb->slot);
-    if (FLAG(l))
-      printf(" %s", tb->str+tb->offset[4]*!!FLAG(f));
-    
+    if (FLAG(l)) printf(" %s", tb->str+tb->offset[4]*FLAG(f));
     printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
   }
 }
@@ -1895,7 +1893,7 @@ static void match_pgrep(void *p)
   struct procpid *tb = p;
   regmatch_t match;
   struct regex_list *reg;
-  char *name = tb->str+tb->offset[4]*!!FLAG(f);
+  char *name = tb->str+tb->offset[4]*FLAG(f);
 
   // Never match ourselves.
   if (TT.pgrep.self == *tb->slot) return;

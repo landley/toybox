@@ -514,7 +514,7 @@ done:
   free(xfname);
   free(name);
 
-  return recurse*(DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0));
+  return recurse*(DIRTREE_RECURSE|DIRTREE_SYMFOLLOW*FLAG(h));
 }
 
 static void wsettime(char *s, long long sec)
@@ -923,7 +923,7 @@ static void unpack_tar(char *first)
           xsetenv(xmprintf("TAR_GID=%o", TT.hdr.gid), 0);
 
           pid = xpopen((char *[]){"sh", "-c", TT.to_command, NULL}, &fd, 0);
-          // todo: short write exits tar here, other skips data.
+          // TODO: short write exits tar here, other skips data.
           sendfile_sparse(fd);
           fd = xpclose_both(pid, 0);
           if (fd) error_msg("%d: Child returned %d", pid, fd);
@@ -966,7 +966,7 @@ static void do_XT(char **pline, long len)
 
 static  char *get_archiver()
 {
-  return FLAG(I) ? TT.I : FLAG(z) ? "gzip" : FLAG(j) ? "bzip2" : "xz";
+  return TT.I ? : FLAG(z) ? "gzip" : FLAG(j) ? "bzip2" : "xz";
 }
 
 void tar_main(void)
@@ -1004,7 +1004,7 @@ void tar_main(void)
   for (args = toys.optargs; *args; args++) trim2list(&TT.incl, *args);
   // -T is always --verbatim-files-from: no quote removal or -arg handling
   for (;TT.T; TT.T = TT.T->next)
-    do_lines(xopenro(TT.T->arg), FLAG(null) ? '\0' : '\n', do_XT);
+    do_lines(xopenro(TT.T->arg), '\n'*!FLAG(null), do_XT);
 
   // If include file list empty, don't create empty archive
   if (FLAG(c)) {
@@ -1155,9 +1155,9 @@ void tar_main(void)
     }
     do {
       TT.warn = 1;
-      ii = FLAG(h) ? DIRTREE_SYMFOLLOW : 0;
-      if (FLAG(sort)|FLAG(s)) ii |= DIRTREE_BREADTH;
-      dirtree_flagread(dl->data, FLAG(h) ? DIRTREE_SYMFOLLOW : 0, add_to_tar);
+      dirtree_flagread(dl->data,
+        DIRTREE_SYMFOLLOW*FLAG(h)|DIRTREE_BREADTH*(FLAG(sort)|FLAG(s)),
+        add_to_tar);
     } while (TT.incl != (dl = dl->next));
 
     writeall(TT.fd, toybuf, 1024);

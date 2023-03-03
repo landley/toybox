@@ -198,10 +198,11 @@ error:
 // Get directory information.
 static int retell_dir(struct dirtree *root)
 {
-  char *fpath = NULL;
+  char *fpath = 0;
 
   if (root->again) {
     xputc('\n');
+
     return 0;
   }
   if (S_ISDIR(root->st.st_mode) && !root->parent)
@@ -209,7 +210,7 @@ static int retell_dir(struct dirtree *root)
 
   fpath = dirtree_path(root, NULL);
   //Special case: with '-a' option and '.'/'..' also included in printing list.
-  if ((root->name[0] != '.') || FLAG(a)) {
+  if (*root->name != '.' || FLAG(a)) {
     print_file_attr(fpath);
     if (S_ISDIR(root->st.st_mode) && FLAG(R) && dirtree_notdotdot(root)) {
       xprintf("\n%s:\n", fpath);
@@ -218,6 +219,7 @@ static int retell_dir(struct dirtree *root)
     }
   }
   free(fpath);
+
   return 0;
 }
 

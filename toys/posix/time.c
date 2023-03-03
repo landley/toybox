@@ -31,7 +31,7 @@ void time_main(void)
   long long sec[3];
   int stat, ii, idx, nano[3];
   pid_t pid;
-  char *labels[] = {"\nreal"+!!FLAG(p), "user", "sys"}, **label = labels,
+  char *labels[] = {"\nreal"+FLAG(p), "user", "sys"}, **label = labels,
        *vlabels[] ={"Real", "User", "System"}, tab = toys.optflags ? ' ' : '\t';
 
   if (FLAG(v)) label = vlabels;

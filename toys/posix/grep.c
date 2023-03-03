@@ -429,8 +429,7 @@ static void parse_regex(void)
       struct reg *shoe;
 
       dlist_add_nomalloc(&TT.reg, (void *)(shoe = xmalloc(sizeof(struct reg))));
-      xregcomp(&shoe->r, (*last)->arg,
-               (REG_EXTENDED*!!FLAG(E))|(REG_ICASE*!!FLAG(i)));
+      xregcomp(&shoe->r, (*last)->arg, REG_EXTENDED*FLAG(E)|REG_ICASE*FLAG(i));
       al = *last;
       *last = (*last)->next;
       free(al);
@@ -476,7 +475,7 @@ static int do_grep_r(struct dirtree *new)
   if (S_ISDIR(new->st.st_mode)) {
     for (al = TT.exclude_dir; al; al = al->next)
       if (!fnmatch(al->arg, new->name, 0)) return 0;
-    return DIRTREE_RECURSE|(FLAG(R)?DIRTREE_SYMFOLLOW:0);
+    return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW*FLAG(R);
   }
   if (TT.S || TT.M) {
     for (al = TT.S; al; al = al->next)

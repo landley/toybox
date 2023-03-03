@@ -455,7 +455,7 @@ static void do_hash(int fd, char *name)
   if (CFG_TOYBOX_LIBCRYPTO) do_lib_hash(fd, name);
   else do_builtin_hash(fd, name);
 
-  if (name) printf("%s  %s\n"+4*!!FLAG(b), toybuf, name);
+  if (name) printf("%s  %s\n"+4*FLAG(b), toybuf, name);
 }
 
 static void do_c_line(char *line)

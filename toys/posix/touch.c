@@ -71,7 +71,6 @@ void touch_main(void)
     if (!strcmp(s, "-")) {
       if (!futimens(1, ts)) continue;
     } else {
-      // cheat: FLAG_h is rightmost flag, so its value is 1
       if (!utimensat(AT_FDCWD, s, ts, FLAG(h)*AT_SYMLINK_NOFOLLOW)) continue;
       if (FLAG(c)) continue;
       if (access(s, F_OK) && (-1!=(fd = open(s, O_CREAT, 0666)))) {

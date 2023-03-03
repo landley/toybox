@@ -8,7 +8,7 @@
  * "-" counts as start to end. Using spaces to separate a comma-separated list
  * is silly and inconsistent with dd, ps, cp, and mount.
  *
- * todo: -n, -s with -c
+ * TODO: -n, -s with -c
 
 USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|C*|O(output-delimiter):d:sDn[!cbfF]", TOYFLAG_USR|TOYFLAG_BIN))
 

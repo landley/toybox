@@ -5,7 +5,7 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/gzip.html
  * GZIP RFC: http://www.ietf.org/rfc/rfc1952.txt
  *
- * todo: qtv --rsyncable
+ * TODO: qtv --rsyncable
 
 // gzip.net version allows all options for all commands.
 USE_GZIP(NEWTOY(gzip,    "n(no-name)cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
@@ -134,7 +134,7 @@ static void do_gzip(int ifd, char *in)
     else if ((out = strend(in, ".gz"))>in) out = xstrndup(in, out-in);
     else return error_msg("no .gz: %s", in);
 
-    ofd = xcreate(out, O_CREAT|O_WRONLY|WARN_ONLY|(O_EXCL*!FLAG(f)),sb.st_mode);
+    ofd = xcreate(out, O_CREAT|O_WRONLY|WARN_ONLY|O_EXCL*!FLAG(f), sb.st_mode);
     if (ofd == -1) return;
   }
 

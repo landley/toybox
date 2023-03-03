@@ -157,13 +157,13 @@ static void print_statfs(char type) {
 
 void stat_main(void)
 {
-  int flagf = FLAG(f), i;
+  int i;
   char *format, *f;
 
-  if (FLAG(t)) format = flagf
+  if (FLAG(t)) format = FLAG(f)
     ? "%n %i %l %t %s %S %b %f %a %c %d"
     : "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %o";
-  else format = flagf
+  else format = FLAG(f)
     ? "  File: \"%n\"\n    ID: %i Namelen: %l    Type: %T\n"
       "Block Size: %s    Fundamental block size: %S\n"
       "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
@@ -180,8 +180,8 @@ void stat_main(void)
 
     // stat the file or filesystem
     TT.file = toys.optargs[i];
-    if (flagf && !statfs(TT.file, (void *)&TT.stat));
-    else if (flagf || (FLAG(L) ? stat : lstat)(TT.file, (void *)&TT.stat)) {
+    if (FLAG(f) && !statfs(TT.file, (void *)&TT.stat));
+    else if (FLAG(f) || (FLAG(L) ? stat : lstat)(TT.file, (void *)&TT.stat)) {
       perror_msg("'%s'", TT.file);
       continue;
     }
@@ -195,7 +195,7 @@ void stat_main(void)
         TT.patlen = f-TT.pattern;
         if (!*f || TT.patlen>99) error_exit("bad %s", TT.pattern);
         if (*f == 'n') strout(TT.file);
-        else if (flagf) print_statfs(*f);
+        else if (FLAG(f)) print_statfs(*f);
         else print_stat(*f);
       }
     }

@@ -210,6 +210,7 @@ void gpioinfo_main(void)
 #define FOR_gpioget
 #include "generated/flags.h"
 
+// TODO: half the get/set plumbing same here, maybe collate?
 void gpioget_main(void)
 {
   struct gpiohandle_request req = { .flags = GPIOHANDLE_REQUEST_INPUT };

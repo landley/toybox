@@ -95,7 +95,7 @@ void netcat_main(void)
 
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
-  if (FLAG(f) ? toys.optc : (!FLAG(l) && !FLAG(L) && toys.optc!=(FLAG(U)?1:2)))
+  if (FLAG(f) ? toys.optc : (!FLAG(l) && !FLAG(L) && toys.optc!=2-FLAG(U)))
     help_exit("bad argument count");
 
   if (FLAG(4)) family = AF_INET;
@@ -108,7 +108,7 @@ void netcat_main(void)
     if (!FLAG(l) && !FLAG(L)) {
       if (FLAG(U)) sockfd = usock(toys.optargs[0], type, 1);
       else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0],
-        toys.optargs[1], family, type, 0, AI_NUMERICHOST*!!FLAG(n)));
+        toys.optargs[1], family, type, 0, AI_NUMERICHOST*FLAG(n)));
 
       // We have a connection. Disarm timeout and start poll/send loop.
       alarm(0);

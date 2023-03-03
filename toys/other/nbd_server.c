@@ -53,7 +53,7 @@ void nbd_server_main(void)
   // Send original recipe negotiation, with device length and flags
   memcpy(toybuf, "NBDMAGIC\x00\x00\x42\x02\x81\x86\x12\x53", 16);
   ll[2] = SWAP_BE64(fdlength(fd));
-  uu[6] = SWAP_BE32(5+2*!!FLAG(r)); // has flags, can flush, maybe read only
+  uu[6] = SWAP_BE32(5+2*FLAG(r)); // has flags, can flush, maybe read only
   xwrite(1, toybuf, 152);
 
   // Simple loop, handles one request at a time with "simple" reply.

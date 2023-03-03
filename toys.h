@@ -124,7 +124,7 @@ extern struct toy_context {
 
 extern char **environ, *toybox_version, toybuf[4096], libbuf[4096];
 
-#define FLAG(x) (toys.optflags&FLAG_##x)
+#define FLAG(x) (!!(toys.optflags&FLAG_##x))  // Return 1 if flag set, 0 if not
 
 #define GLOBALS(...)
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))

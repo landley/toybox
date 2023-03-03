@@ -284,7 +284,7 @@ static void sort_lines(char **pline, long len)
 
   // handle -c here so we don't allocate more memory than necessary.
   if (FLAG(C)||FLAG(c)) {
-    if (TT.lines && compare_keys((void *)&TT.lines, &line)>-!!FLAG(u)) {
+    if (TT.lines && compare_keys((void *)&TT.lines, &line)>-FLAG(u)) {
       toys.exitval = 1;
       if (FLAG(C)) xexit();
       error_exit("%s: Check line %u", TT.name, TT.linecount+1);

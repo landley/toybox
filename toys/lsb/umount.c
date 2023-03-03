@@ -37,7 +37,7 @@ GLOBALS(
   char *types;
 )
 
-// todo (done?)
+// TODO (done?)
 //   borrow df code to identify filesystem?
 //   umount -a from fstab
 //   umount when getpid() not 0, according to fstab

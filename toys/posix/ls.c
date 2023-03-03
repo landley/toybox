@@ -203,7 +203,7 @@ static int filter(struct dirtree *new)
   new->st.st_blocks >>= 1; // Use 1KiB blocks rather than 512B blocks.
 
   if (FLAG(a)||FLAG(f)) return DIRTREE_SAVE;
-  if (!FLAG(A) && new->name[0]=='.') return 0;
+  if (!FLAG(A) && *new->name=='.') return 0;
 
   return dirtree_notdotdot(new) & DIRTREE_SAVE;
 }
@@ -291,7 +291,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   // Read directory contents. We dup() the fd because this will close it.
   // This reads/saves contents to display later, except for in "ls -1f" mode.
   } else dirtree_recurse(indir, filter, dirfd,
-      DIRTREE_STATLESS|DIRTREE_SYMFOLLOW*!!FLAG(L));
+      DIRTREE_STATLESS|DIRTREE_SYMFOLLOW*FLAG(L));
 
   // Copy linked list to array and sort it. Directories go in array because
   // we visit them in sorted order too. (The nested loops let us measure and
@@ -379,9 +379,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Handle padding and wrapping for display purposes
     entrylen(dt, len);
     if (ul) {
-      int mm = !!FLAG(m);
-
-      if (mm) xputc(',');
+      if (FLAG(m)) xputc(',');
       if (FLAG(C)||FLAG(x)) {
         if (!curcol) xputc('\n');
         else {
@@ -392,8 +390,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
         xputc('\n');
         width = 0;
       } else {
-        printf("  "+mm, 0); // shut up the stupid compiler
-        width += 2-mm;
+        printf("  "+FLAG(m), 0); // shut up the stupid compiler
+        width += 2-FLAG(m);
       }
     }
     width += *len;

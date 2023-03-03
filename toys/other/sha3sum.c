@@ -6,7 +6,6 @@
  * https://csrc.nist.gov/publications/detail/fips/202/final
  * https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-185.pdf
 
-// Depends on FLAG(b) being 4
 USE_SHA3SUM(NEWTOY(sha3sum, "bSa#<128>512=224", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SHA3SUM
@@ -89,8 +88,7 @@ static void do_sha3sum(int fd, char *name)
   }
   memset(buf, 0, sizeof(buf));
 
-  // Depends on FLAG(b) being 4
-  xprintf("  %s\n"+FLAG(b), name);
+  xprintf("  %s\n"+(FLAG(b)<<2), name);
 }
 
 // TODO test 224 256 384 512, and shake 128 256

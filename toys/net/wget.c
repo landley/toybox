@@ -21,10 +21,10 @@
  * Transfer Encoding [gzip|deflate]: https://jigsaw.w3.org/HTTP/TE/bar.txt
  *
  *
- * todo: Add support for configurable TLS versions
- * todo: Add support for ftp
- * todo: Add support for Transfer Encoding (gzip|deflate)
- * todo: Add support for RFC5987
+ * TODO: Add support for configurable TLS versions
+ * TODO: Add support for ftp
+ * TODO: Add support for Transfer Encoding (gzip|deflate)
+ * TODO: Add support for RFC5987
 
 USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):p(post-data):", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -246,7 +246,7 @@ void wget_main(void)
     if (TT.p) sprintf(toybuf, "Content-Length: %ld\r\n", (long)strlen(TT.p));
     ss = xmprintf("%s /%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n"
                   "Connection: close\r\n%s\r\n%s", FLAG(p) ? "POST" : "GET",
-                  path, host, agent, FLAG(p) ? toybuf : "", FLAG(p)?TT.p:"");
+                  path, host, agent, TT.p ? toybuf : "", TT.p ? : "");
     if (FLAG(d)) printf("--- Request\n%s", ss);
     wget_connect(host, port);
     wget_write(ss, strlen(ss));

@@ -4,7 +4,7 @@
  *
  * See https://tools.ietf.org/html/rfc4648
 
-// These optflags have to match. Todo: cleanup and collapse together?
+// These optflags have to match. TODO: cleanup and collapse together?
 USE_BASE64(NEWTOY(base64, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 USE_BASE32(NEWTOY(base32, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 

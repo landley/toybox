@@ -331,7 +331,7 @@ static void deflate(struct deflate *dd, struct bitbuf *bb)
   while (!final) {
     // Read next half-window of data if we haven't hit EOF yet.
     len = readall(dd->infd, data+(dd->len&32768), 32768);
-    if (len < 0) perror_exit("read"); // todo: add filename
+    if (len < 0) perror_exit("read"); // TODO: add filename
     if (len != 32768) final++;
     if (dd->crcfunc) dd->crcfunc(dd, data+(dd->len&32768), len);
     // dd->len += len;  crcfunc advances len TODO

@@ -114,8 +114,7 @@ static int do_du(struct dirtree *node)
   else if (!dirtree_notdotdot(node)) return 0;
 
   // detect swiching filesystems
-  if (FLAG(x) && (TT.st_dev != node->st.st_dev))
-    return 0;
+  if (FLAG(x) && TT.st_dev != node->st.st_dev) return 0;
 
   // Don't loop endlessly on recursive directory symlink
   if (FLAG(L)) {
@@ -132,7 +131,7 @@ static int do_du(struct dirtree *node)
   if (S_ISDIR(node->st.st_mode)) {
     if (!node->again) {
       TT.depth++;
-      return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!FLAG(L));
+      return DIRTREE_COMEAGAIN|DIRTREE_SYMFOLLOW*FLAG(L);
     } else TT.depth--;
   }
 

@@ -301,7 +301,7 @@ void tail_main(void)
   TT.ss = TT.s ? xparsemillitime(TT.s) : 1000;
 
   loopfiles_rw(args,
-    O_RDONLY|WARN_ONLY|LOOPFILES_ANYWAY|(O_CLOEXEC*!(FLAG(f) || FLAG(F))),
+    O_RDONLY|WARN_ONLY|LOOPFILES_ANYWAY|O_CLOEXEC*!(FLAG(f) || FLAG(F)),
     0, do_tail);
 
   // Wait for more data when following files

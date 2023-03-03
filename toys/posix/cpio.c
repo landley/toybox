@@ -14,7 +14,7 @@
  * rdevmajor rdevminor namesize check
  * This is the equivalent of mode -H newc in other implementations.
  *
- * todo: export/import linux file list text format ala gen_initramfs_list.sh
+ * TODO: export/import linux file list text format ala gen_initramfs_list.sh
 
 USE_CPIO(NEWTOY(cpio, "(ignore-devno)(renumber-inodes)(quiet)(no-preserve-owner)R(owner):md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
@@ -80,7 +80,6 @@ static unsigned x8u(char *hex)
 
 void cpio_main(void)
 {
-  // Subtle bit: FLAG_o is 1 so we can just use it to select stdin/stdout.
   int pipe, afd = FLAG(o), empty = 1;
   pid_t pid = 0;
   long Ruid = -1, Rgid = -1;

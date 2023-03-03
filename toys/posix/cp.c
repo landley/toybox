@@ -204,7 +204,7 @@ static int cp_node(struct dirtree *try)
         if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
           if (-1 != (try->extra = openat(cfd, catch, O_NOFOLLOW)))
             if (!fstat(try->extra, &st2) && S_ISDIR(st2.st_mode))
-              return DIRTREE_COMEAGAIN | (DIRTREE_SYMFOLLOW*!!FLAG(L));
+              return DIRTREE_COMEAGAIN | DIRTREE_SYMFOLLOW*FLAG(L);
 
       // Hardlink
 
@@ -430,9 +430,7 @@ void cp_main(void)
     // "mv across devices" triggers cp fallback path, so set that as default
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {
-      int force = FLAG(f), no_clobber = FLAG(n);
-
-      if (!force || no_clobber) {
+      if (!FLAG(f) || FLAG(n)) {
         struct stat st;
         int exists = !stat(TT.destname, &st);
 
@@ -445,7 +443,7 @@ void cp_main(void)
           else unlink(TT.destname);
         }
         // if -n and dest exists, don't try to rename() or copy
-        if (exists && no_clobber) send = 0;
+        if (exists && FLAG(n)) send = 0;
       }
       if (send) send = rename(src, TT.destname);
       if (trail) trail[1] = '/';
@@ -454,7 +452,7 @@ void cp_main(void)
     // Copy if we didn't mv or hit an error, skipping nonexistent sources
     if (send) {
       if (errno!=EXDEV || dirtree_flagread(src, DIRTREE_SHUTUP+
-        DIRTREE_SYMFOLLOW*!!(FLAG(H)||FLAG(L)), TT.callback))
+        DIRTREE_SYMFOLLOW*(FLAG(H)|FLAG(L)), TT.callback))
           perror_msg("bad '%s'", src);
     }
     if (destdir) free(TT.destname);
@@ -514,15 +512,15 @@ void install_main(void)
   }
 
   if (FLAG(D)) {
-    char *destname = FLAG(t) ? TT.i.t : (TT.destname = toys.optargs[toys.optc-1]);
-    if (mkpathat(AT_FDCWD, destname, 0777, MKPATHAT_MAKE | (FLAG(t) ? MKPATHAT_MKLAST : 0)))
+    char *destname = TT.i.t ? : (TT.destname = toys.optargs[toys.optc-1]);
+    if (mkpathat(AT_FDCWD, destname, 0777, MKPATHAT_MAKE|MKPATHAT_MKLAST*FLAG(t)))
       perror_exit("-D '%s'", destname);
     if (toys.optc == !FLAG(t)) return;
   }
 
   // Translate flags from install to cp
-  toys.optflags = cp_flag_F() + cp_flag_v()*!!FLAG(v)
-    + cp_flag_p()*!!(FLAG(p)|FLAG(o)|FLAG(g));
+  toys.optflags = cp_flag_F() + cp_flag_v()*FLAG(v)
+    + cp_flag_p()*(FLAG(p)|FLAG(o)|FLAG(g));
 
   TT.callback = install_node;
   cp_main();
