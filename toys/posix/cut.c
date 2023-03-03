@@ -8,9 +8,9 @@
  * "-" counts as start to end. Using spaces to separate a comma-separated list
  * is silly and inconsistent with dd, ps, cp, and mount.
  *
- * TODO: -n, -s with -c
+ * TODO: -s with -c
 
-USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|C*|O(output-delimiter):d:sDn[!cbfF]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CUT(NEWTOY(cut, "b*|c*|f*|F(regex-fields)*|C*|O(output-delimiter):d:sD(allow-duplicates)n[!cbfF]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CUT
   bool "cut"
@@ -25,7 +25,7 @@ config CUT
     from start). By default selection ranges are sorted and collated, use -D
     to prevent that.
 
-    -b	Select bytes
+    -b	Select bytes (with -n round start/end down to start of utf8 char)
     -c	Select UTF-8 characters
     -C	Select unicode columns
     -d	Use DELIM (default is TAB for -f, run of whitespace for -F)
