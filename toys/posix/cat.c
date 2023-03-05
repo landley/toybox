@@ -28,7 +28,7 @@ config CAT
 
 static void do_cat(int fd, char *name)
 {
-  int i, len, size = FLAG(u) ? : sizeof(toybuf);
+  int i, len, size = FLAG(u) ? 1 : sizeof(toybuf);
 
   for(;;) {
     len = read(fd, toybuf, size);
