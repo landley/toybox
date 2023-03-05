@@ -390,7 +390,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
         xputc('\n');
         width = 0;
       } else {
-        printf("  "+FLAG(m), 0); // shut up the stupid compiler
+        xputsn("  "+FLAG(m));
         width += 2-FLAG(m);
       }
     }
