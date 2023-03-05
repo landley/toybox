@@ -205,8 +205,7 @@ function getglobals()
 {
   for i in toys/*/*.c
   do
-    # alas basename -s isn't in posix yet.
-    NAME="$(echo $i | $SED 's@.*/\(.*\)\.c@\1@')"
+    NAME=${i##*/} NAME=${NAME%\.c}
     DATA="$($SED -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
             -e 's/^GLOBALS(/_data {/' \
             -e 's/^)/};/' -e 'p' $i)"
