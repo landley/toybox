@@ -6,6 +6,32 @@ source scripts/portability.sh
 
 # Shell functions called by the build
 
+DASHN=-n
+true & wait -n 2>/dev/null || { wait; unset DASHN; }
+ratelimit()
+{
+  if [ "$#" -eq 0 ]
+  then
+    [ -z "$DASHN" ] && PIDS="$PIDS$! "
+    [ $((++COUNT)) -lt $CPUS ] && return 0
+  fi
+  ((--COUNT))
+  if [ -n "$DASHN" ]
+  then
+    wait -n
+    DONE=$(($DONE+$?))
+  else
+    # MacOS uses an ancient version of bash which hasn't got "wait -n", and
+    # wait without arguments always returns 0 instead of process exit code.
+    # This keeps $CPUS less busy when jobs finish out of order.
+    wait ${PIDS%% *}
+    DONE=$(($DONE+$?))
+    PIDS=${PIDS#* }
+  fi
+
+  return $DONE
+}
+
 # Respond to V= by echoing command lines as well as running them
 do_loudly()
 {
@@ -275,16 +301,13 @@ do
 
   do_loudly $BUILD -c $i -o $OUT &
 
-  # ratelimit to $CPUS many parallel jobs, detecting errors
-  [ $((++COUNT)) -ge $CPUS ] && { wait $DASHN; DONE=$?; : $((--COUNT)); }
-  [ $DONE -ne 0 ] && break
+  ratelimit || break
 done
 
 # wait for all background jobs, detecting errors
-while [ $((COUNT--)) -gt 0 ]
+while [ "$COUNT" -gt 0 ]
 do
-  wait $DASHN;
-  DONE=$((DONE+$?))
+  ratelimit done
 done
 [ $DONE -ne 0 ] && exit 1
 
