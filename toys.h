@@ -82,6 +82,11 @@
 
 // These live in main.c
 
+#define HELP_USAGE   1  // usage: line only
+#define HELP_HEADER  2  // Add Toybox header line to help output
+#define HELP_SEE     4  // "See COMMAND" instead of dereferencing alias
+#define HELP_HTML    8  // Output HTML
+
 struct toy_list *toy_find(char *name);
 void show_help(FILE *out, int full);
 void check_help(char **arg);

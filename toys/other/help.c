@@ -30,44 +30,46 @@ static void do_help(struct toy_list *t)
     xprintf("<a name=\"%s\"><h1>%s</h1><blockquote><pre>\n", t->name, t->name);
 
   toys.which = t;
-  show_help(stdout, !FLAG(u)+(!!toys.argv[1]<<1)+(FLAG(h)<<2));
+  show_help(stdout, HELP_USAGE*FLAG(u) + (HELP_SEE|HELP_HTML)*FLAG(h));
 
   if (FLAG(h)) xprintf("</blockquote></pre>\n");
 }
 
-// Simple help is just toys.which = toy_find("name"); show_help(stdout, 1);
+// Simple help is just toys.which = toy_find("name"); show_help(stdout, 0);
 // but iterating through html output and all commands is a bit more
 
 void help_main(void)
 {
-  int i;
+  long i;
 
   // If called with no arguments as a builtin from the shell, show all builtins
   if (toys.rebound && !*toys.optargs && !toys.optflags) {
     for (i = 0; i < toys.toycount; i++) {
       if (!(toy_list[i].flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK))) continue;
       toys.which = toy_list+i;
-      show_help(stdout, FLAG(u));
+      show_help(stdout, HELP_SEE|HELP_USAGE*!toys.optflags);
     }
     return;
   }
 
   if (!FLAG(a)) {
-    struct toy_list *t = toys.which;
+    struct toy_list *t = toys.which, *tt;
 
-    if (*toys.optargs && !(t = toy_find(*toys.optargs)))
-      error_exit("Unknown command '%s'", *toys.optargs);
-    do_help(t);
-    return;
+    // Zero which to include "toybox" in search, put it back for error msg
+    toys.which = 0;
+    tt = *toys.optargs ? toy_find(*toys.optargs) : t;
+    toys.which = t;
+
+    if (tt) return do_help(tt);
+    else error_exit("Unknown command '%s'", *toys.optargs);
   }
 
   if (FLAG(h)) {
     sprintf(toybuf, "Toybox %s command help", toybox_version);
     xprintf("<html>\n<title>%s</title>\n<body>\n<h1>%s</h1><hr /><p>",
             toybuf, toybuf);
-    for (i=0; i<toys.toycount; i++)
-      if (toy_list[i].flags)
-        xprintf("<a href=\"#%s\">%s</a> \n", toy_list[i].name,toy_list[i].name);
+    for (i = 0; i<toys.toycount; i++) if (toy_list[i].flags)
+      xprintf("<a href=\"#%s\">%s</a>\n", toy_list[i].name,toy_list[i].name);
     xprintf("</p>\n");
   }
 

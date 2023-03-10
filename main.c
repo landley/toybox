@@ -76,31 +76,32 @@ static char *help_data =
 #include "generated/newtoys.h"
 ;
 
-void show_help(FILE *out, int full)
+void show_help(FILE *out, int flags)
 {
   int i = toys.which-toy_list;
   char *s, *ss;
 
-  if (!(full&2))
-    fprintf(out, "Toybox %s"USE_TOYBOX(" multicall binary")"%s\n\n",
-      toybox_version, (CFG_TOYBOX && i) ? " (see toybox --help)"
-      : " (see https://landley.net/toybox)");
-
   if (CFG_TOYBOX_HELP) {
+    if (flags & HELP_HEADER)
+      fprintf(out, "Toybox %s"USE_TOYBOX(" multicall binary")"%s\n\n",
+        toybox_version, (CFG_TOYBOX && i) ? " (see toybox --help)"
+        : " (see https://landley.net/toybox)");
+
     for (;;) {
       s = help_data;
       while (i--) s += strlen(s) + 1;
       // If it's an alias, restart search for real name
       if (*s != 255) break;
       i = toy_find(++s)-toy_list;
-      if ((full&4) && toy_list[i].flags) {
-        fprintf(out, "See <a href=#%s>%s</a>\n", s, s);
+      if ((flags & HELP_SEE) && toy_list[i].flags) {
+        if (flags & HELP_HTML) fprintf(out, "See <a href=#%s>%s</a>\n", s, s);
+        else fprintf(out, "%s see %s\n", toys.which->name, s);
 
         return;
       }
     }
 
-    if (full) fprintf(out, "%s\n", s);
+    if (!(flags & HELP_USAGE)) fprintf(out, "%s\n", s);
     else {
       strstart(&s, "usage: ");
       for (ss = s; *ss && *ss!='\n'; ss++);
@@ -124,9 +125,11 @@ void check_help(char **arg)
     if (toys.which->flags&TOYFLAG_NOHELP) return;
 
   if (!strcmp(*arg, "--help")) {
-    if (CFG_TOYBOX && toys.which == toy_list && arg[1])
+    if (CFG_TOYBOX && toys.which == toy_list && arg[1]) {
+      toys.which = 0;
       if (!(toys.which = toy_find(arg[1]))) unknown(arg[1]);
-    show_help(stdout, 1);
+    }
+    show_help(stdout, HELP_HEADER);
     xexit();
   }
 
