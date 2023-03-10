@@ -81,9 +81,11 @@ static unsigned x8u(char *hex)
 
 void cpio_main(void)
 {
-  int pipe, afd = FLAG(o), empty = 1;
+  int pipe, afd = FLAG(o), reown = !geteuid() && !FLAG(no_preserve_owner),
+      empty = 1;
   pid_t pid = 0;
   long Ruid = -1, Rgid = -1;
+  char *tofree = 0;
 
   if (TT.R) {
     char *group = TT.R+strcspn(TT.R, ":.");
@@ -124,10 +126,12 @@ void cpio_main(void)
   // read cpio archive
 
   if (FLAG(i) || FLAG(t)) for (;; empty = 0) {
-    char *name, *tofree, *data;
+    char *name, *data;
     unsigned mode, uid, gid, timestamp;
     int test = FLAG(t), err = 0, size = 0, len;
 
+    free(tofree);
+    tofree = 0;
     // read header, skipping arbitrary leading NUL bytes (concatenated archives)
     for (;;) {
       if (1>(len = readall(afd, toybuf+size, 110-size))) break;
@@ -145,10 +149,7 @@ void cpio_main(void)
     }
     if (size != 110 || smemcmp(toybuf, "070701", 6)) error_exit("bad header");
     tofree = name = strpad(afd, x8u(toybuf+94), 110);
-    if (!strcmp("TRAILER!!!", name)) {
-      free(tofree);
-      continue;
-    }
+    if (!strcmp("TRAILER!!!", name)) continue;
 
     // If you want to extract absolute paths, "cd /" and run cpio.
     while (*name == '/') name++;
@@ -174,16 +175,23 @@ void cpio_main(void)
     // properly aligned with next file.
 
     if (S_ISDIR(mode)) {
-      if (!test) err = mkdir(name, mode) && (errno != EEXIST && !FLAG(u));
-    } else if (S_ISLNK(mode)) {
-      data = strpad(afd, size, 0);
-      if (!test) {
-        err = symlink(data, name);
-        // Can't get a filehandle to a symlink, so do special chown
-        if (!err && !geteuid() && !FLAG(no_preserve_owner))
-          err = lchown(name, uid, gid);
+      if (test) continue;
+      err = mkdir(name, mode) && (errno != EEXIST && !FLAG(u));
+
+      // Creading dir/dev doesn't give us a filehandle, we have to refer to it
+      // by name to chown/utime, but how do we know it's the same item?
+      // Check that we at least have the right type of entity open, and do
+      // NOT restore dropped suid bit in this case.
+      if (S_ISDIR(mode) && reown) {
+        int fd = open(name, O_RDONLY|O_NOFOLLOW);
+        struct stat st;
+
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT))
+          err = fchown(fd, uid, gid);
+        else err = 1;
+
+        close(fd);
       }
-      free(data);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW, mode);
 
@@ -208,46 +216,33 @@ void cpio_main(void)
 
       if (!test) {
         // set owner, restore dropped suid bit
-        if (!geteuid() && !FLAG(no_preserve_owner)) {
-          err = fchown(fd, uid, gid);
-          if (!err) err = fchmod(fd, mode);
-        }
+        if (reown) err = fchown(fd, uid, gid) && fchmod(fd, mode);
         close(fd);
       }
-    } else if (!test)
-      err = mknod(name, mode, dev_makedev(x8u(toybuf+78), x8u(toybuf+86)));
+    } else {
+      data = S_ISLNK(mode) ? strpad(afd, size, 0) : 0;
+      if (!test) {
+        err = data ? symlink(data, name)
+          : mknod(name, mode, dev_makedev(x8u(toybuf+78), x8u(toybuf+86)));
 
-    // Set ownership and timestamp.
+        // Can't get a filehandle to a symlink or a node on nodev mount,
+        // so do special chown that at least doesn't follow symlinks.
+        // We also don't chmod after, so dropped suid bit isn't restored
+        if (!err && reown) err = lchown(name, uid, gid);
+      }
+      free(data);
+    }
+
+    // Set timestamp.
     if (!test && !err) {
-      // Creading dir/dev doesn't give us a filehandle, we have to refer to it
-      // by name to chown/utime, but how do we know it's the same item?
-      // Check that we at least have the right type of entity open, and do
-      // NOT restore dropped suid bit in this case.
-      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()
-          && !FLAG(no_preserve_owner))
-      {
-        int fd = open(name, O_RDONLY|O_NOFOLLOW);
-        struct stat st;
+      struct timespec times[2];
 
-        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT))
-          err = fchown(fd, uid, gid);
-        else err = 1;
-
-        close(fd);
-      }
-
-      // set timestamp
-      if (!err) {
-        struct timespec times[2];
-
-        memset(times, 0, sizeof(struct timespec)*2);
-        times[0].tv_sec = times[1].tv_sec = timestamp;
-        err = utimensat(AT_FDCWD, name, times, AT_SYMLINK_NOFOLLOW);
-      }
+      memset(times, 0, sizeof(struct timespec)*2);
+      times[0].tv_sec = times[1].tv_sec = timestamp;
+      err = utimensat(AT_FDCWD, name, times, AT_SYMLINK_NOFOLLOW);
     }
 
     if (err) perror_msg_raw(name);
-    free(tofree);
 
   // Output cpio archive
 
