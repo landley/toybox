@@ -300,7 +300,7 @@ fi
 # clean up and package root filesystem for initramfs.
 if [ -z "$BUILTIN" ]; then
   announce initramfs
-  { (cd "$ROOT" && find . | cpio -o -H newc $CPIO_OPTS i ) || exit 1
+  { (cd "$ROOT" && find . | cpio -o -H newc $CPIO_OPTS ) || exit 1
     ! test -e "$OUTPUT/modules.cpio.gz" || zcat $_;} | gzip \
     > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
