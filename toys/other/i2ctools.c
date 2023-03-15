@@ -13,7 +13,7 @@
 
 USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_SBIN))
-USE_I2CGET(NEWTOY(i2cget, "<3>3fy", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CGET(NEWTOY(i2cget, "<2>3fy", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config I2CDETECT
@@ -48,7 +48,7 @@ config I2CGET
   bool "i2cget"
   default y
   help
-    usage: i2cget [-fy] BUS CHIP ADDR
+    usage: i2cget [-fy] BUS CHIP [ADDR]
 
     Read an i2c register.
 
@@ -263,9 +263,9 @@ void i2cdump_main(void)
 
 void i2cget_main(void)
 {
-  int bus = atolx_range(toys.optargs[0], 0, INT_MAX);
+  int bus = atolx_range(toys.optargs[0], 0, 0x3f);
   int chip = atolx_range(toys.optargs[1], 0, 0x7f);
-  int addr = atolx_range(toys.optargs[2], 0, 0xff);
+  int addr = (toys.optc == 3) ? atolx_range(toys.optargs[2], 0, 0xff) : -1;
   int fd, byte;
 
   confirm("Read register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
