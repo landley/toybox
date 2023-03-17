@@ -54,7 +54,7 @@ static double parsef(char *s)
 
 // fast integer conversion to decimal string
 // TODO move to lib?
-static char *itoa(char *s, int i)
+static char *toybox_itoa(char *s, int i)
 {
   char buf[16], *ff = buf;
   unsigned n = i;
@@ -112,9 +112,9 @@ void seq_main(void)
     inc = increment;
     ss = toybuf;
     if (inc>0) for (; ii<=len; ii += inc)
-      ss = flush_toybuf(itoa(ss, ii));
+      ss = flush_toybuf(toybox_itoa(ss, ii));
     else if (inc<0) for (; ii>=len; ii += inc)
-      ss = flush_toybuf(itoa(ss, ii));
+      ss = flush_toybuf(toybox_itoa(ss, ii));
     if (ss != toybuf) xwrite(1, toybuf, ss-toybuf);
 
     return;
