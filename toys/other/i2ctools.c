@@ -271,7 +271,10 @@ void i2cget_main(void)
   confirm("Read register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
   fd = i2c_open(bus, FLAG(f) ? I2C_SLAVE_FORCE : I2C_SLAVE, chip);
-  if (i2c_read_byte(fd, addr, &byte)==-1) perror_exit("i2c_read_byte");
+  if (toys.optc == 3) {
+    if (i2c_read_byte(fd, addr, &byte)==-1) perror_exit("i2c_read_byte");
+  } else if (read(fd, &byte, 1) != 1) perror_exit("i2c_read");
+
   printf("0x%02x\n", byte);
   close(fd);
 }
