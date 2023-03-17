@@ -130,7 +130,7 @@ int xpclose_both(pid_t pid, int *pipes);
 pid_t xpopen(char **argv, int *pipe, int isstdout);
 pid_t xpclose(pid_t pid, int pipe);
 int xrun(char **argv);
-char *xrunread(char *argv[], char *stdin);
+char *xrunread(char *argv[], char *to_stdin);
 int xpspawn(char **argv, int*pipes);
 void xaccess(char *path, int flags);
 void xunlink(char *path);
