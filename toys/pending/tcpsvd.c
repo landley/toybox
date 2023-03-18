@@ -6,7 +6,7 @@
  * 
  * No Standard.
 
-USE_TCPSVD(NEWTOY(tcpsvd, "^<3c#=30<1C:b#=20<0u:l:hEv", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TCPSVD(NEWTOY(tcpsvd, "^<3c#=30<1b#=20<0C:u:l:hEv", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TCPSVD(OLDTOY(udpsvd, tcpsvd, TOYFLAG_USR|TOYFLAG_BIN))
 
 config TCPSVD
@@ -39,11 +39,8 @@ config TCPSVD
 #include "toys.h"
 
 GLOBALS(
-  char *name;
-  char *user;
-  long bn;
-  char *nmsg;
-  long cn;
+  char *l, *u, *C;
+  long b, c;
 
   int maxc;
   int count_all;
@@ -181,7 +178,7 @@ static void handle_exit(int sig)
       xprintf("%s: end %d exit %d\n",toys.which->name, pid_n, WEXITSTATUS(status));
     else if (WIFSIGNALED(status))
       xprintf("%s: end %d signaled %d\n",toys.which->name, pid_n, WTERMSIG(status));
-    if (TT.cn > 1) xprintf("%s: status %d/%ld\n",toys.which->name, TT.count_all, TT.cn);
+    if (TT.c > 1) xprintf("%s: status %d/%ld\n",toys.which->name, TT.count_all, TT.c);
   }
 }
 
@@ -275,18 +272,18 @@ void tcpsvd_main(void)
   if (TT.udp) toys.optflags &= ~FLAG_C;
   memset(buf, 0, len);
   if (FLAG(C)) {
-    if ((ptr = strchr(TT.nmsg, ':'))) *ptr++ = 0;
-    TT.maxc = atolx_range(TT.nmsg, 1, INT_MAX);
+    if ((ptr = strchr(TT.C, ':'))) *ptr++ = 0;
+    TT.maxc = atolx_range(TT.C, 1, INT_MAX);
   }
   
   fd = create_bind_sock(toys.optargs[0], (struct sockaddr*)&haddr);
   if (FLAG(u)) {
-    get_uidgid(&uid, &gid, TT.user);
+    get_uidgid(&uid, &gid, TT.u);
     setuid(uid);
     setgid(gid);
   }
 
-  if (!TT.udp && (listen(fd, TT.bn) < 0)) perror_exit("Listen failed");
+  if (!TT.udp && (listen(fd, TT.b) < 0)) perror_exit("Listen failed");
   server = sock_to_address((struct sockaddr*)&haddr, NI_NUMERICHOST|NI_NUMERICSERV);
   if (FLAG(v)) {
     if (FLAG(u))
@@ -300,7 +297,7 @@ void tcpsvd_main(void)
   signal(SIGCHLD, handle_exit);
 
   while (1) {
-    if (TT.count_all < TT.cn) {
+    if (TT.count_all < TT.c) {
       if (TT.udp) {
         if (recvfrom(fd, 0, 0, MSG_PEEK, (void *)buf, &len) < 0)
           perror_exit("recvfrom");
@@ -324,7 +321,7 @@ void tcpsvd_main(void)
         if (!strcmp(head->d, addr)) break;
 
       if (head && head->count >= TT.maxc) {
-        if (ptr) write(newfd, ptr, strlen(ptr)+1);
+        if (ptr) write(newfd, ptr, strlen(ptr)); // TODO: this can block
         close(newfd);
         TT.count_all--;
         continue;
@@ -349,11 +346,10 @@ void tcpsvd_main(void)
 
     if (!(pid = xfork())) {
       char *serv = NULL, *clie = NULL;
-      char *client = sock_to_address((struct sockaddr*)buf, NI_NUMERICHOST | NI_NUMERICSERV);
+      char *client = sock_to_address((void *)buf, NI_NUMERICHOST | NI_NUMERICSERV);
       if (FLAG(h)) { //lookup name
-        if (FLAG(l)) serv = xstrdup(TT.name);
-        else serv = sock_to_address((struct sockaddr*)&haddr, 0);
-        clie = sock_to_address((struct sockaddr*)buf, 0);
+        serv = TT.l ? xstrdup(TT.l) : sock_to_address((void *)&haddr, 0);
+        clie = sock_to_address((void *)buf, 0);
       }
 
       if (!FLAG(E)) {
@@ -374,8 +370,8 @@ void tcpsvd_main(void)
         xprintf("%s: start %d %s-%s",toys.which->name, getpid(), server, client);
         if (FLAG(h)) xprintf(" (%s-%s)", serv, clie);
         xputc('\n');
-        if (TT.cn > 1) 
-          xprintf("%s: status %d/%ld\n",toys.which->name, TT.count_all, TT.cn);
+        if (TT.c > 1)
+          xprintf("%s: status %d/%ld\n",toys.which->name, TT.count_all, TT.c);
       }
       free(client);
       if (FLAG(h)) {
