@@ -65,13 +65,36 @@ static void oneit_signaled(int signal)
 void oneit_main(void)
 {
   int i, pid, pipes[] = {SIGUSR1, SIGUSR2, SIGTERM, SIGINT};
+  char *ss = toybuf+5;
 
   // Setup signal handlers for signals of interest
   for (i = 0; i<ARRAY_LEN(pipes); i++) xsignal(pipes[i], oneit_signaled);
 
+  // Autodetect console from sysfs if no -c
+  memcpy(toybuf, "/dev/", 5);
+  if (!TT.c && (TT.c = readfile("/sys/class/tty/console/active", ss, 4096))) {
+    // Remove null terminator, take last entry
+    for (;;) {
+      if (!(ss = strchr(TT.c, '\n'))) break;
+      if (!ss[1]) *ss = 0;
+      else TT.c = ++ss;
+    }
+    // Ensure /dev prefix
+    strstart(&TT.c, "/dev/");
+    memmove(toybuf+5, TT.c, strlen(TT.c));
+    TT.c = toybuf;
+  }
+
+  // Redirect stdin/out/err. Remember, O_CLOEXEC is backwards for xopen()
+  close(0);
+  xopen_stdio(TT.c ? : "/dev/tty0", O_RDWR|O_CLOEXEC);
+  close(1);
+  dup(0);
+  close(2);
+  dup(0);
+
   if (FLAG(3)) {
     // Ensure next available filehandles are #3 and #4
-    while (xopen_stdio("/", 0) < 3);
     close(3);
     close(4);
     xpipe(pipes);
@@ -93,13 +116,8 @@ void oneit_main(void)
 
       oneit_signaled(FLAG(p) ? SIGUSR2 : SIGTERM);
     } else {
-      // Redirect stdio to TT.c, with new session ID, so ctrl-c works.
+      // new session ID in child, so ctrl-c works.
       setsid();
-      for (i=0; i<3; i++) {
-        close(i);
-        // Remember, O_CLOEXEC is backwards for xopen()
-        xopen_stdio(TT.c ? : "/dev/tty0", O_RDWR|O_CLOEXEC);
-      }
 
       // Can't xexec() here, we vforked so we don't want to error_exit().
       toy_exec(toys.optargs);
