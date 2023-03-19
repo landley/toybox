@@ -16,6 +16,8 @@
  * We always do --quiet, but accept it as a compatibility NOP.
  *
  * TODO: export/import linux file list text format ala gen_initramfs_list.sh
+ * TODO: hardlink support, -A, -0, -a, -L, --sparse
+ * TODO: --renumber-archives (probably always?) --ignore-devno --reproducible
 
 USE_CPIO(NEWTOY(cpio, "(ignore-devno)(renumber-inodes)(quiet)(no-preserve-owner)R(owner):md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
@@ -149,6 +151,7 @@ void cpio_main(void)
     }
     if (size != 110 || smemcmp(toybuf, "070701", 6)) error_exit("bad header");
     tofree = name = strpad(afd, x8u(toybuf+94), 110);
+    // TODO: this flushes hardlink detection via major/minor/ino match
     if (!strcmp("TRAILER!!!", name)) continue;
 
     // If you want to extract absolute paths, "cd /" and run cpio.
