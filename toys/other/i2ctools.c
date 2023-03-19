@@ -10,6 +10,7 @@
  * TODO: i2cdump non-byte modes, -r FIRST-LAST?
  * TODO: i2cget non-byte modes? default to current read address?
  * TODO: i2cset -r? -m MASK? c/s modes, p mode modifier?
+ * TODO: I2C_M_TEN bit addressing
 
 USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_SBIN))
@@ -103,6 +104,7 @@ static unsigned long i2c_get_funcs(int bus)
 
   xioctl(fd, I2C_FUNCS, &result);
   close(fd);
+
   return result;
 }
 
@@ -115,13 +117,14 @@ static int i2c_read_byte(int fd, int addr, int *byte)
   memset(&data, 0, sizeof(data));
   if (ioctl(fd, I2C_SMBUS, &ioctl_data)==-1) return -1;
   *byte = data.byte;
+
   return 0;
 }
 
 static int i2c_quick_write(int fd, int addr)
 {
   struct i2c_smbus_ioctl_data ioctl_data = { .read_write = I2C_SMBUS_QUICK,
-    .size = 0, .command = addr };
+    .command = addr };
 
   return ioctl(fd, I2C_SMBUS, &ioctl_data);
 }
@@ -186,7 +189,7 @@ void i2cdetect_main(void)
     dirtree_flagread("/sys/class/i2c-dev", DIRTREE_SHUTUP, i2cdetect_dash_l);
   } else if (FLAG(F)) {
     if (toys.optc != 1) error_exit("-F BUS");
-    i2cdetect_dash_F(atolx_range(*toys.optargs, 0, INT_MAX));
+    i2cdetect_dash_F(atolx_range(*toys.optargs, 0, 0x3f));
   } else {
     int bus, first = 0x03, last = 0x77, fd, row, addr, byte;
 
@@ -235,7 +238,7 @@ void i2cdetect_main(void)
 
 void i2cdump_main(void)
 {
-  int bus = atolx_range(toys.optargs[0], 0, INT_MAX);
+  int bus = atolx_range(toys.optargs[0], 0, 0x3f);
   int chip = atolx_range(toys.optargs[1], 0, 0x7f);
   int fd, row, addr, byte;
 
@@ -284,11 +287,10 @@ void i2cget_main(void)
 
 void i2cset_main(void)
 {
-  int bus = atolx_range(toys.optargs[0], 0, INT_MAX);
-  int chip = atolx_range(toys.optargs[1], 0, 0x7f);
-  int addr = atolx_range(toys.optargs[2], 0, 0xff);
+  int fd, i, bus = atolx_range(toys.optargs[0], 0, 0x3f),
+      chip = atolx_range(toys.optargs[1], 0, 0x7f),
+      addr = atolx_range(toys.optargs[2], 0, 0xff);
   char *mode = toys.optargs[toys.optc-1];
-  int fd, i;
   struct i2c_smbus_ioctl_data ioctl_data;
   union i2c_smbus_data data;
 
@@ -310,6 +312,7 @@ void i2cset_main(void)
 
   confirm("Write register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
+  // We open the device read-only and the write command works?
   fd = i2c_open(bus, FLAG(f) ? I2C_SLAVE_FORCE : I2C_SLAVE, chip);
   ioctl_data.read_write = I2C_SMBUS_WRITE;
   ioctl_data.command = addr;
