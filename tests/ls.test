@@ -14,66 +14,65 @@ echo "test file1" > lstest/file1.txt
 echo "test file2" > lstest/file2.txt
 echo "hidden file1" > lstest/.hfile1
 
-IN="cd lstest"
-OUT="cd .. "
-
-testing "no argument" "$IN && ls; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -C: test column spacing equals 2" "$IN && ls -C; $OUT" "dir1  dir2  file1.txt  file2.txt\n" "" ""
-testing "with -x: test column spacing equals 2" "$IN && ls -x; $OUT" "dir1  dir2  file1.txt  file2.txt\n" "" ""
-testing "with wild char" "$IN && ls file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
-testing "with wild char - long listing" "$IN && ls -1 file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
-testing "with -p" "$IN && ls -p; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -a" "$IN && ls -a; $OUT" \
+cd lstest
+testing "no argument" "ls" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -C: test column spacing equals 2" "ls -C" "dir1  dir2  file1.txt  file2.txt\n" "" ""
+testing "with -x: test column spacing equals 2" "ls -x" "dir1  dir2  file1.txt  file2.txt\n" "" ""
+testing "with wild char" "ls file*" "file1.txt\nfile2.txt\n" "" ""
+testing "with wild char - long listing" "ls -1 file*" "file1.txt\nfile2.txt\n" "" ""
+testing "with -p" "ls -p" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -a" "ls -a" \
         ".\n..\n.hfile1\ndir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -A" "$IN && ls -A; $OUT" \
+testing "with -A" "ls -A" \
         ".hfile1\ndir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -d" "$IN && ls -d; $OUT" ".\n" "" ""
-testing "with wild char and -d *" "$IN && ls -d *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -k" "$IN && ls -k; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -m" "$IN && ls -m; $OUT" "dir1, dir2, file1.txt, file2.txt\n" "" ""
-testing "with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -Z" "$IN && ls -Z file1.txt | egrep -q '^[^ ]+ file1.txt' || echo fail; $OUT" "" "" ""
-testing "with -lZ" "$IN && ls --full-time -lZ file1.txt | egrep -q '^-[rwx-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[^ ]+ +[0-9]+ [0-9][0-9][0-9][0-9]-[0-9][0-9]-.* file1.txt' || echo fail; $OUT" "" "" ""
+testing "with -d" "ls -d" ".\n" "" ""
+testing "with wild char and -d *" "ls -d *" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -k" "ls -k" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -m" "ls -m" "dir1, dir2, file1.txt, file2.txt\n" "" ""
+testing "with -F" "ls -F" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -dk *" "ls -dk *" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -Z" "ls -Z file1.txt | egrep -q '^[^ ]+ file1.txt' || echo fail" "" "" ""
+testing "with -lZ" "ls --full-time -lZ file1.txt | egrep -q '^-[rwx-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[^ ]+ +[0-9]+ [0-9][0-9][0-9][0-9]-[0-9][0-9]-.* file1.txt' || echo fail" "" "" ""
 
-ln -s file1.txt lstest/slink
+ln -s file1.txt slink
 testing "-l symlink" \
-    "$IN && ls -l slink | grep -q -- ' slink -> file1.txt' && echo ok ; $OUT" \
-    "ok\n" "" ""
-rm -f lstest/slink
+    "ls -l slink | grep -q -- ' slink -> file1.txt' && echo ok" "ok\n" "" ""
+rm -f slink
 
-ln -s /dev/null/nosuchfile lstest/nosuchfile
-testing "with -d - broken softlink" "$IN && ls -d nosuchfile; $OUT" "nosuchfile\n" "" ""
-rm -f lstest/nosuchfile
+ln -s /dev/null/nosuchfile nosuchfile
+testing "with -d - broken softlink" "ls -d nosuchfile" "nosuchfile\n" "" ""
+rm -f nosuchfile
 
-rm -rf lstest/* && mkdir -p lstest/dir1 && touch lstest/file1.txt
-testing "nested recursively" "$IN && ls -R; $OUT" \
-          ".:\ndir1\nfile1.txt\n\n./dir1:\n" "" ""
+cd .. && rm -rf lstest/* && cd lstest && mkdir -p dir1 && touch file1.txt
+testing "nested recursively" "ls -R" ".:\ndir1\nfile1.txt\n\n./dir1:\n" "" ""
 
-rm -rf lstest/* && touch lstest/file1.txt && INODE=`stat -c %i lstest/file1.txt`
-testing "with -i" "$IN && ls -i 2>/dev/null; $OUT" "$INODE file1.txt\n" "" ""
-unset INODE
+cd .. && rm -rf lstest/* && cd lstest && touch file1.txt
+testing "with -i" "ls -i" "$(stat -c %i file1.txt) file1.txt\n" "" ""
 
-testing "missing" "$IN && ls does-not-exist 2>&1 >/dev/null | grep -o does-not-exist; $OUT" "does-not-exist\n" "" ""
+testing "missing" "ls does-not-exist 2>&1 >/dev/null | grep -o does-not-exist" "does-not-exist\n" "" ""
 
-rm -f lstest/{file1.txt,err}
-touch lstest/{one,two,three,four,five,six,seven,eight,nine,ten}
-testing "-w test 1" "$IN && ls -Cw 20; $OUT" \
+cd .. && rm -f lstest/{file1.txt,err} && cd lstest &&
+touch one two three four five six seven eight nine ten
+testing "-w test 1" "ls -Cw 20" \
   "eight  one    three\nfive   seven  two\nfour   six\nnine   ten\n" "" ""
-testing "-w test 2" "$IN && ls -Cw 19; $OUT" \
+testing "-w test 2" "ls -Cw 19" \
   "eight  seven\nfive   six\nfour   ten\nnine   three\none    two\n" "" ""
+TIME=1234567890
+for i in one two three four five six seven eight
+  do touch -d @$((TIME++)) $i
+done
+testing "-r" "ls -r" \
+  "two\nthree\nten\nsix\nseven\none\nnine\nfour\nfive\neight\n" "" ""
 
-rm -rf lstest/*
-touch lstest/{a,b,c,d,e,f}
-testing "-w test 3" "$IN && ls -Cw 3; $OUT" "a\nb\nc\nd\ne\nf\n" "" ""
-testing "-w test 4" "$IN && ls -Cw 4; $OUT" "a  d\nb  e\nc  f\n" "" ""
+cd .. && rm -rf lstest/* && cd lstest && touch a b c d e f
+testing "-w test 3" "ls -Cw 3" "a\nb\nc\nd\ne\nf\n" "" ""
+testing "-w test 4" "ls -Cw 4" "a  d\nb  e\nc  f\n" "" ""
 
-rm -rf lstest/*
-touch lstest/'hello world'
-testing "default escaping" "$IN && ls; $OUT" "hello world\n" "" ""
-testing "-b" "$IN && ls -b; $OUT" 'hello\\ \\rworld\n' "" ""
-testing "-q" "$IN && ls -q; $OUT" 'hello ?world\n' "" ""
-testing "-N" "$IN && ls -q; $OUT" 'hello ?world\n' "" ""
+cd .. && rm -rf lstest/* && cd lstest && touch 'hello world'
+testing "default escaping" "ls" "hello world\n" "" ""
+testing "-b" "ls -b" 'hello\\ \\rworld\n' "" ""
+testing "-q" "ls -q" 'hello ?world\n' "" ""
+testing "-N" "ls -q" 'hello ?world\n' "" ""
 
 # Removing test dir for cleanup purpose
 rm -rf lstest
