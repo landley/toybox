@@ -13,7 +13,7 @@
  *   and we do --time-style=long-iso instead
  *   ignore -k because we default to 1024 byte blocks
 
-USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(show-control-chars)ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(show-control-chars)\241\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -43,7 +43,7 @@ config LS
 
     sort by:  (also --sort=longname,longname... ends with alphabetical)
     -c  ctime      -r  reverse    -S  size     -t  time    -u  atime    -U  none
-    -X  extension  -?  nocase     -!  dirfirst
+    -X  extension  -!  dirfirst   -~  nocase
 
     --color  =always (default)  =auto (when stdout is tty) =never
         exe=green  suid=red  suidfile=redback  stickydir=greenback
@@ -159,9 +159,8 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   len[7] = FLAG(Z) ? strwidth((char *)dt->extra) : 0;
 }
 
-// Perform one or more comparisons on a pair of files. Special meanings of
-// FLAG macros here: FLAG_a = alphabetical, FLAG_A case insensitve alphabetical,
-// FLAG_d = dirfirst
+// Perform one or more comparisons on a pair of files.
+// Reused FLAG_a to mean "alphabetical"
 static int do_compare(struct dirtree *a, struct dirtree *b, long flags)
 {
   struct timespec *ts1 = 0, *ts2;
@@ -184,18 +183,20 @@ static int do_compare(struct dirtree *a, struct dirtree *b, long flags)
     else if (ts1->tv_nsec > ts2->tv_nsec) return -1;
     else if (ts1->tv_nsec < ts2->tv_nsec) return 1;
   }
-  if (flags&FLAG_d)
+  if (flags&FLAG_X21) // dirfirst
     if (S_ISDIR(a->st.st_mode)!=S_ISDIR(b->st.st_mode))
       return S_ISDIR(a->st.st_mode) ? -1 : 1;
+
+  // -X is a form of alphabetical sort, without -~ do case sensitive comparison
   if ((flags&FLAG_X) && (s1 = strrchr(a->name, '.')) && (s2 = strrchr(b->name, '.'))) {
-    if (!(flags&FLAG_A)) flags |= FLAG_a;
+    if (!(flags&FLAG_X7E)) flags |= FLAG_a;
   } else {
     s1 = a->name;
     s2 = b->name;
   }
 
   // case insensitive sort falls back to case sensitive sort when equal
-  ret = (flags&FLAG_A) ? strcasecmp(s1, s2) : 0;
+  ret = (flags&FLAG_X7E) ? strcasecmp(s1, s2) : 0;
   if (!ret && (flags&FLAG_a)) ret = strcmp(s1, s2);
 
   return ret;
@@ -212,7 +213,8 @@ static int compare(void *a, void *b)
   struct dirtree *dta = *(struct dirtree **)a;
   struct dirtree *dtb = *(struct dirtree **)b;
   char *ss = TT.sort;
-  int ret = 0, cc = 0;
+  long long ll = 0;
+  int ret = 0;
 
 // TODO: test --sort=reverse with fallback alphabetical
 
@@ -220,16 +222,16 @@ static int compare(void *a, void *b)
     if (comma_start(&ss, "reverse")) toys.optflags |= FLAG_r;
     else if (comma_start(&ss, "none")) goto skip;
     else if (ret) continue;
-    else if (comma_start(&ss, "ctime")) cc = FLAG_c;
-    else if (comma_start(&ss, "size")) cc = FLAG_S;
-    else if (comma_start(&ss, "time")) cc = FLAG_t;
-    else if (comma_start(&ss, "atime")) cc = FLAG_u;
-    else if (comma_start(&ss, "nocase")) cc = FLAG_a;
-    else if (comma_start(&ss, "extension")) cc = FLAG_X;
-    else if (comma_start(&ss, "dirfirst")) cc = FLAG_d;
+    else if (comma_start(&ss, "ctime")) ll = FLAG_c;
+    else if (comma_start(&ss, "size")) ll = FLAG_S;
+    else if (comma_start(&ss, "time")) ll = FLAG_t;
+    else if (comma_start(&ss, "atime")) ll = FLAG_u;
+    else if (comma_start(&ss, "nocase")) ll = FLAG_X7E;
+    else if (comma_start(&ss, "extension")) ll = FLAG_X;
+    else if (comma_start(&ss, "dirfirst")) ll = FLAG_X21;
     else error_exit("bad --sort %s", ss);
 
-    ret = do_compare(dta, dtb, cc);
+    ret = do_compare(dta, dtb, ll);
   }
 
   if (!ret) ret = do_compare(dta, dtb, toys.optflags|FLAG_a);
