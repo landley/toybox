@@ -24,7 +24,7 @@ fi
 
 # Disable a pointless warning only clang produces
 [ -n "$("$CROSS_COMPILE$CC" --version | grep -w clang)" ] &&
-  CFLAGS+=" -Wno-string-plus-int"
+  CFLAGS+=" -Wno-string-plus-int -Wno-invalid-source-encoding"
 
 # Address Sanitizer
 if [ -n "$ASAN" ]; then
