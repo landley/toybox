@@ -4,7 +4,7 @@
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
 
 USE_LSUSB(NEWTOY(lsusb, "i:", TOYFLAG_USR|TOYFLAG_BIN))
-USE_LSPCI(NEWTOY(lspci, "emkn@i:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSPCI(NEWTOY(lspci, "emkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
   bool "lspci"
@@ -14,11 +14,12 @@ config LSPCI
 
     List PCI devices.
 
-    -e  Extended (6 digit) class
-    -i  ID database (default /etc/pci.ids[.gz])
-    -k  Show kernel driver
-    -m  Machine readable
-    -n  Numeric output (-nn for both)
+    -e	Extended (6 digit) class
+    -i	ID database (default /etc/pci.ids[.gz])
+    -k	Show kernel driver
+    -m	Machine readable
+    -n	Numeric output (-nn for both)
+    -x	Hex dump of config space (64 bytes; -xxx for 256, -xxxx for 4096)
 
 config LSUSB
   bool "lsusb"
@@ -36,7 +37,7 @@ config LSUSB
 
 GLOBALS(
   char *i;
-  long n;
+  long x, n;
 
   void *ids, *class;
   int count;
@@ -228,6 +229,24 @@ static int list_pci(struct dirtree *new)
   printf(FLAG(m) ? " -r%02x" : " (rev %02x)", revision);
   if (FLAG(k)) printf(FLAG(m) ? " \"%s\"" : " %s", driver);
   xputc('\n');
+
+  if (TT.x) {
+    FILE *fp;
+    int b, col = 0, max = (TT.x >= 4) ? 4096 : ((TT.x >= 3) ? 256 : 64);
+
+    // TODO: where does the "0000:" come from?
+    snprintf(toybuf, sizeof(toybuf), "/sys/bus/pci/devices/0000:%s/config",
+      new->name+5);
+    fp = xfopen(toybuf, "r");
+    while ((b = fgetc(fp)) != EOF) {
+      if ((col % 16) == 0) printf("%02x: ", col & 0xf0);
+      printf("%02x ", (b & 0xff));
+      if ((++col % 16) == 0) xputc('\n');
+      if (col == max) break;
+    }
+    xputc('\n');
+    fclose(fp);
+  }
 
   return 0;
 }
