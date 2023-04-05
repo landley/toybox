@@ -2,86 +2,82 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing 'as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
+testcmd 'as cat' '""' "one\ntwo\nthree" "" "one\ntwo\nthree"
 # This segfaults ubuntu 12.04's sed. No really.
-testing 'sed - - twice' 'sed "" - -' "hello\n" "" "hello\n"
-testing '-n' 'sed -n ""' "" "" "one\ntwo\nthree"
-testing '-n p' 'sed -n p' "one\ntwo\nthree" "" "one\ntwo\nthree"
-testing 'explicit pattern' 'sed -e p -n' "one\ntwo\nthree" "" \
-	"one\ntwo\nthree"
+testcmd '- - twice' '"" - -' "hello\n" "" "hello\n"
+testcmd '-n' '-n ""' "" "" "one\ntwo\nthree"
+testcmd '-n p' '-n p' "one\ntwo\nthree" "" "one\ntwo\nthree"
+testcmd 'explicit pattern' '-e p -n' "one\ntwo\nthree" "" "one\ntwo\nthree"
 
 # Exploring the wonders of sed addressing modes
-testing '' 'sed -n 1p' "one\n" "" "one\ntwo\nthree"
-testing '' 'sed 2p' "one\ntwo\ntwo\nthree" "" "one\ntwo\nthree"
-testing '' 'sed -n 2p' "two\n" "" "one\ntwo\nthree"
-testing '-n $p' 'sed -n \$p' "three" "" "one\ntwo\nthree"
-testing 'as cat #2' "sed -n '1,\$p'" "one\ntwo\nthree" "" "one\ntwo\nthree"
-testing 'no input means no last line' "sed '\$a boing'" "" "" ""
-testing '-n $,$p' 'sed -n \$,\$p' 'three' '' 'one\ntwo\nthree'
-testing '' 'sed -n 1,2p' "one\ntwo\n" "" "one\ntwo\nthree"
-testing '' 'sed -n 2,3p' "two\nthree" "" "one\ntwo\nthree"
-testing '' 'sed -n 2,1p' "two\n" "" "one\ntwo\nthree"
-testing '$ with 2 inputs' 'sed -n \$p - input' "four\n" "four\n" \
-	"one\ntwo\nthree"
-testing '' 'sed -n /two/p' "two\n" "" "one\ntwo\nthree"
-testing '' 'sed -n 1,/two/p' 'one\ntwo\n' '' 'one\ntwo\nthree'
-testing '' 'sed -n /one/,2p' 'one\ntwo\n' '' 'one\ntwo\nthree'
-testing '' 'sed -n 1,/one/p' 'one\ntwo\nthree' '' 'one\ntwo\nthree'
-testing '' 'sed -n /one/,1p' 'one\n' '' 'one\ntwo\nthree'
-testing 'sed -n /two/,$p' 'sed -n /two/,\$p' 'two\nthree' '' 'one\ntwo\nthree'
-
+testcmd '' '-n 1p' "one\n" "" "one\ntwo\nthree"
+testcmd '' '2p' "one\ntwo\ntwo\nthree" "" "one\ntwo\nthree"
+testcmd '' '-n 2p' "two\n" "" "one\ntwo\nthree"
+testcmd '-n $p' '-n \$p' "three" "" "one\ntwo\nthree"
+testcmd 'as cat #2' "-n '1,\$p'" "one\ntwo\nthree" "" "one\ntwo\nthree"
+testcmd 'no input means no last line' "'\$a boing'" "" "" ""
+testcmd '-n $,$p' '-n \$,\$p' 'three' '' 'one\ntwo\nthree'
+testcmd '' '-n 1,2p' "one\ntwo\n" "" "one\ntwo\nthree"
+testcmd '' '-n 2,3p' "two\nthree" "" "one\ntwo\nthree"
+testcmd '' '-n 2,1p' "two\n" "" "one\ntwo\nthree"
+testcmd '$ with 2 inputs' '-n \$p - input' "four\n" "four\n" "one\ntwo\nthree"
+testcmd '' '-n /two/p' "two\n" "" "one\ntwo\nthree"
+testcmd '' '-n 1,/two/p' 'one\ntwo\n' '' 'one\ntwo\nthree'
+testcmd '' '-n /one/,2p' 'one\ntwo\n' '' 'one\ntwo\nthree'
+testcmd '' '-n 1,/one/p' 'one\ntwo\nthree' '' 'one\ntwo\nthree'
+testcmd '' '-n /one/,1p' 'one\n' '' 'one\ntwo\nthree'
+testcmd '-n /two/,$p' '-n /two/,\$p' 'two\nthree' '' 'one\ntwo\nthree'
 
 # Fun with newlines!
-testing '' 'sed -n 3p' "three" "" "one\ntwo\nthree"
-testing 'prodigal newline' "sed -n '1,\$p' - input" \
+testcmd '' '-n 3p' "three" "" "one\ntwo\nthree"
+testcmd 'prodigal newline' "-n '1,\$p' - input" \
 	"one\ntwo\nthree\nfour\n" "four\n" "one\ntwo\nthree"
-testing 'Newline only added if further output' "sed -n 3p - input" "three" \
+testcmd 'Newline only added if further output' "-n 3p - input" "three" \
 	"four\n" "one\ntwo\nthree"
 
 # Fun with match delimiters and escapes
-testing 'match \t tab' "sed -n '/\t/p'" "\tx\n" "" "\tx\n"
-testing 'match t delim disables \t tab' "sed -n '\t\txtp'" "" "" "\tx\n"
-testing 'match t delim makes \t literal t' \
-	"sed -n '\t\txtp'" "tx\n" "" "tx\n"
-testing 'match n delim' "sed -n '\n\txnp'" "\tx\n" "" "\tx\n"
-testing 'match n delim disables \n newline' "sed -n '\n\nxnp'" "" "" "\nx\n"
-toyonly testing 'match \n literal n' "sed -n '\n\nxnp'" "nx\n" "" "nx\n"
-testing 'end match does not check starting match line' \
-	"sed -n '/two/,/two/p'" "two\nthree" "" "one\ntwo\nthree"
-testing 'end match/start match mixing number/letter' \
-	"sed -n '2,/two/p'" "two\nthree" "" "one\ntwo\nthree"
-testing 'num then regex' 'sed -n 2,/d/p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
-testing 'regex then num' 'sed -n /b/,4p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
-testing 'multiple regex address match' 'sed -n /on/,/off/p' \
+testcmd 'match \t tab' "-n '/\t/p'" "\tx\n" "" "\tx\n"
+testcmd 'match t delim disables \t tab' "-n '\t\txtp'" "" "" "\tx\n"
+testcmd 'match t delim makes \t literal t' "-n '\t\txtp'" "tx\n" "" "tx\n"
+testcmd 'match n delim' "-n '\n\txnp'" "\tx\n" "" "\tx\n"
+testcmd 'match n delim disables \n newline' "-n '\n\nxnp'" "" "" "\nx\n"
+toyonly testcmd 'match \n literal n' "-n '\n\nxnp'" "nx\n" "" "nx\n"
+testcmd 'end match does not check starting match line' \
+	"-n '/two/,/two/p'" "two\nthree" "" "one\ntwo\nthree"
+testcmd 'end match/start match mixing number/letter' \
+	"-n '2,/two/p'" "two\nthree" "" "one\ntwo\nthree"
+testcmd 'num then regex' '-n 2,/d/p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testcmd 'regex then num' '-n /b/,4p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testcmd 'multiple regex address match' '-n /on/,/off/p' \
 	'bone\nturtle\scoff\ntron\nlurid\noffer\n'  "" \
 	'zap\nbone\nturtle\scoff\nfred\ntron\nlurid\noffer\nbecause\n'
-testing 'regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
+testcmd 'regex address overlap' '-n /on/,/off/p' "on\nzap\noffon\n" "" \
 	'on\nzap\noffon\nping\noff\n'
-testing 'getdelim with nested [:blah:]' 'sed -n "sa\a[a[:space:]bc]*aXXagp"' \
+testcmd 'getdelim with nested [:blah:]' '-n "sa\a[a[:space:]bc]*aXXagp"' \
 	"ABXXCDXXEFXXGHXXIXX" "" "ABaaCDa EFaa aGHa a Ia "
-testing '[ in [[]' "sed 's@[[]@X@g'" "X" "" "["
-testing '[[] with ] as delimiter' "sed 's][[]]X]g'" "X" "" "["
-testing '[[] with [ as delimiter' "sed 's[\[\[][X['" "X" "" "["
+testcmd '[ in [[]' "'s@[[]@X@g'" "X" "" "["
+testcmd '[[] with ] as delimiter' "'s][[]]X]g'" "X" "" "["
+testcmd '[[] with [ as delimiter' "'s[\[\[][X['" "X" "" "["
 
 # gGhHlnNpPqrstwxy:=
 # s///#comment
 # abcdDi
 
-testing 'prodigaler newline' 'sed -e a\\ -e woo' 'one\nwoo\n' '' 'one'
-testing "aci" \
-	"sed -e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
+testcmd 'prodigaler newline' '-e a\\ -e woo' 'one\nwoo\n' '' 'one'
+testcmd "aci" "-e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
 	"one\ntwo\nbang\nbong\nboom\nwhack\nfour\n" "" \
 	"one\ntwo\nthree\nfour\n"
-testing "b loop" "sed ':woo;=;b woo' | head -n 5" '1\n1\n1\n1\n1\n' "" "X"
-testing "b skip" "sed -n '2b zap;d;:zap;p'" "two\n" "" "one\ntwo\nthree"
-testing "b end" "sed -n '2b;p'" "one\nthree" "" "one\ntwo\nthree"
-testing "c range" "sed '2,4c blah'" "one\nblah\nfive\nsix" "" \
+testcmd "b loop" "':woo;=;b woo' | head -n 5" '1\n1\n1\n1\n1\n' "" "X"
+testcmd "b skip" "-n '2b zap;d;:zap;p'" "two\n" "" "one\ntwo\nthree"
+testcmd "b end" "-n '2b;p'" "one\nthree" "" "one\ntwo\nthree"
+testcmd "c range" "'2,4c blah'" "one\nblah\nfive\nsix" "" \
 	"one\ntwo\nthree\nfour\nfive\nsix"
-testing "c {range}" "sed -e '2,4{c blah' -e '}'" \
-	"one\nblah\nblah\nblah\nfive\nsix" \
+testcmd "c {range}" "-e '2,4{c blah' -e '}'" "one\nblah\nblah\nblah\nfive\nsix"\
         "" "one\ntwo\nthree\nfour\nfive\nsix"
-testing "c multiple continuation" \
-	"sed -e 'c\\' -e 'two\\' -e ''" "two\n\n" "" "hello"
+testcmd "c multiple continuation" "-e 'c\\' -e 'two\\' -e ''" "two\n\n" "" \
+        "hello"
+testcmd 'multiline continuations' '-e c\\ -e line1\\ -e line2' 'line1\nline2\n'\
+        '' 'one\n'
 toyonly testing "c empty continuation" "sed -e 'c\\'" "\n" "" "hello"
 testing "D further processing depends on whether line is blank" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
@@ -187,14 +183,13 @@ testcmd '^ not trigger after NUL' 's/^t/x/' 'one\0two' '' 'one\0two'
 
 # toybox handling of empty capturing groups broke minjail. Check that we
 # correctly replace an empty capturing group with the empty string:
-testing '\n with empty capture' \
-    'sed -E "s/(ARM_)?(NR_)([a-z]*) (.*)/\1\2\3/"' "NR_read" "" "NR_read foo"
+testcmd '\n with empty capture' \
+    '-E "s/(ARM_)?(NR_)([a-z]*) (.*)/\1\2\3/"' "NR_read" "" "NR_read foo"
 # ...but also that we report an error for a backreference to a group that
 # isn't in the pattern:
-testing '\n too high' \
-    'sed -E "s/(.*)/\2/p" 2>/dev/null || echo OK' "OK\n" "" "foo"
+testcmd '\n too high' '-E "s/(.*)/\2/p" 2>/dev/null || echo OK' "OK\n" "" "foo"
 
-toyonly testing 's///x' 'sed "s/(hello )?(world)/\2/x"' "world" "" "hello world"
+toyonly testcmd 's///x' '"s/(hello )?(world)/\2/x"' "world" "" "hello world"
 
 # Performance test
 X=x; Y=20; while [ $Y -gt 0 ]; do X=$X$X; Y=$(($Y-1)); done
@@ -203,20 +198,17 @@ testing 'megabyte s/x/y/g (20 sec timeout)' \
   '138c1fa7c3f64186203b0192fb4abdb33cb4e98a  -\n' '' "$X\n"
 unset X Y
 
-testing "w doesn't blank" "sed -e 'w one' -e 'w one' -e d; cat one" \
-  'hello\nhello\n' '' 'hello\n'
+testcmd "w doesn't blank" "-e 'w one' -e 'w one' -e d; cat one" \
+        'hello\nhello\n' '' 'hello\n'
 
-testing 's i and I' 'sed s/o/0/ig' "f00l F00L" "" "fool FOOL"
+testcmd 's i and I' 's/o/0/ig' "f00l F00L" "" "fool FOOL"
 
-testing 's l ignores posix' "sed -n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo\n'
-testing 's l loses missing newline' "sed -n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo'
-testing 's -z l' "sed -zn 'N;l'" 'one\\000two$\0' '' 'one\0two\0'
-testing 's -z l missing newline' "sed -zn 'N;l'" 'one\\000two$\0' '' 'one\0two'
+testcmd 's l ignores posix' "-n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo\n'
+testcmd 's l loses missing newline' "-n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo'
+testcmd 's -z l' "-zn 'N;l'" 'one\\000two$\0' '' 'one\0two\0'
+testcmd 's -z l missing newline' "-zn 'N;l'" 'one\\000two$\0' '' 'one\0two'
 
 testcmd 'count match' '"s/./&X/4"' '0123X45\n' '' '012345\n'
-
-testcmd 'multiline continuations' '-e c\\ -e line1\\ -e line2' 'line1\nline2\n'\
-  '' 'one\n'
 
 # -i with $ last line test
 
