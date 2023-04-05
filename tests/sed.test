@@ -215,6 +215,9 @@ testing 's -z l missing newline' "sed -zn 'N;l'" 'one\\000two$\0' '' 'one\0two'
 
 testcmd 'count match' '"s/./&X/4"' '0123X45\n' '' '012345\n'
 
+testcmd 'multiline continuations' '-e c\\ -e line1\\ -e line2' 'line1\nline2\n'\
+  '' 'one\n'
+
 # -i with $ last line test
 
 #echo meep | sed/sed -e '1a\' -e 'huh'
