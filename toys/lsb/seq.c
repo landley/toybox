@@ -52,24 +52,6 @@ static double parsef(char *s)
   return xstrtod(s);
 }
 
-// fast integer conversion to decimal string
-// TODO move to lib?
-static char *itoa(char *s, int i)
-{
-  char buf[16], *ff = buf;
-  unsigned n = i;
-
-  if (i<0) {
-    *s++ = '-';
-    n = -i;
-  }
-  do *ff++ = '0'+n%10; while ((n /= 10));
-  do *s++ = *--ff; while (ff>buf);
-  *s++ = '\n';
-
-  return s;
-}
-
 static char *flush_toybuf(char *ss)
 {
   if (ss-toybuf<TT.buflen) return ss;
@@ -80,9 +62,9 @@ static char *flush_toybuf(char *ss)
 
 void seq_main(void)
 {
-  char fbuf[32], *ss;
+  char fbuf[64], *ss;
   double first = 1, increment = 1, last, dd;
-  int ii, inc = 1, len, slen;
+  long ii, inc = 1, len, slen;
 
   // parse arguments
   if (!TT.s) TT.s = "\n";
@@ -101,20 +83,20 @@ void seq_main(void)
     slen = dd;
     if (dd != slen) inc = 0;
   }
-  if (!FLAG(f)) sprintf(TT.f = fbuf, "%%0%d.%df", len, TT.precision);
-  TT.buflen = sizeof(toybuf) - 32 - len - TT.precision - strlen(TT.s);
+  if (!FLAG(f)) sprintf(TT.f = fbuf, "%%0%ld.%df", len, TT.precision);
+  TT.buflen = sizeof(toybuf)-sizeof(fbuf)-len-TT.precision-strlen(TT.s);
   if (TT.buflen<0) error_exit("bad -s");
 
-  // fast path: when everything fits in an int with no flags.
+  // fast path: when everything fits in a long with no flags.
   if (!toys.optflags && inc) {
     ii = first;
     len = last;
     inc = increment;
     ss = toybuf;
     if (inc>0) for (; ii<=len; ii += inc)
-      ss = flush_toybuf(itoa(ss, ii));
+      ss = flush_toybuf(ss+sprintf(ss, "%ld\n", ii));
     else if (inc<0) for (; ii>=len; ii += inc)
-      ss = flush_toybuf(itoa(ss, ii));
+      ss = flush_toybuf(ss+sprintf(ss, "%ld\n", ii));
     if (ss != toybuf) xwrite(1, toybuf, ss-toybuf);
 
     return;
