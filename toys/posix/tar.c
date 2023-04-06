@@ -194,7 +194,7 @@ static struct double_list *filter(struct double_list *lst, char *name)
 {
   struct double_list *end = lst;
   long long flags = toys.optflags;
-  char *ss, *last;
+  char *ss;
 
   if (!lst || !*name) return 0;
 
@@ -211,13 +211,11 @@ static struct double_list *filter(struct double_list *lst, char *name)
 
   // The +1 instead of ++ is in case of conseutive slashes
   do {
-    for (ss = last = name; *ss; ss++) {
+    if (do_filter(lst->data, name, flags)) return lst;
+    if (!(flags & FLAG_anchored)) for (ss = name; *ss; ss++) {
       if (*ss!='/' || !ss[1]) continue;
-      if (!(flags & FLAG_anchored)) {
-        if (do_filter(lst->data, ss+1, flags)) return lst;
-      } else last = ss+1;
+      if (do_filter(lst->data, ss+1, flags)) return lst;
     }
-    if (do_filter(lst->data, last, flags)) return lst;
   } while (end != (lst = lst->next));
 
   return 0;

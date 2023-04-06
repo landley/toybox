@@ -383,6 +383,7 @@ testing 'without -P' "$TAR --no-recursion -C / /// .. 2>/dev/null | SUM 3" \
 
 # Wildcards: --exclude, include (create/extract * cmdline/recursive)
 # --anchored, --wildcards, --wildcards-match-slash
+# --no-* versions of each. Span coverage, switching on/off...
 
 #pattern a.c
 #  abcd dabc a/c da/c
@@ -412,6 +413,10 @@ mkdir sub2
 touch sub2/{ephebe,klatch,djelibeybi}
 testing 'tsort' '$TAR -c sub2 --sort=name | tar t' \
   'sub2/\nsub2/djelibeybi\nsub2/ephebe\nsub2/klatch\n' '' ''
+
+touch file
+testing './file bug' 'tar c ./file > tar.tar && tar t ./file < tar.tar' \
+  './file\n' '' ''
 
 if false
 then
