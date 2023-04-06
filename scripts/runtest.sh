@@ -117,10 +117,10 @@ toyonly()
 # Takes five arguments: "name" "command" "result" "infile" "stdin"
 testing()
 {
-  NAME="$CMDNAME $1"
   wrong_args "$@"
 
-  [ -z "$1" ] && NAME=$2
+  [ -z "$1" ] && NAME="$2" || NAME="$1"
+  [ "${NAME#$CMDNAME }" == "$NAME" ] && NAME="$CMDNAME $1"
 
   [ -n "$DEBUG" ] && set -x
 
@@ -162,9 +162,7 @@ testcmd()
 {
   wrong_args "$@"
 
-  X="$1"
-  [ -z "$X" ] && X="$CMDNAME $2"
-  testing "$X" "\"$C\" $2" "$3" "$4" "$5"
+  testing "${1:-$CMDNAME $2}" "\"$C\" $2" "$3" "$4" "$5"
 }
 
 # Simple implementation of "expect" written in shell.
