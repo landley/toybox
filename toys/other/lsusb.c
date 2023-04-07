@@ -226,7 +226,7 @@ static int list_pci(struct dirtree *new)
       break;
     } else printf(" \"%s [%s]\"", names[ii], buf);
   }
-  printf(FLAG(m) ? " -r%02x" : " (rev %02x)", revision);
+  if (revision) printf(FLAG(m) ? " -r%02x" : " (rev %02x)", revision);
   if (FLAG(k) && driver) printf(FLAG(m) ? " \"%s\"" : " %s", driver);
   xputc('\n');
 
