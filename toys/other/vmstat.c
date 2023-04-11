@@ -65,7 +65,7 @@ static void get_vmstat_proc(struct vmstat_proc *vmsp)
       file = xreadfile(name = vmstuff[i], 0, 0);
 
       continue;
-    } else if (!(p = strafter(file, vmstuff[i]))) {
+    } else if (file && !(p = strafter(file, vmstuff[i]))) {
       free(file);
       file = 0;
     }
@@ -127,10 +127,10 @@ void vmstat_main(void)
     for (i = total_hz = 0; i<4; i++) total_hz += ptr[i+!!i] - oldptr[i+!!i];
 
     // Output values in order[]: running, blocked, swaptotal, memfree, buffers,
-    // cache, swap_in, swap_out, io_in, io_out, sirq, ctxt, user, sys, idle,wait
+    // cache, swap_in, swap_out, io_in, io_out, intr, ctxt, user, sys, idle,wait
 
     for (i=0; i<sizeof(lengths); i++) {
-      char order[] = {9, 10, 15, 11, 12, 13, 19, 20, 17, 18, 6, 8, 0, 2, 3, 4};
+      char order[] = {9, 10, 15, 11, 12, 13, 19, 20, 17, 18, 7, 8, 0, 2, 3, 4};
       unsigned long long out = ptr[order[i]];
       int len;
 
