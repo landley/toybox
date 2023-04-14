@@ -73,12 +73,13 @@ void oneit_main(void)
   // Autodetect console from sysfs if no -c
   memcpy(toybuf, "/dev/", 5);
   if (!TT.c && (TT.c = readfile("/sys/class/tty/console/active", ss, 4096))) {
-    // Remove null terminator, take last entry
+    // Take last entry, remove newline terminator
     for (;;) {
-      if (!(ss = strchr(TT.c, '\n'))) break;
+      if (!(ss = strchr(TT.c, ' '))) break;
       if (!ss[1]) *ss = 0;
       else TT.c = ++ss;
     }
+    if (ss = strchr(TT.c, '\n')) ss[1] = 0;
     // Ensure /dev prefix
     strstart(&TT.c, "/dev/");
     memmove(toybuf+5, TT.c, strlen(TT.c));
