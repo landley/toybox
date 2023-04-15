@@ -49,7 +49,7 @@ static void get_vmstat_proc(struct vmstat_proc *vmsp)
     "Buffers:", "Cached:", "SwapFree:", "SwapTotal:", "SReclaimable:",
     "/proc/vmstat", "pgpgin ", "pgpgout ", "pswpin ", "pswpout " };
   unsigned long long *new = (void *)vmsp;
-  char *p, *name = name, *file = 0;
+  char *p = 0, *name = name, *file = 0;
   int i, j;
 
   // We use vmstuff to fill out vmstat_proc as an array of long long:
