@@ -1,4 +1,4 @@
-#!/bin/echo Try "scripts/mkroot.sh dynamic"
+#!/bin/echo Try "mkroot/mkroot.sh dynamic"
 
 # Copy dynamic libraries from cross compiler
 

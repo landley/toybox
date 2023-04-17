@@ -759,7 +759,7 @@ auditable version of the cmdline portion of that base.</p>
 
 <hr /><h2><a name="mkroot" />Q: How do you build a working Linux system with toybox?</h2>
 
-<p>A: Toybox has a built-in <a href=https://github.com/landley/toybox/blob/master/scripts/mkroot.sh>system builder</a>, with the Makefile target "<b>make
+<p>A: Toybox has a built-in <a href=https://github.com/landley/toybox/blob/master/mkroot/mkroot.sh>system builder</a> called "<a href=https://github.com/landley/toybox/blob/master/mkroot/README>mkroot</a>", with the Makefile target "<b>make
 root</b>". To enter the resulting root filesystem, "<b>sudo chroot
 root/host/fs /init</b>". Type "exit" to get back out.</p>
 
@@ -832,7 +832,7 @@ to the build, by calling the script directly and listing packages on
 the command line:</p>
 
 <blockquote>
-<p><b>scripts/mkroot.sh CROSS=all LINUX=~/linux dropbear</b></p>
+<p><b>mkroot/mkroot.sh CROSS=all LINUX=~/linux dropbear</b></p>
 </blockquote>
 
 <p>An example package build script (building the dropbear ssh server, adding a

@@ -1,4 +1,4 @@
-#!/bin/echo Try "scripts/mkroot.sh $0"
+#!/bin/echo Try "mkroot/mkroot.sh $0"
 
 # Alas http://www.linux-usb.org/usb.ids is not versioned, so...
 download 36d4e16755502fbc684be75e56841e1014e4a94a \

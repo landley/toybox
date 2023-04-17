@@ -77,7 +77,7 @@ tests: toybox
 	scripts/test.sh
 
 root:
-	scripts/mkroot.sh $(MAKEFLAGS)
+	mkroot/mkroot.sh $(MAKEFLAGS)
 
 run_root:
 	cd root/"$${CROSS:-host}" && ./run-qemu.sh

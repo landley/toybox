@@ -1,4 +1,4 @@
-#!/bin/echo Try "scripts/mkroot.sh dropbear"
+#!/bin/echo Try "mkroot/mkroot.sh dropbear"
 
 # Example overlay file, adding dropbear (which requires zlib)
 

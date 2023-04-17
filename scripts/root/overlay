@@ -1,3 +1,0 @@
-#!/bin/echo Try "scripts/mkroot.sh overlay"
-
-cp -a "${OVERLAY:=overlay}"/. "$ROOT"/.

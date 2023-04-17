@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# usage: mkroot/testroot.sh [TARGET...]
+#
+# Test system image(s) (by booting qemu with -hda test.img providing /mnt/init)
+# and check that:
+#
+# A) it boots and runs our code (which means /dev/hda works)
+# B) the clock is set sanely ("make" is unhappy when source newer than output)
+# C) it can talk to the virtual network
+#
+# Each successful test prints a === line, and all 3 means it passed.
+# Writes result into root/build/test/$TARGET-test.txt
+#
+# With arguments, tests those targets (verbosely). With no arguments, tests
+# each target with a linux-kernel (in parallel) and prints pass/fail summary.
+
 die() { echo "$@"; exit 1; }
 
 [ -n "$(which toybox)" -a -n "$(which mksquashfs)" ] ||
@@ -7,7 +22,7 @@ die() { echo "$@"; exit 1; }
 
 mkdir -p "${TEST:=$PWD/root/build/test}" &&
 
-# Setup test filesystem
+# Setup test filesystem and package it into a squashfs.
 cat > "$TEST"/init << 'EOF' &&
 #!/bin/sh
 
@@ -21,7 +36,7 @@ chmod +x "$TEST"/init &&
 
 mksquashfs "$TEST"/init configure scripts/ tests/ "$TEST"/init.sqf -noappend -all-root >/dev/null &&
 
-# Setup for network smoke test
+# Setup server on host's loopback for network smoke test
 echo === net ok > "$TEST"/index.html || die "smoketest setup"
 toybox netcat -p 65432 -s 127.0.0.1 -L toybox httpd "$TEST" &
 trap "kill $!" EXIT

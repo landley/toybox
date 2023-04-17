@@ -6,6 +6,8 @@
 [ -z "$NOCLEAR" ] && exec env -i NOCLEAR=1 HOME="$HOME" PATH="$PATH" \
     LINUX="$LINUX" CROSS="$CROSS" CROSS_COMPILE="$CROSS_COMPILE" "$0" "$@"
 
+! [ -d mkroot ] && echo "Run mkroot/mkroot.sh from toybox source dir." && exit 1
+
 # assign command line NAME=VALUE args to env vars, the rest are packages
 for i in "$@"; do
   [ "${i/=/}" != "$i" ] && export "$i" || { [ "$i" != -- ] && PKG="$PKG $i"; }
@@ -13,9 +15,8 @@ done
 
 # Set default directory locations (overrideable from command line)
 : ${TOP:=$PWD/root} ${BUILD:=$TOP/build} ${LOG:=$BUILD/log}
-: ${AIRLOCK:=$BUILD/airlock} ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/scripts/root}
+: ${AIRLOCK:=$BUILD/airlock} ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/mkroot/root}
 
-# define functions
 announce() { printf "\033]2;$CROSS $*\007" >/dev/tty; printf "\n=== $*\n";}
 die() { echo "$@" >&2; exit 1; }
 
@@ -80,7 +81,7 @@ if [ -z "$NOLOGPATH" ]; then
     CROSS_COMPILE=${CROSS_COMPILE##*/}
   export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/$CROSS-commands.txt"
   rm -rf "$WRAPDIR" "$LOGPATH" generated/obj &&
-  WRAPDIR="$WRAPDIR" CROSS_COMPILE= NOSTRIP=1 source scripts/record-commands ||
+  WRAPDIR="$WRAPDIR" CROSS_COMPILE= NOSTRIP=1 source mkroot/record-commands ||
     exit 1
 fi
 
@@ -304,5 +305,5 @@ if [ -z "$BUILTIN" ]; then
     > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
 
-mv "$LOG/$CROSS".{n,y}
+mv "$LOG/$CROSS".{n,y} && echo "Output is in $OUTPUT"
 rmdir "$TEMP" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
