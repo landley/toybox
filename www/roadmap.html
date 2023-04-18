@@ -488,37 +488,36 @@ echo egrep env expr find fuser getconf getopt git grep gzip head hexdump
 hostname id jar java javap ln ls lsof m4 make md5sum mkdir mktemp mv od openssl
 paste patch pgrep pkill ps pstree pwd python python2.7 python3 readlink
 realpath rm rmdir rsync sed setsid sh sha1sum sha256sum sha512sum
-sleep sort stat tar tail tee todos touch tr true uname uniq unix2dos unzip
+sleep sort stat tar tail tee touch tr true uname uniq unix2dos unzip
 wc which whoami xargs xxd xz zip zipinfo
 </b></blockquote>
 
 <p>The following are already in the tree and will be used directly:</p>
 
 <blockquote><b>
-awk bzip2 jar java javap m4 make python python2.7 python3 xz
+awk bc bzip2 jar java javap m4 make python python2.7 python3 xz
 </b></blockquote>
 
 <p>Subtracting what's already in toybox (including the following toybox toys
-that are still in pending: <code>bc dd diff expr gzip lsof tar tr</code>),
+that are still in pending: <code>dd diff expr getopt gzip lsof tr</code>),
 that leaves:</p>
 
 <blockquote><b>
-bash fuser getopt git hexdump openssl pstree rsync sh todos unzip zip zipinfo
+bash dlv fuser git hexdump openssl pstree rsync sh unzip zip zipinfo
 </b></blockquote>
 
-<p>For AOSP, zip/zipinfo/unzip are likely to be libziparchive based. The
-todos callers will use unix2dos instead if it's available. git/openssl
-seem like they should just be brought in to the tree. rsync is used to
-work around a Mac <code>cp -Rf</code> bug with broken symbolic links. That
-leaves:</p>
+<p>For AOSP, zip/zipinfo/unzip are likely to be libziparchive based.
+git/openssl seem like they should just be brought in to the tree. rsync is
+used to work around a Mac <code>cp -Rf</code> bug with broken symbolic links.
+That leaves:</p>
 
 <blockquote><b>
-bash fuser getopt hexdump pstree
+bash fuser hexdump pstree
 </b></blockquote>
 
 <p>(Why are fuser and pstree used during the AOSP build? They're used for
-diagnostics if something goes wrong. So it's really just bash, getopt,
-and hexdump that are actually used to build.)</p>
+diagnostics if something goes wrong. So it's really just bash and hexdump
+that are actually used to build.)</p>
 
 <hr />
 <h2><a name=tizen /><a href="#tizen">Use case: Tizen Core</a></h2>
