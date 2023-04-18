@@ -1147,7 +1147,7 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)) {
       int pipefd[2] = {-1, TT.fd};
 
-      xpopen_both((char *[]){get_archiver(), 0}, pipefd);
+      TT.pid = xpopen_both((char *[]){get_archiver(), 0}, pipefd);
       close(TT.fd);
       TT.fd = pipefd[0];
     }
@@ -1159,6 +1159,7 @@ void tar_main(void)
     } while (TT.incl != (dl = dl->next));
 
     writeall(TT.fd, toybuf, 1024);
+    close(TT.fd);
   }
   if (TT.pid) {
     TT.pid = xpclose_both(TT.pid, 0);
