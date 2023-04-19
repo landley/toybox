@@ -610,12 +610,37 @@ int get_block_device_size(int fd, unsigned long long* size)
 }
 #endif
 
+#if defined(__ANDROID__)
+static int android_api_level(void)
+{
+  // Cached so we don't do a system property lookup on every call.
+  static int api_level;
+
+  if (!api_level) api_level = android_get_device_api_level();
+  return api_level;
+}
+#endif
+
+static int check_copy_file_range(void)
+{
+#if defined(__ANDROID__)
+  // Android's had the constant for years, but seccomp means you'll get
+  // SIGSYS if you try the system call before 2023's Android U.
+  return (android_api_level() >= __ANDROID_API_U__) ? __NR_copy_file_range : 0;
+#elif defined(__NR_copy_file_range)
+  // glibc added this constant in git at the end of 2017, shipped 2018-02.
+  return __NR_copy_file_range;
+#else
+  return 0;
+#endif
+}
+
 // Return bytes copied from in to out. If bytes <0 copy all of in to out.
 // If consumed isn't null, amount read saved there (return is written or error)
 long long sendfile_len(int in, int out, long long bytes, long long *consumed)
 {
   long long total = 0, len, ww;
-  int try_cfr = 1;
+  int try_cfr = check_copy_file_range();
 
   if (consumed) *consumed = 0;
   if (in>=0) while (bytes != total) {
@@ -625,15 +650,7 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
     errno = 0;
     if (try_cfr) {
       if (bytes<0 || bytes>(1<<30)) len = (1<<30);
-      // glibc added this constant in git at the end of 2017, shipped 2018-02.
-      // Android's had the constant for years, but you'll get SIGSYS if you use
-      // this system call before Android U (2023's release).
-#if defined(__NR_copy_file_range) && !defined(__ANDROID__)
-      len = syscall(__NR_copy_file_range, in, 0, out, 0, len, 0);
-#else
-      errno = EINVAL;
-      len = -1;
-#endif
+      len = syscall(try_cfr, in, 0, out, 0, len, 0);
       if (len < 0) {
         try_cfr = 0;
 
