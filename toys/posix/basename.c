@@ -28,20 +28,19 @@ GLOBALS(
 
 void basename_main(void)
 {
-  char **arg;
+  char **arg, *base, *p;
 
-  if (toys.optflags&FLAG_s) toys.optflags |= FLAG_a;
+  if (FLAG(s)) toys.optflags |= FLAG_a;
 
-  if (!(toys.optflags&FLAG_a)) {
-    if (toys.optc > 2) error_exit("too many args");
+  if (!FLAG(a)) {
+    if (toys.optc>2) error_exit("too many args");
     TT.s = toys.optargs[1];
-    toys.optargs[1] = NULL;
+    toys.optargs[1] = 0;
   }
 
   for (arg = toys.optargs; *arg; ++arg) {
-    char *base = basename(*arg), *p;
-
     // Chop off the suffix if provided.
+    base = basename(*arg);
     if (TT.s && *TT.s && (p = strend(base, TT.s))) *p = 0;
     puts(base);
   }
