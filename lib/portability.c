@@ -556,15 +556,23 @@ char *fs_type_name(struct statfs *statfs)
 #else
   char *s = NULL;
   struct {unsigned num; char *name;} nn[] = {
-    {0xADFF, "affs"}, {0x5346544e, "ntfs"}, {0x1Cd1, "devpts"},
-    {0x137D, "ext"}, {0xEF51, "ext2"}, {0xEF53, "ext3"},
-    {0x1BADFACE, "bfs"}, {0x9123683E, "btrfs"}, {0x28cd3d45, "cramfs"},
-    {0x3153464a, "jfs"}, {0x7275, "romfs"}, {0x01021994, "tmpfs"},
-    {0x3434, "nilfs"}, {0x6969, "nfs"}, {0x9fa0, "proc"},
+    {0xADF5, "adfs"}, {0xADFF, "affs"}, {0x5346414F, "afs"}, {0x187, "autofs"},
+    {0x1BADFACE, "bfs"}, {0x6C6F6F70, "binder"}, {0x9123683E, "btrfs"},
+    {0xFF534D42, "cifs"}, {0x27E0EB, "cgroup"}, {0x63677270, "cgroup2"},
+    {0x73757245, "coda"}, {0x28cd3d45, "cramfs"}, {0x1CD1, "devpts"},
+    {0xF15F, "ecryptfs"}, {0x414A53, "efs"}, {0xE0F5E1E2, "erofs"},
+    {0x2011BAB0, "exfat"}, {0x137D, "ext"}, {0xEF51, "ext2"},
+    {0xEF53, "ext3/4"}, {0xF2F52010, "f2fs"}, {0xBAD1DEA, "futexfs"},
+    {0x00C0FFEE, "hostfs"}, {0xF995E849, "hpfs"},
+    {0x9660, "isofs"}, {0x72B6, "jffs2"}, {0x3153464a, "jfs"},
+    {0x137F, "minix"}, {0x2468, "minix2"}, {0x4D5A, "minix3"},
+    {0x4D44, "vfat"}, {0x6969, "nfs"}, {0x3434, "nilfs2"},
+    {0x5346544E, "ntfs"}, {0x7461636F, "ocfs2"}, {0x9FA1, "openpromfs"},
+    {0x794C7630, "overlay"}, {0x9FA0, "proc"}, {0x002f, "qnx4"},
+    {0x68191122, "qnx6"}, {0x7275, "romfs"}, {0x7655821, "resctrl"},
     {0x534F434B, "sockfs"}, {0x62656572, "sysfs"}, {0x517B, "smb"},
-    {0x4d44, "msdos"}, {0x4006, "fat"}, {0x43415d53, "smackfs"},
-    {0x73717368, "squashfs"}, {0xF2F52010, "f2fs"}, {0xE0F5E1E2, "erofs"},
-    {0x2011BAB0, "exfat"},
+    {0x01021994, "tmpfs"}, {0x15013346, "udf"}, {0x43415d53, "smackfs"},
+    {0x73717368, "squashfs"}, {0xabba1974, "xenfs"}, {0x58465342, "xfs"}
   };
   int i;
 
