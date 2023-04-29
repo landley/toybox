@@ -123,6 +123,7 @@ export EVAL="timeout 10 $SH -c"
 
 testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 # TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''
+
 shxpect 'queued work after HERE' I$'<<0;echo hello\n' E"> " I$'0\n' O$'hello\n'
 shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
   E E"$P" I$'echo $_\n' O$'hello\n'
@@ -151,7 +152,6 @@ testing 'cd in renamed dir' \
 rm -rf one
 
 testing "smoketest" "echo hello" "hello\n" "" ""
-testing "line break" $'ec\\\nho hello' 'hello\n' '' ''
 testing "assignment" 'x=y; echo $x' 'y\n' '' ''
 testing "+= assignment" 'x+=abc; y=def; y+=$x; echo $y' 'defabc\n' '' ''
 testing "eval" "eval echo hello" "hello\n" "" ""
@@ -541,6 +541,8 @@ shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
 shxpect 'line continuation' I$'echo "hello" \\\n' E'> ' I$'> blah\n' E"$P" \
   I$'wc blah\n' O$'1 1 6 blah\n'
 shxpect 'line continuation2' I$'echo ABC\\\n' E'> ' I$'DEF\n' O$'ABCDEF\n'
+testing "line continuation3" $'ec\\\nho hello' 'hello\n' '' ''
+testing "line continuation4" $'if true | \\\n(true);then echo true;fi' 'true\n' '' ''
 
 # Race condition (in bash, but not in toysh) can say 43.
 testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''

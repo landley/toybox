@@ -1121,7 +1121,7 @@ static char *parse_word(char *start, int early, int quote)
 
     // \? $() ${} $[] ?() *() +() @() !()
     else {
-      if (ii=='\\') { // TODO why end[1] here? sh -c $'abc\\\ndef' Add test.
+      if (ii=='\\') {
         if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
       } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
         if (strstart(&end, "((")) {
@@ -2138,12 +2138,11 @@ barf:
         } else if (*slice=='/') {
           struct sh_arg wild = {0};
 
-          s = slashcopy(ss = slice+(xx = !!strchr("/#%", slice[1]))+1, "/}",
-            &wild);
+          xx = !!strchr("/#%", slice[1]);
+          s = slashcopy(ss = slice+xx+1, "/}", &wild);
           ss += (long)wild.v[wild.c];
           ss = (*ss == '/') ? slashcopy(ss+1, "}", 0) : 0;
           jj = ss ? strlen(ss) : 0;
-          ll = 0;
           for (ll = 0; ifs[ll];) {
             // TODO nocasematch option
             if (0<(dd = wildcard_match(ifs+ll, s, &wild, 0))) {
@@ -3042,6 +3041,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
       // Save unparsed bit of this line, we'll need to re-parse it.
+      if (*start=='\\' && (!start[1] || start[1]=='\n')) start++;
       arg_add(arg, xstrndup(start, strlen(start)));
       arg->c = -arg->c;
       free(delete);
