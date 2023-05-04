@@ -687,6 +687,7 @@ cont:
   return recurse;
 
 error:
+  if (!*ss) --ss;
   error_exit("bad arg '%s'", *ss);
 }
 
