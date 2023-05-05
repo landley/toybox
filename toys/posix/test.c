@@ -28,7 +28,7 @@ config TEST
     STRING is:
       -n  nonzero size   -z  zero size
     FD (integer file descriptor) is:
-      -t  a TTY          -T  open
+      -t  a TTY
 
     --- Tests with one argument on each side of an operator:
     Two strings:
@@ -109,7 +109,6 @@ static int do_test(char **args, int *count)
     } else if (c == 'z') return !*args[1];
     else if (c == 'n') return *args[1];
     else if (c == 't') return isatty(atolx(args[1]));
-    else if (c == 'T') return -1 != fcntl(atolx(args[1]), F_GETFL);
   }
   return *count = 0;
 }

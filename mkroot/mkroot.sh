@@ -106,7 +106,7 @@ export HOME=/home PATH=/bin:/sbin
 
 if ! mountpoint -q dev; then
   mount -t devtmpfs dev dev
-  [ $$ -eq 1 -a ! -T 0 ] && exec 0<>/dev/console 1>&0 2>&1
+  [ $$ -eq 1 ] && ! 2>/dev/null <0 && exec 0<>/dev/console 1>&0 2>&1
   for i in ,fd /0,stdin /1,stdout /2,stderr
   do ln -sf /proc/self/fd${i/,*/} dev/${i/*,/}; done
   mkdir -p dev/shm
