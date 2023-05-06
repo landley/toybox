@@ -58,7 +58,7 @@ USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(wait, "n", TOYFLAG_NOFORK))
 
-USE_SH(NEWTOY(sh, "0(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
+USE_SH(NEWTOY(sh, "0^(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
 USE_SH(OLDTOY(bash, sh, TOYFLAG_BIN))
 // Login lies in argv[0], so add some aliases to catch that
