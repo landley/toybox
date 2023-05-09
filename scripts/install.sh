@@ -107,7 +107,7 @@ done
 
 PENDING="expr git tr bash sh gzip   awk bison flex make"
 TOOLCHAIN="as cc ld objdump"
-TOOLCHAIN+="bc gcc" # both patched out but not in vanilla yet
+TOOLCHAIN+=" bc gcc" # both patched out but not in vanilla yet
 
 # Tools needed to build packages
 for i in $TOOLCHAIN $PENDING $HOST_EXTRA
