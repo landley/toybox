@@ -19,24 +19,36 @@ config SWITCH_ROOT
 
 #define FOR_switch_root
 #include "toys.h"
-#include <sys/vfs.h>
 
 GLOBALS(
   char *c;
 
+  struct stat new;
   dev_t rootdev;
 )
 
 static int del_node(struct dirtree *node)
 {
-  if (node->st.st_dev == TT.rootdev && dirtree_notdotdot(node)) {
-    int flag = 0;
-    if (S_ISDIR(node->st.st_mode)) {
-      if (!node->again) return DIRTREE_COMEAGAIN;
-      flag = AT_REMOVEDIR;
-    }
-    unlinkat(dirtree_parentfd(node), node->name, flag);
+  int flag = 0;
+
+  if (same_file(&TT.new, &node->st) || !dirtree_notdotdot(node)) return 0;
+
+  if (node->st.st_dev != TT.rootdev) {
+    char *s = dirtree_path(node, 0);
+
+    if (mount(s, s+1, "", MS_MOVE, "")) perror_msg("Failed to move %s", s);
+    // TODO: handle undermounts
+    rmdir(s);
+    free(s);
+
+    return 0;
   }
+
+  if (S_ISDIR(node->st.st_mode)) {
+    if (!node->again) return DIRTREE_COMEAGAIN;
+    flag = AT_REMOVEDIR;
+  }
+  unlinkat(dirtree_parentfd(node), node->name, flag);
 
   return 0;
 }
@@ -44,13 +56,12 @@ static int del_node(struct dirtree *node)
 void switch_root_main(void)
 {
   char *newroot = *toys.optargs, **cmdline = toys.optargs+1;
-  struct stat st1, st2;
+  struct stat st;
   struct statfs stfs;
-  int console QUIET;
+  int ii, console QUIET;
 
+  // Must be root on a ramfs or tmpfs instance
   if (getpid() != 1) error_exit("not pid 1");
-
-  // Root filesystem we're leaving must be ramfs or tmpfs
   if (statfs("/", &stfs) ||
     (stfs.f_type != 0x858458f6 && stfs.f_type != 0x01021994))
   {
@@ -59,13 +70,13 @@ void switch_root_main(void)
   }
 
   // New directory must be different filesystem instance
-  if (chdir(newroot) || stat(".", &st1) || stat("/", &st2) ||
-    st1.st_dev == st2.st_dev)
+  if (chdir(newroot) || stat(".", &TT.new) || stat("/", &st) ||
+    same_file(&TT.new, &st))
   {
     error_msg("bad newroot '%s'", newroot);
     goto panic;
   }
-  TT.rootdev=st2.st_dev;
+  TT.rootdev = st.st_dev;
 
   // trim any / characters from the init cmdline, as we want to test it with
   // stat(), relative to newroot. *cmdline is also used below, but by that
@@ -73,7 +84,7 @@ void switch_root_main(void)
   while (**cmdline == '/') (*cmdline)++;
 
   // init program must exist and be an executable file
-  if (stat(*cmdline, &st1) || !S_ISREG(st1.st_mode) || !(st1.st_mode&0100)) {
+  if (stat(*cmdline, &st) || !S_ISREG(st.st_mode) || !(st.st_mode&0100)) {
     error_msg("bad init");
     goto panic;
   }
@@ -85,12 +96,6 @@ void switch_root_main(void)
  
   // Ok, enough safety checks: wipe root partition.
   dirtree_read("/", del_node);
-
-  // Fix the appearance of the mount table in the newroot chroot
-  if (mount(".", "/", NULL, MS_MOVE, NULL)) {
-    perror_msg("mount");
-    goto panic;
-  }
 
   // Enter the new root before starting init
   if (chroot(".")) {
@@ -105,12 +110,11 @@ void switch_root_main(void)
   }
 
   if (TT.c) {
-    int i;
-    for (i=0; i<3; i++) if (console != i) dup2(console, i);
+    for (ii = 0; ii<3; ii++) dup2(console, ii);
     if (console>2) close(console);
   }
   execv(*cmdline, cmdline);
   perror_msg("Failed to exec '%s'", *cmdline);
 panic:
-  if (toys.optflags & FLAG_h) for (;;) wait(NULL);
+  if (FLAG(h)) for (;;) wait(NULL);
 }
