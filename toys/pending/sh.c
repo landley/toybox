@@ -30,7 +30,7 @@
  * TODO: getuid() vs geteuid()
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
  * TODO: Handle embedded NUL bytes in the command line? (When/how?)
- * TODO: set -e -u -o pipefail, shopt -s nullglob
+ * TODO: set -e -o pipefail, shopt -s nullglob
  *
  * bash man page:
  * control operators || & && ; ;; ;& ;;& ( ) | |& <newline>
@@ -388,6 +388,7 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 #define OPT_B	0x100
 #define OPT_C	0x200
 #define OPT_x	0x400
+#define OPT_u	0x800
 
 // only export $PWD and $OLDPWD on first cd
 #define OPT_cd  0x80000000
@@ -1939,7 +1940,10 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
         } else if (ss[-1]=='{'); // not prefix, fall through
         else if (cc == '#') {  // TODO ${#x[@]}
           dd = !!strchr("@*", *ss);  // For ${#@} or ${#*} do normal ${#}
-          ifs = getvar_special(ss-dd, jj, &kk, delete) ? : "";
+          if (!(ifs = getvar_special(ss-dd, jj, &kk, delete))) {
+            if (TT.options&OPT_u) goto barf;
+            ifs = "";
+          }
           if (!dd) push_arg(delete, ifs = xmprintf("%zu", strlen(ifs)));
         // ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
         } else if (cc == '!') {  // TODO: ${var[@]} array
@@ -2000,6 +2004,7 @@ barf:
           aa.v = TT.ff->arg.v+1;
         } else {
           ifs = getvar_special(ss, jj, &jj, delete);
+          if (!ifs && (TT.options&OPT_u)) goto barf;
           if (!jj) {
             if (ss[-1] == '{') goto barf;
             new[oo++] = '$';
@@ -4386,7 +4391,7 @@ void set_main(void)
     if (!cc || !dd) break;
     for (jj = 1; cc[jj]; jj++) {
       if (cc[jj] == 'o') oo++;
-      else if (-1 != (kk = stridx("BCx", cc[jj]))) {
+      else if (-1 != (kk = stridx("BCxu", cc[jj]))) {
         if (*cc == '-') TT.options |= OPT_B<<kk;
         else TT.options &= ~(OPT_B<<kk);
       } else error_exit("bad -%c", toys.optargs[ii][1]);

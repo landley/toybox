@@ -597,6 +597,7 @@ shxpect '${a?b} sets err, stops cmdline eval' \
 shxpect 'trace redirect' I$'set -x; echo one\n' E$'+ echo one\n'"$P" O$'one\n' \
   I$'echo two 2>/dev/null\n' O$'two\n' E$'+ echo two\n'"$P" \
   I$'{ echo three; } 2>/dev/null\n' O$'three\n' E"$P"
+shxpect 'set -u' I$'set -u; echo $walrus\n' REwalrus X
 
 testing 'source file' 'source input' 'hello\n' 'echo hello \\\n' ''
 testing '. file' '. input' 'hello\n' 'echo hello \\\n' ''

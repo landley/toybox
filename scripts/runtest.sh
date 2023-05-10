@@ -167,10 +167,13 @@ testcmd()
 
 # Simple implementation of "expect" written in shell.
 
-# txpect NAME COMMAND [I/O/E/Xstring]...
-# Run COMMAND and interact with it: send I strings to input, read O or E
-# strings from stdout or stderr (empty string is "read line of input here"),
-# X means close stdin/stdout/stderr and match return code (blank means nonzero)
+# txpect NAME COMMAND [I/O/E/X/R[OE]string]...
+# Run COMMAND and interact with it:
+# I send string to input
+# OE read exactly this string from stdout or stderr (bare = read+discard line)
+#    note: non-bare does not read \n unless you include it with O$'blah\n'
+# R prefix means O or E is regex match (read line, must contain substring)
+# X close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
   local NAME CASE VERBOSITY LEN PID A B X O
@@ -236,7 +239,7 @@ txpect()
         wait $PID
         A=$?
         exec {OUT}<&- {ERR}<&-
-        if [ -z "$LEN" ]
+        if [ "$LEN" -eq 0 ]
         then
           [ $A -eq 0 ] && { do_fail;break;}        # any error
         else
