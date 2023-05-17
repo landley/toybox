@@ -79,6 +79,18 @@ static unsigned short elf_short(char **p)
   return elf_get(p, 2);
 }
 
+static int fits(char *what, int n, unsigned long long off, unsigned long long size)
+{
+  if (off > TT.size || size > TT.size || off > TT.size-size) {
+    if (n == -1) *toybuf = 0;
+    else snprintf(toybuf, sizeof(toybuf), " %d", n);
+    printf("%s%s's offset %llu + size %llu > file size %llu\n",
+      what, toybuf, off, size, TT.size);
+    return 0;
+  }
+  return 1;
+}
+
 static int get_sh(unsigned i, struct sh *s)
 {
   char *shdr = TT.elf+TT.shoff+i*TT.shentsize;
@@ -100,12 +112,7 @@ static int get_sh(unsigned i, struct sh *s)
   s->addralign = elf_long(&shdr);
   s->entsize = elf_long(&shdr);
 
-  if (s->type != 8) {
-    if (s->offset>TT.size || s->size>TT.size || s->offset>TT.size-s->size) {
-      printf("Bad offset/size %llu/%llu for sh %d\n", s->offset, s->size, i);
-      return 0;
-    }
-  }
+  if (s->type != 8 && !fits("section header", i, s->offset, s->size)) return 0;
 
   if (!TT.shstrtab) s->name = "?";
   else {
@@ -167,11 +174,7 @@ static int get_ph(int i, struct ph *ph)
     ph->align = elf_int(&phdr);
   }
 
-  if (ph->offset >= TT.size-ph->filesz) {
-    printf("phdr %d has bad offset/size %llu/%llu", i, ph->offset, ph->filesz);
-    return 0;
-  }
-
+  if (!fits("program header", i, ph->offset, ph->filesz)) return 0;
   return 1;
 }
 
@@ -301,11 +304,7 @@ static void show_notes(unsigned long offset, unsigned long size)
 {
   char *note = TT.elf + offset;
 
-  if (size > TT.size || offset > TT.size-size) {
-    printf("Bad note bounds %lu/%lu\n", offset, size);
-
-    return;
-  }
+  if (!fits("note", -1, offset, size)) return;
 
   printf("  %-20s%11s\tDescription\n", "Owner", "Data size");
   while (note < TT.elf+offset+size) {
