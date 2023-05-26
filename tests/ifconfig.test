@@ -89,7 +89,7 @@ testing "dummy0 add ::2 -- too small mtu" \
 # Results Expected: After calling ifconfig dummy0, there is one line with the
 #                   selected MTU
 testing "dummy0 mtu 2000" \
-"ifconfig dummy0 mtu 2000 && ifconfig dummy0 | grep 2000 | wc -l" \
+"ifconfig dummy0 mtu 2000 && ifconfig dummy0 | grep MTU:2000 | wc -l" \
 "1\n" "" ""
 
 # Test Description: Verify ifconfig add succeeds with a larger mtu
