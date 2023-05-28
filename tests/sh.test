@@ -121,6 +121,10 @@ testing "eval0" "$SH -c 'eval echo \$*' one two three" "two three\n" "" ""
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="timeout 10 $SH -c"
 
+testing 'test return code' 'if false; then echo true; fi; echo $?' '0\n' '' ''
+testing 'test return code 2' 'if true; the false; fi; echo $?' '1\n' '' ''
+testing 'test return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $?' '1\n2\n0\n' '' ''
+
 testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 # TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''
 

@@ -3861,9 +3861,11 @@ static void run_lines(void)
         }
 
       // Handle if/else/elif statement
-      } else if (!strcmp(s, "then"))
+      } else if (!strcmp(s, "then")) {
+do_then:
         TT.ff->blk->run = TT.ff->blk->run && !toys.exitval;
-      else if (!strcmp(s, "else") || !strcmp(s, "elif"))
+        toys.exitval = 0;
+      } else if (!strcmp(s, "else") || !strcmp(s, "elif"))
         TT.ff->blk->run = !TT.ff->blk->run;
 
       // Loop
@@ -3871,9 +3873,11 @@ static void run_lines(void)
         struct sh_blockstack *blk = TT.ff->blk;
 
         ss = *blk->start->arg->v;
-        if (!strcmp(ss, "while")) blk->run = blk->run && !toys.exitval;
-        else if (!strcmp(ss, "until")) blk->run = blk->run && toys.exitval;
-        else if (!strcmp(ss, "select")) {
+        if (!strcmp(ss, "while")) goto do_then;
+        else if (!strcmp(ss, "until")) {
+          blk->run = blk->run && toys.exitval;
+          toys.exitval = 0;
+        } else if (!strcmp(ss, "select")) {
           if (!(ss = get_next_line(0, 3)) || ss==(void *)1) {
             TT.ff->pl = pop_block();
             printf("\n");
@@ -3913,7 +3917,8 @@ static void run_lines(void)
 
       // repeating block?
       if (TT.ff->blk->run && !strcmp(s, "done")) {
-        TT.ff->pl = TT.ff->blk->middle;
+        TT.ff->pl = (**TT.ff->blk->start->arg->v == 'w')
+          ? TT.ff->blk->start->next : TT.ff->blk->middle;
         continue;
       }
 
