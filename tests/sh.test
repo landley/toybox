@@ -127,6 +127,7 @@ testing 'return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $
 testing 'local var +whiteout' \
   'l=X;x(){ local l=47; echo $l;unset l; echo l=$l;};x;echo $l' '47\nl=\nX\n' \
   '' ''
+testing 'escape passthrough' 'echo -e "a\nb\nc\td"' 'a\nb\nc\td\n' '' ''
 
 testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 # TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''

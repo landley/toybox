@@ -1903,13 +1903,13 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
       }
-    } else if (cc=='\\' || !str[ii]) {
-      if (!(qq&1) || (str[ii] && strchr("\"\\$`", str[ii])))
-        new[oo++] = str[ii] ? str[ii++] : cc;
+    } else if (!str[ii]) new[oo++] = cc;
+    else if (cc=='\\')
+      new[oo++] = (!(qq&1) || strchr("\"\\$`", str[ii])) ? str[ii++] : cc;
 
     // $VARIABLE expansions
 
-    } else if (cc == '$' && str[ii]) {
+    else if (cc == '$') {
       cc = *(ss = str+ii++);
       if (cc=='\'') {
         for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
