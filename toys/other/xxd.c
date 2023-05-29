@@ -70,7 +70,7 @@ static void do_xxd(int fd, char *name)
 
       space -= printf("%02x", toybuf[FLAG(e) ? (i + TT.g - j) : i]);
       i++,j+=2;
-      if (TT.g && !(i%TT.g)) {
+      if (!FLAG(p) && TT.g && !(i%TT.g)) {
         putchar(' ');
         space--;
         j=1;
