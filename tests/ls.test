@@ -42,7 +42,7 @@ ln -s /dev/null/nosuchfile nosuchfile
 testcmd "-d broken symlink" "-d nosuchfile" "nosuchfile\n" "" ""
 rm -f nosuchfile
 
-rm -rf file{1,2}.txt .hfile dir1 dir2
+rm -rf file{1,2}.txt .hfile1 dir1 dir2
 
 mkdir -p dir1 && touch file1.txt dir1/file2
 testcmd "" "-R" ".:\ndir1\nfile1.txt\n\n./dir1:\nfile2\n" "" ""
@@ -74,7 +74,28 @@ rm -f a b c d e f
 
 touch 'hello world'
 testcmd "default escaping" "" "hello world\n" "" ""
-testcmd "-b" "-b" 'hello\\ \\rworld\n' "" ""
-testcmd "-q" "-q" 'hello ?world\n' "" ""
-testcmd "-N" "-N" 'hello world\n' "" ""
+testcmd "" "-b" 'hello\\ \\rworld\n' "" ""
+testcmd "" "-q" 'hello ?world\n' "" ""
+testcmd "" "-N" 'hello world\n' "" ""
+# testcmd "" "-qN" 'hello ?world\n' "" "" behaves differently, and ok with it.
 rm hello*
+
+mkdir zzz dir && echo hello > xxx && sleep .05 && echo longer > abc
+# pause because filesystem granularity may be "jiffies".
+X=999; for i in abc x abc.jkl zzz xxx Abc cde.def dir bcd.ghi
+do sleep .05; touch -d @$((X--)) $i; done
+
+testcmd '' '--group-directories-first' \
+  'dir\nzzz\nAbc\nabc\nabc.jkl\nbcd.ghi\ncde.def\nx\nxxx\n' '' ''
+testcmd '' '-cr' 'abc\nx\nabc.jkl\nzzz\nxxx\nAbc\ncde.def\ndir\nbcd.ghi\n' '' ''
+testcmd '' '-tr' 'bcd.ghi\ndir\ncde.def\nAbc\nxxx\nzzz\nabc.jkl\nx\nabc\n' '' ''
+testcmd '' '-S --group-directories-first' 'dir\nzzz\nabc\nxxx\nAbc\nabc.jkl\nbcd.ghi\ncde.def\nx\n' '' ''
+testcmd '' '-X' 'Abc\nabc\ndir\nx\nxxx\nzzz\ncde.def\nbcd.ghi\nabc.jkl\n' '' ''
+testcmd '-U matches -f' '-aU1' "$("$C" -f1)\n" '' ''
+# -ltu sorts by atime, -lu shows atime but sorts by name (same for -oc/-otc)
+TZ=utc testcmd '-ou' '-ou --full-time . | sed -n "s/.*:\([0-9]*\).*/\1/p"' \
+  '34\n39\n37\n31\n33\n32\n38\n35\n36\n' '' ''
+TZ=utc testcmd '-otu' '-otu --full-time . | sed -n "s/.*:\([0-9]*\).*/\1/p"' \
+  '39\n38\n37\n36\n35\n34\n33\n32\n31\n' '' ''
+toyonly testcmd '' '--sort=reverse' 'zzz\nxxx\nx\ndir\ncde.def\nbcd.ghi\nabc.jkl\nabc\nAbc\n' '' ''
+toyonly testcmd '' '--sort=nocase,time' 'abc\nAbc\nabc.jkl\nbcd.ghi\ncde.def\ndir\nx\nxxx\nzzz\n' '' ''

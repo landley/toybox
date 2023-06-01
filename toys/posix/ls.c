@@ -6,12 +6,13 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
  *
  * Deviations from posix:
- *   add -b (and default to it instead of -q for an unambiguous representation
- *   that doesn't cause collisions)
+ *   add -b (as default instead of -q: -b is unambiguous without collisions)
  *   add -Z -ll --color
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
  *   ignore -k because we default to 1024 byte blocks
+ * Deviations from gnu: -N switches off -q (no --show-control-chars)
+ *   No --quoting-style=shell-escape, mostly because no short or long opt for it
 
 USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(show-control-chars)\241(group-directories-first)\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
@@ -161,7 +162,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
 
 // Perform one or more comparisons on a pair of files.
 // Reused FLAG_a to mean "alphabetical"
-static int do_compare(struct dirtree *a, struct dirtree *b, long flags)
+static int do_compare(struct dirtree *a, struct dirtree *b, long long flags)
 {
   struct timespec *ts1 = 0, *ts2;
   char *s1, *s2;
@@ -173,11 +174,11 @@ static int do_compare(struct dirtree *a, struct dirtree *b, long flags)
     if (a->st.st_size > b->st.st_size) return -1;
     else if (a->st.st_size < b->st.st_size) return 1;
   }
-
   if (flags&FLAG_t) ts1 = &a->st.st_mtim, ts2 = &b->st.st_mtim;
   if (flags&FLAG_u) ts1 = &a->st.st_atim, ts2 = &b->st.st_atim;
   if (flags&FLAG_c) ts1 = &a->st.st_ctim, ts2 = &b->st.st_ctim;
   if (ts1) {
+    // Newest is first by default, so return values are backwards
     if (ts1->tv_sec > ts2->tv_sec) return -1;
     else if (ts1->tv_sec < ts2->tv_sec) return 1;
     else if (ts1->tv_nsec > ts2->tv_nsec) return -1;
@@ -188,9 +189,15 @@ static int do_compare(struct dirtree *a, struct dirtree *b, long flags)
       return S_ISDIR(a->st.st_mode) ? -1 : 1;
 
   // -X is a form of alphabetical sort, without -~ do case sensitive comparison
-  if ((flags&FLAG_X) && (s1 = strrchr(a->name, '.')) && (s2 = strrchr(b->name, '.'))) {
+  s1 = 0;
+  if (flags&FLAG_X) {
+    s1 = strrchr(a->name, '.');
+    s2 = strrchr(b->name, '.');
+    if (s2 && !s1) return -1;
+    if (s1 && !s2) return 1;
     if (!(flags&FLAG_X7E)) flags |= FLAG_a;
-  } else {
+  }
+  if (!s1) {
     s1 = a->name;
     s2 = b->name;
   }
@@ -215,13 +222,13 @@ static int compare(void *a, void *b)
   char *ss = TT.sort;
   long long ll = 0;
   int ret = 0;
-
 // TODO: test --sort=reverse with fallback alphabetical
 
-  if (ss) while (*ss) {
+  if (ss) for (;;) {
+    while (*ss==',') ss++;
+    if (!*ss) break;
     if (comma_start(&ss, "reverse")) toys.optflags |= FLAG_r;
     else if (comma_start(&ss, "none")) goto skip;
-    else if (ret) continue;
     else if (comma_start(&ss, "ctime")) ll = FLAG_c;
     else if (comma_start(&ss, "size")) ll = FLAG_S;
     else if (comma_start(&ss, "time")) ll = FLAG_t;
@@ -231,10 +238,19 @@ static int compare(void *a, void *b)
     else if (comma_start(&ss, "dirfirst")) ll = FLAG_X21;
     else error_exit("bad --sort %s", ss);
 
-    ret = do_compare(dta, dtb, ll);
+    if (!ret) ret = do_compare(dta, dtb, ll);
   }
 
-  if (!ret) ret = do_compare(dta, dtb, toys.optflags|FLAG_a);
+  // Alpha fallback sort, and handle short opts
+  if (!ret) {
+    ll = toys.optflags|FLAG_a;
+    // historical nonsense: -lc displays -c but doesn't sort, -ltc sorts.
+    if (FLAG(o)|FLAG(l)) {
+      if (!FLAG(t)) ll &= ~(FLAG_c|FLAG_u);
+      else if (FLAG(c)||FLAG(u)) ll &= ~FLAG_t;
+    }
+    ret = do_compare(dta, dtb, ll);
+  }
 skip:
   if (FLAG(r)) ret *= -1;
 
