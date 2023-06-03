@@ -55,10 +55,13 @@ config BZCAT
 #define IOBUF_SIZE               4096
 
 // Status return values
-#define RETVAL_LAST_BLOCK        (-100)
-#define RETVAL_NOT_BZIP_DATA     (-1)
-#define RETVAL_DATA_ERROR        (-2)
-#define RETVAL_OBSOLETE_INPUT    (-3)
+#define RETVAL_LAST_BLOCK            (-100)
+#define RETVAL_NOT_BZIP_DATA         (-1)
+#define RETVAL_DATA_ERROR            (-2)
+#define RETVAL_OBSOLETE_INPUT        (-3)
+#define RETVAL_OUT_OF_MEMORY         (-4)
+#define RETVAL_UNEXPECTED_INPUT_EOF  (-5)
+#define RETVAL_UNEXPECTED_OUTPUT_EOF (-6)
 
 // This is what we know about each huffman coding group
 struct group_data {
@@ -118,7 +121,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
     // If we need to read more data from file into byte buffer, do so
     if (bd->inbufPos == bd->inbufCount) {
       if (0 >= (bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
-        error_exit("input EOF");
+        error_exit("input EOF"); // TODO: return RETVAL_UNEXPECTED_INPUT_EOF
       bd->inbufPos = 0;
     }
 
@@ -440,13 +443,14 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
 }
 
 // Flush output buffer to disk
-static void flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
+static int flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
 {
   if (bd->outbufPos) {
     if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
-      error_exit("output EOF");
+      return RETVAL_UNEXPECTED_OUTPUT_EOF;
     bd->outbufPos = 0;
   }
+  return 0;
 }
 
 static void burrows_wheeler_prep(struct bunzip_data *bd, struct bwdata *bw)
@@ -561,7 +565,10 @@ static int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw,
 
       // Output bytes to buffer, flushing to file if necessary
       while (copies--) {
-        if (bd->outbufPos == IOBUF_SIZE) flush_bunzip_outbuf(bd, out_fd);
+        if (bd->outbufPos == IOBUF_SIZE) {
+            int i = flush_bunzip_outbuf(bd, out_fd);
+            if (i) return i;
+        }
         bd->outbuf[bd->outbufPos++] = outbyte;
         bw->dataCRC = (bw->dataCRC << 8)
                 ^ bd->crc32Table[(bw->dataCRC >> 24) ^ outbyte];
@@ -612,7 +619,8 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
   if (!len) i += IOBUF_SIZE;
 
   // Allocate bunzip_data. Most fields initialize to zero.
-  bd = *bdp = xzalloc(i);
+  bd = *bdp = (struct bunzip_data *)calloc(1, i);
+  if (!bd) return RETVAL_OUT_OF_MEMORY;
   if (len) {
     bd->inbuf = inbuf;
     bd->inbufCount = len;
@@ -632,8 +640,10 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
   i = get_bits(bd, 8);
   if (i<'1' || i>'9') return RETVAL_NOT_BZIP_DATA;
   bd->dbufSize = 100000*(i-'0')*THREADS;
-  for (i=0; i<THREADS; i++)
-    bd->bwdata[i].dbuf = xmalloc(bd->dbufSize * sizeof(int));
+  for (i=0; i<THREADS; i++) {
+    bd->bwdata[i].dbuf = (unsigned int *)malloc(bd->dbufSize * sizeof(int));
+    if (!bd->bwdata[i].dbuf) return RETVAL_OUT_OF_MEMORY;
+  }
 
   return 0;
 }
@@ -643,7 +653,7 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
 static char *bunzipStream(int src_fd, int dst_fd)
 {
   struct bunzip_data *bd;
-  char *bunzip_errors[] = {0, "not bzip", "bad data", "old format"};
+  char *bunzip_errors[] = {0, "not bzip", "bad data", "old format", "out of memory", "input EOF", "output EOF"};
   int i, j;
 
   if (!(i = start_bunzip(&bd,src_fd, 0, 0))) {
