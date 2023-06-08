@@ -85,6 +85,8 @@ mkdir zzz dir && echo hello > xxx && sleep .05 && echo longer > abc
 X=999; for i in abc x abc.jkl zzz xxx Abc cde.def dir bcd.ghi
 do sleep .05; touch -d @$((X--)) $i; done
 
+# MacOS filesystems are case insensitive, so Abc and abc can't coexist.
+[ "$(uname)" == Darwin ] && SKIP=999
 testcmd '' '--group-directories-first' \
   'dir\nzzz\nAbc\nabc\nabc.jkl\nbcd.ghi\ncde.def\nx\nxxx\n' '' ''
 testcmd '' '-cr' 'abc\nx\nabc.jkl\nzzz\nxxx\nAbc\ncde.def\ndir\nbcd.ghi\n' '' ''
@@ -99,3 +101,4 @@ TZ=utc testcmd '-otu' '-otu --full-time . | sed -n "s/.*:\([0-9]*\).*/\1/p"' \
   '39\n38\n37\n36\n35\n34\n33\n32\n31\n' '' ''
 toyonly testcmd '' '--sort=reverse' 'zzz\nxxx\nx\ndir\ncde.def\nbcd.ghi\nabc.jkl\nabc\nAbc\n' '' ''
 toyonly testcmd '' '--sort=nocase,time' 'abc\nAbc\nabc.jkl\nbcd.ghi\ncde.def\ndir\nx\nxxx\nzzz\n' '' ''
+SKIP=0
