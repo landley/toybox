@@ -1,54 +1,20 @@
 #!/bin/echo no
 
-# TODO: categorize tests
-
-# TODO https://mywiki.wooledge.org/BashFAQ
-#   http://tiswww.case.edu/php/chet/bash/FAQ
-#   https://mywiki.wooledge.org/BashPitfalls#set_-euo_pipefail
-
-#        // ${#} ${#x} ${#@} ${#x[@]} ${#!} ${!#}
-#        // ${!} ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
-
-# Looked like a prefix but wasn't: three chars (@ # -) are both paremeter name
-# and slice operator. When immediately followed by } it's parameter, otherwise
-# we did NOT have a prefix and it's an operator.
-#
-# ${#-} ${#-abc}
-# ${##} ${##0}
-# ${#@} ${#@Q}
-#
-# backslash not discarded: echo "abc\"def"
-
-# ${x:-y} use default
-# ${x:=y} assign default (error if positional)
-# ${x:?y} err if null
-# ${x:+y} alt value
-# ${x:off} ${x:off:len} off<0 from end (must ": -"), len<0 also from end must
-#   0-based indexing
-# ${@:off:len} positional parameters, off -1 = len, -len is error
-#   1-based indexing
-
-# [] wins over +()
-# touch 'AB[DEF]'; echo AB[+(DEF]) AB[+(DEF)?
-# AB[+(DEF]) AB[DEF]
-
-# Testing shell corner cases _within_ a shell script is kind of hard.
-
 [ -f testing.sh ] && . testing.sh
 
 # TODO make fake pty wrapper for test infrastructure
 
-#testing "name" "command" "result" "infile" "stdin"
+# testing "name" "command" "result" "infile" "stdin"
+# texpect "name" "command" [R]I/O/E"string" X[ERR]
 
-# texpect "name" "command" E/O/I"string"
-
-# Use "bash" name for host, "sh" for toybox
+# Use "bash" name for host, "sh" for toybox. (/bin/sh is often defective.)
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
-# Prompt changes for root/normal user
-[ $(id -u) -eq 0 ] && P='# ' || P='$ '
-# run sufficiently isolated shell child process to get predictable results
+# The expected prompt is different for root vs normal user
+[ $UID -eq 0 ] && P='# ' || P='$ '
+# insulate shell child process to get predictable results
 SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
+# Wrap txpect for shell testing
 shxpect() {
   X="$1"
   shift
@@ -57,10 +23,11 @@ shxpect() {
 
 shxpect "prompt and exit" I$'exit\n'
 shxpect "prompt and echo" I$'echo hello\n' O$'hello\n' E"$P"
+shxpect "redir" I$'cat<<<hello\n' O$'hello\n' E"$P"
 shxpect "redirect err" I$'echo > /dev/full\n' E E"$P" X1
 shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
 
-# Test the sh -c stuff before changing EVAL
+# Test shell command line (-c and how scripts run) before changing EVAL
 testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
 testing '-c args' "\$SH -c 'echo \$0,\$1,\$2,\$3' one two three four five" \
   "one,two,three,four\n" "" ""
@@ -72,6 +39,12 @@ testing '-c arg split2' \
   "$SH -c 'for i in a\"\$* \$@\"b; do echo =\$i=;done' one two three four five"\
   "=atwo three four five two=\n=three=\n=four=\n=fiveb=\n" "" ""
 testing '-c arg count' "$SH -c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
+testing 'trailing \' "$SH -c 'echo \'" '\\\n' '' ''
+testing "trailing \\ in ''" "$SH -c \$'echo \\'one\\\\\\ntwo\\''" \
+  'one\\\ntwo\n' '' ''
+testing 'trailing \ in ""' "$SH -c \$'echo \"one\\\\\\ntwo\"'" 'onetwo\n' \
+  '' ''
+testing 'vanishing \' "$SH -c \$'echo \\\\\\n a'" 'a\n' '' ''
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
 testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
@@ -121,6 +94,8 @@ testing "eval0" "$SH -c 'eval echo \$*' one two three" "two three\n" "" ""
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="timeout 10 $SH -c"
 
+# From here on, tests run within the new shell by default.
+
 testing 'return code' 'if false; then echo true; fi; echo $?' '0\n' '' ''
 testing 'return code 2' 'if true; then false; fi; echo $?' '1\n' '' ''
 testing 'return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $?' '1\n2\n0\n' '' ''
@@ -130,8 +105,12 @@ testing 'local var +whiteout' \
 testing 'escape passthrough' 'echo -e "a\nb\nc\td"' 'a\nb\nc\td\n' '' ''
 
 testing 'trailing $ is literal' 'echo $' '$\n' '' ''
+testing 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n' '' ''
+testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
+  '' ''
 # TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''
 
+# shxpect "EOF" I$'<<EOF;echo hello'
 shxpect 'queued work after HERE' I$'<<0;echo hello\n' E"> " I$'0\n' O$'hello\n'
 shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
   E E"$P" I$'echo $_\n' O$'hello\n'
@@ -471,6 +450,7 @@ testing 'sequence check' 'IFS=x; X=abxcd; echo ${X/bxc/g}' 'agd\n' '' ''
 
 shxpect '${ with newline' I$'HELLO=abc; echo ${HELLO/b/\n' E"> " I$'}\n' O$'a c\n'
 
+testing 'here0' 'cat<<<hello' 'hello\n' '' ''
 shxpect 'here1' I$'POTATO=123; cat << EOF\n' E"> " \
   I$'$POTATO\n' E"> " I$'EOF\n' O$'123\n'
 shxpect 'here2' I$'POTATO=123; cat << E"O"F\n' E"> " \
@@ -739,3 +719,36 @@ testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
 #+    *) SKIPNEXT=1 ;;
 #+  esac
 
+# TODO: categorize tests
+
+# TODO https://mywiki.wooledge.org/BashFAQ
+#   http://tiswww.case.edu/php/chet/bash/FAQ
+#   https://mywiki.wooledge.org/BashPitfalls#set_-euo_pipefail
+
+#        // ${#} ${#x} ${#@} ${#x[@]} ${#!} ${!#}
+#        // ${!} ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
+
+# Looked like a prefix but wasn't: three chars (@ # -) are both paremeter name
+# and slice operator. When immediately followed by } it's parameter, otherwise
+# we did NOT have a prefix and it's an operator.
+#
+# ${#-} ${#-abc}
+# ${##} ${##0}
+# ${#@} ${#@Q}
+#
+# backslash not discarded: echo "abc\"def"
+
+# ${x:-y} use default
+# ${x:=y} assign default (error if positional)
+# ${x:?y} err if null
+# ${x:+y} alt value
+# ${x:off} ${x:off:len} off<0 from end (must ": -"), len<0 also from end must
+#   0-based indexing
+# ${@:off:len} positional parameters, off -1 = len, -len is error
+#   1-based indexing
+
+# [] wins over +()
+# touch 'AB[DEF]'; echo AB[+(DEF]) AB[+(DEF)?
+# AB[+(DEF]) AB[DEF]
+
+# Testing shell corner cases _within_ a shell script is kind of hard.

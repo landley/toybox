@@ -1069,10 +1069,9 @@ static char *skip_redir_prefix(char *word)
 
 // parse next word from command line. Returns end, or 0 if need continuation
 // caller eats leading spaces. early = skip one quote block (or return start)
-// quote is depth of existing quote stack in toybuf (usually 0)
-static char *parse_word(char *start, int early, int quote)
+static char *parse_word(char *start, int early)
 {
-  int ii, qq, qc = 0;
+  int ii, qq, qc = 0, quote = 0;
   char *end = start, *ss;
 
   // Handle redirections, <(), (( )) that only count at the start of word
@@ -1115,6 +1114,7 @@ static char *parse_word(char *start, int early, int quote)
       if (isspace(*end)) break;
       ss = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
         "|&", "|", "&&", "&", "(", ")", 0});
+      if (ss==end) ss += anystart(end, (void *)redirectors);
       if (ss!=end) return (end==start) ? ss : end;
     }
 
@@ -1123,16 +1123,15 @@ static char *parse_word(char *start, int early, int quote)
 
     // \? $() ${} $[] ?() *() +() @() !()
     else {
-      if (ii=='\\') {
-        if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
-      } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
+      if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
         if (strstart(&end, "((")) {
           end--;
           toybuf[quote++] = 255;
         } else toybuf[quote++] = ")}]"[qq];
       } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
       else {
-        end--;
+        if (ii!='\\') end--;
+        else if (!end[*end=='\n']) return *end ? 0 : end;
         if (early && !quote) return end;
       }
       end++;
@@ -1854,7 +1853,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
       off_t pp = 0;
 
       s = str+ii-1;
-      kk = parse_word(s, 1, 0)-s;
+      kk = parse_word(s, 1)-s;
       if (str[ii] == '[' || *toybuf == 255) { // (( parsed together, not (( ) )
         struct sh_arg aa = {0};
         long long ll;
@@ -1884,7 +1883,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
         if (*ss != '<') ss = 0;
         else {
           while (isspace(*++ss));
-          if (!(ll = parse_word(ss, 0, 0)-ss)) ss = 0;
+          if (!(ll = parse_word(ss, 0)-ss)) ss = 0;
           else {
             jj = ll+(ss-s);
             while (isspace(s[jj])) jj++;
@@ -1904,8 +1903,10 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
         close(jj);
       }
     } else if (!str[ii]) new[oo++] = cc;
-    else if (cc=='\\')
-      new[oo++] = (!(qq&1) || strchr("\"\\$`", str[ii])) ? str[ii++] : cc;
+    else if (cc=='\\') {
+      if (str[ii]=='\n') ii++;
+      else new[oo++] = (!(qq&1) || strchr("\"\\$`", str[ii])) ? str[ii++] : cc;
+    }
 
     // $VARIABLE expansions
 
@@ -2292,7 +2293,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   // collect brace spans
   if ((TT.options&OPT_B) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
     // skip quoted/escaped text
-    while ((s = parse_word(old+i, 1, 0)) != old+i) i += s-(old+i);
+    while ((s = parse_word(old+i, 1)) != old+i) i += s-(old+i);
 
     // start a new span
     if (old[i] == '{') {
@@ -2492,7 +2493,6 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
   pp->raw = arg;
 
   // When redirecting, copy each displaced filehandle to restore it later.
-
   // Expand arguments and perform redirections
   for (j = skip; j<arg->c; j++) {
     int saveclose = 0, bad = 0;
@@ -2591,7 +2591,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
             break;
           }
           len = strlen(ss);
-          if (len != writeall(from, ss, len)) bad++;
+          if (len != writeall(from, ss, len) || 1 != writeall(from, "\n", 1))
+            bad++;
           if (ss != sss) free(ss);
         } else {
           struct sh_arg *hh = arg+ ++here;
@@ -2909,7 +2910,7 @@ static int free_process(struct sh_process *pp)
 static void free_pipeline(void *pipeline)
 {
   struct sh_pipeline *pl = pipeline;
-  int i, j;
+  int i, j, k;
 
   if (!pl) return;
 
@@ -2920,7 +2921,8 @@ static void free_pipeline(void *pipeline)
   }
   for (j=0; j<=pl->count; j++) {
     if (!pl->arg[j].v) continue;
-    for (i = 0; i<=pl->arg[j].c; i++) free(pl->arg[j].v[i]);
+    k = pl->arg[j].c-!!pl->count;
+    for (i = 0; i<=k; i++) free(pl->arg[j].v[i]);
     free(pl->arg[j].v);
   }
   free(pl);
@@ -2955,34 +2957,47 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Extend/resume quoted block
     if (arg->c<0) {
-      delete = start = xmprintf("%s%s", arg->v[arg->c = (-arg->c)-1], start);
-      free(arg->v[arg->c]);
+      arg->c = (-arg->c)-1;
+      if (start) {
+        delete = start = xmprintf("%s%s", arg->v[arg->c], start);
+        free(arg->v[arg->c]);
+      } else start = arg->v[arg->c];
       arg->v[arg->c] = 0;
 
     // is a HERE document in progress?
     } else if (pl->count != pl->here) {
+here_loop:
       // Back up to oldest unfinished pipeline segment.
       while (pl != *ppl && pl->prev->count != pl->prev->here) pl = pl->prev;
       arg = pl->arg+1+pl->here;
 
       // Match unquoted EOF.
+      if (!line) {
+        error_msg("%u: <<%s EOF", TT.LINENO, arg->v[arg->c]);
+        goto here_end;
+      }
       for (s = line, end = arg->v[arg->c]; *end; s++, end++) {
-        s += strspn(s, "\\\"'");
+        end += strspn(end, "\\\"'\n");
         if (!*s || *s != *end) break;
       }
+
       // Add this line, else EOF hit so end HERE document
-      if (*s || *end) {
+      if ((*s && *s!='\n') || *end) {
         end = arg->v[arg->c];
         arg_add(arg, xstrdup(line));
         arg->v[arg->c] = end;
       } else {
+here_end:
         // End segment and advance/consume bridge segments
         arg->v[arg->c] = 0;
         if (pl->count == ++pl->here)
           while (pl->next != *ppl && (pl = pl->next)->here == -1)
             pl->here = pl->count;
       }
-      if (pl->here != pl->count) return 1;
+      if (pl->here != pl->count) {
+        if (!line) goto here_loop;
+        else return 1;
+      }
       start = 0;
 
     // Nope, new segment if not self-managing type
@@ -3014,11 +3029,12 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         }
 
         // queue up HERE EOF so input loop asks for more lines.
-        *(arg[pl->count].v = xzalloc(2*sizeof(void *))) = arg->v[++i];
-        arg[pl->count].c = 0;
+        memset(arg+pl->count, 0, sizeof(*arg));
+        arg_add(arg+pl->count, arg->v[++i]);
+        arg[pl->count].c--;
       }
       // Mark "bridge" segment when previous pl had HERE but this doesn't
-      if (!pl->count && pl->prev->count != pl->prev->here) pl->prev->here = -1;
+      if (!pl->count && pl->prev->count != pl->prev->here) pl->here = -1;
       pl = 0;
     }
     if (done) break;
@@ -3026,10 +3042,10 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // skip leading whitespace/comment here to know where next word starts
     while (isspace(*start)) ++start;
-    if (*start=='#') while (*start && *start != '\n') ++start;
+    if (*start=='#') while (*start) ++start;
 
     // Parse next word and detect overflow (too many nested quotes).
-    if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
+    if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 //dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : -1, ex, (int)(end-start), end ? start : "");
 
     // End function declaration?
@@ -3331,7 +3347,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
   }
   free(delete);
 
-  // ignore blank and comment lines
+  // Return now if line didn't tell us to DO anything.
   if (!*ppl) return 0;
   pl = (*ppl)->prev;
 
@@ -3578,8 +3594,7 @@ static char *get_next_line(FILE *ff, int prompt)
       break;
     }
     if (!(len&63)) new = xrealloc(new, len+65);
-    if (cc == '\n') break;
-    new[len++] = cc;
+    if ((new[len++] = cc) == '\n') break;
   }
   if (new) new[len] = 0;
 
@@ -4057,7 +4072,7 @@ int do_source(char *name, FILE *ff)
 
   if (name) TT.ff->omnom = name;
 
-// TODO fix/catch NONBLOCK on input?
+// TODO fix/catch O_NONBLOCK on input?
 // TODO when DO we reset lineno? (!LINENO means \0 returns 1)
 // when do we NOT reset lineno? Inherit but preserve perhaps? newline in $()?
   if (!name) TT.LINENO = 0;
@@ -4081,7 +4096,7 @@ is_binary:
     // prints "hello" vs "hello\"
 
     // returns 0 if line consumed, command if it needs more data
-    more = parse_line(new ? : " ", &pl, &expect);
+    more = parse_line(new, &pl, &expect);
     free(new);
     if (more==1) {
       if (!new) syntax_err("unexpected end of file");
@@ -4238,7 +4253,7 @@ void sh_main(void)
   char *cc = 0;
   FILE *ff;
 
-//unsigned uu; dprintf(2, "%d main", getpid()); for (uu = 0; toys.argv[uu]; uu++) dprintf(2, " %s", toys.argv[uu]); dprintf(2, "\n");
+//dprintf(2, "%d main", getpid()); for (unsigned uu = 0; toys.argv[uu]; uu++) dprintf(2, " %s", toys.argv[uu]); dprintf(2, "\n");
 
   signal(SIGPIPE, SIG_IGN);
   TT.options = OPT_B;
