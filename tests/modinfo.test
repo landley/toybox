@@ -5,32 +5,34 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 # Android keeps its modules (if any) on the vendor partition.
-MODULE_ROOT=""
-[ -d /vendor/lib/modules ] && MODULE_ROOT="/vendor"
+# Don't need to quote variable expansions: no kernel version or
+# module name should ever have a space in it.
+MODULE_ROOT=/vendor/lib/modules
+[ -d $MODULE_ROOT ] || MODULE_ROOT=/lib/modules/$(uname -r)
 
-if [[ ! -e /proc/modules || ! -d $MODULE_ROOT/lib/modules ]]; then
+no_modules() {
   echo "$SHOWSKIP: modinfo (no modules)"
-  return 2>/dev/null
   exit
-fi
+}
 
-testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
+[[ ! -e /proc/modules || ! -d $MODULE_ROOT ]] && no_modules
 
 # Find some modules to work with.
-MODULE_PATH1=$(find $MODULE_ROOT/lib/modules/ -name *.ko | head -1 2>/dev/null)
+# Don't need to quote wildcards because test runs in an empty dir.
+MODULE_PATH1=$(find $MODULE_ROOT -name *.ko | head -1)
 MODULE1=$(basename -s .ko $MODULE_PATH1)
-MODULE_PATH2=$(find $MODULE_ROOT/lib/modules/ -name *.ko | head -2 | tail -1 2>/dev/null)
+[ ! -e $MODULE_PATH1 ] && no_modules
+MODULE_PATH2=$(find $MODULE_ROOT -name *.ko | head -2 | tail -1)
 MODULE2=$(basename -s .ko $MODULE_PATH2)
-DASH_MODULE=$(basename -s .ko \
-  $(find $MODULE_ROOT/lib/modules -name *-*.ko | tail -1 2>/dev/null))
-BAR_MODULE=$(basename -s .ko \
-  $(find $MODULE_ROOT/lib/modules -name *_*.ko | tail -1 2>/dev/null))
+DASH_MODULE=$(basename -s .ko $(find $MODULE_ROOT -name *-*.ko | tail -1))
+BAR_MODULE=$(basename -s .ko $(find $MODULE_ROOT -name *_*.ko | tail -1))
+
+testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
 
 # modinfo does not need to output fields in a specified order.
 # Instead, there are labelled fields.  We can use sort to make up for this.
 # Other issues to beware of are the volatile nature of srcversion and vermagic,
-# which change from kernel to kernel and can be disabled. 
-# We grep to remove these.
+# which change from kernel to kernel and can be disabled: grep to remove these.
 
 skipnot [ -n "$DASH_MODULE" ]
 testing "treats - and _ as equivalent" "modinfo $DASH_MODULE > dash-dash &&
