@@ -423,7 +423,7 @@ void patch_main(void)
           char **which = FLAG(R) ? &oldname : &newname;
 
           free(*which);
-          *which = strdup(toys.optargs[0]);
+          *which = xstrdup(toys.optargs[0]);
           // The supplied path should be taken literally with or without -p.
           toys.optflags |= FLAG_p;
           TT.p = 0;

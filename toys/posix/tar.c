@@ -547,7 +547,7 @@ static int dirflush(char *name, int isdir)
     // --restrict means first entry extracted is what everything must be under
     if (FLAG(restrict)) {
       free(TT.cwd);
-      TT.cwd = strdup(s);
+      TT.cwd = xstrdup(s);
       toys.optflags ^= FLAG_restrict;
     }
     // use resolved name so trailing / is stripped
