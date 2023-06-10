@@ -82,7 +82,7 @@ static int collect_chips(struct dirtree *node)
 
   if (sscanf(node->name, "gpiochip%d", &n)!=1) return 0;
 
-  dlist_add(&TT.chips, strdup(node->name));
+  dlist_add(&TT.chips, xstrdup(node->name));
   TT.chip_count++;
 
   return 0;
@@ -99,14 +99,14 @@ static int comparator(const void *a, const void *b)
 // call cb() in sorted order
 static void foreach_chip(void (*cb)(char *name))
 {
-  struct double_list **sorted;
-  int i;
+  struct double_list **sorted, *chip;
+  int i = 0;
 
   dirtree_flagread("/dev", DIRTREE_SHUTUP, collect_chips);
   if (!TT.chips) return;
 
   sorted = xmalloc(TT.chip_count*sizeof(void *));
-  for (i = 0; i<TT.chip_count; i++) sorted[i] = TT.chips = TT.chips->next;
+  for (chip = TT.chips; i<TT.chip_count; chip = chip->next) sorted[i++] = chip;
   qsort(sorted, TT.chip_count, sizeof(void *), comparator);
 
   for (i = 0; i<TT.chip_count; i++) {
@@ -115,7 +115,7 @@ static void foreach_chip(void (*cb)(char *name))
   }
 
   free(sorted);
-  llist_traverse(&TT.chips, llist_free_arg);
+  llist_traverse(TT.chips, llist_free_double);
 }
 
 static void gpiodetect(char *path)
