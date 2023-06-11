@@ -108,6 +108,15 @@ testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 testing 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n' '' ''
 testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
   '' ''
+ln -s "$(which echo)" echo2
+testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
+  'hello\n' '' ''
+rm -f echo2
+testing 'prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
+  '10\n\n' '' ''
+testing 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n' '' ''
+testing 'escape makes argument' 'echo \  | wc -c' '2\n' '' ''
+
 # TODO testing 'empty +() is literal' 'echo +()' '+()\n' '' ''
 
 # shxpect "EOF" I$'<<EOF;echo hello'
@@ -468,9 +477,8 @@ testing 'here7' 'ABC="abc def"; cat <<< $ABC' 'abc def\n' '' ''
 # What does HERE expansion _not_ expand?
 testing 'here8' $'ABC="x y"\ncat << EOF\n~root/{"$ABC",def}\nEOF' \
   '~root/{"x y",def}\n' '' ''
-# <<- eats leading tabs before expansion
-testing 'here9' $'A=$\'\\tone\'; cat <<- EOF\n$A\n\ttwo\nEOF' "\tone\ntwo\n" \
-  '' ''
+testing '<<- eats leading tabs before expansion, but not after' \
+  $'A=$\'\\tone\'; cat <<- EOF\n\t\t$A\n\ttwo\nEOF' "\tone\ntwo\n" '' ''
 
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""

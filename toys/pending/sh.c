@@ -2464,14 +2464,23 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 }
 
 // Expand exactly one arg, returning NULL on error.
-static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
+static char *expand_one_arg(char *new, unsigned flags)
 {
+  struct arg_list *del = 0, *dd;
   struct sh_arg arg = {0};
   char *s = 0;
 
   // TODO: ${var:?error} here?
-  if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, del))
+  if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, &del))
     if (!(s = *arg.v) && (flags&(SEMI_IFS|NO_NULL))) s = "";
+
+  // Free non-returned allocations.
+  while (del) {
+    dd = del->next;
+    if (del->arg != s) free(del->arg);
+    free(del);
+    del = dd;
+  }
   free(arg.v);
 
   return s;
@@ -2580,13 +2589,13 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     // HERE documents?
     if (!strncmp(ss, "<<", 2)) {
       char *tmp = xmprintf("%s/sh-XXXXXX", getvar("TMPDIR") ? : "/tmp");
-      int i, len, zap = (ss[2] == '-'), x = !ss[strcspn(ss, "\"'")];
+      int i, h, len, zap = (ss[2] == '-'), x = !sss[strcspn(sss, "\\\"'")];
 
       // store contents in open-but-deleted /tmp file: write then lseek(start)
       if ((from = mkstemp(tmp))>=0) {
         if (unlink(tmp)) bad++;
         else if (ss[2] == '<') { // not stored in arg[here]
-          if (!(ss = expand_one_arg(sss, 0, 0))) {
+          if (!(ss = expand_one_arg(sss, 0))) {
             s = 0;
             break;
           }
@@ -2598,19 +2607,18 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
           struct sh_arg *hh = arg+ ++here;
 
           for (i = 0; i<hh->c; i++) {
-            ss = hh->v[i];
-            sss = 0;
+            sss = ss = hh->v[i];
+            while (zap && *ss == '\t') ss++;
 // TODO audit this ala man page
             // expand_parameter, commands, and arithmetic
-            if (x && !(sss = expand_one_arg(ss, ~SEMI_IFS, 0))) {
+            if (x && !(sss = expand_one_arg(ss, ~SEMI_IFS))) {
               s = 0;
               break;
             }
 
-            while (zap && *ss == '\t') ss++;
-            x = writeall(from, ss, len = strlen(ss));
+            h = writeall(from, sss, len = strlen(sss));
             if (ss != sss) free(sss);
-            if (len != x) break;
+            if (len != h) break;
           }
           if (i != hh->c) bad++;
         }
@@ -2804,13 +2812,14 @@ static struct sh_process *run_command(void)
   if (envlen) for (; jj<envlen && !pp->exit; jj++) {
     struct sh_vars *vv;
 
-    if ((sss = expand_one_arg(ss = arg->v[jj], SEMI_IFS, 0))) {
+    if ((sss = expand_one_arg(ss = arg->v[jj], SEMI_IFS))) {
       if (!prefix && sss==ss) sss = xstrdup(sss);
       if ((vv = setvar_long(sss, sss!=ss, prefix ? TT.ff : TT.ff->prev))) {
         if (prefix) vv->flags |= VAR_EXPORT;
         continue;
       }
     }
+
     pp->exit = 1;
     break;
   }
@@ -3829,8 +3838,9 @@ static void run_lines(void)
 
         // TODO: bash man page says it performs <(process substituion) here?!?
         } else if (!strcmp(s, "case")) {
-          TT.ff->blk->fvar = expand_one_arg(ss, NO_NULL, &TT.ff->blk->fdelete);
-          if (!TT.ff->blk->fvar) break;
+          if (!(TT.ff->blk->fvar = expand_one_arg(ss, NO_NULL))) break;
+          if (ss != TT.ff->blk->fvar)
+            push_arg(&TT.ff->blk->fdelete, TT.ff->blk->fvar);
         }
 
 // TODO [[/]] ((/)) function/}
@@ -4551,7 +4561,7 @@ void eval_main(void)
   call_function();
   TT.ff->arg.v = toys.argv;
   TT.ff->arg.c = toys.optc+1;
-  s = expand_one_arg("\"$*\"", SEMI_IFS, 0);
+  s = expand_one_arg("\"$*\"", SEMI_IFS);
   TT.ff->arg.v = TT.ff->next->arg.v;
   TT.ff->arg.c = TT.ff->next->arg.c;
   do_source(0, fmemopen(s, strlen(s), "r"));
