@@ -17,7 +17,7 @@ config DD
     keyword=value modifiers (and their default values):
 
     if=FILE  Read FILE (stdin)          of=FILE  Write to FILE (stdout)
-       bs=N  Block size in bytes (512)  count=N  Stop after copying N blocks
+       bs=N  Block size in bytes (512)  count=N  Stop after copying N blocks (all)
       ibs=N  Input block size (bs=)       obs=N  Output block size (bs=)
      skip=N  Skip N input blocks (0)     seek=N  Skip N output blocks (0)
 
@@ -41,10 +41,10 @@ config DD
 GLOBALS(
   int show_xfer, show_records;
   unsigned long long bytes, in_full, in_part, out_full, out_part, start;
+  char *buff;
   struct {
-    char *name;
+    char *name, *bp;
     int fd;
-    unsigned char *buff, *bp;
     long sz, count;
     unsigned long long offset;
   } in, out;
@@ -86,9 +86,9 @@ static void status()
 
 static void write_out(int all)
 {
-  TT.out.bp = TT.out.buff;
+  TT.out.bp = TT.buff;
   while (TT.out.count) {
-    ssize_t nw = writeall(TT.out.fd, TT.out.bp, ((all)? TT.out.count : TT.out.sz));
+    ssize_t nw = writeall(TT.out.fd, TT.out.bp, all ? TT.out.count : TT.out.sz);
 
     all = 0; //further writes will be on obs
     if (nw <= 0) perror_exit("%s: write error", TT.out.name);
@@ -99,7 +99,8 @@ static void write_out(int all)
     TT.bytes += nw;
     if (TT.out.count < TT.out.sz) break;
   }
-  if (TT.out.count) memmove(TT.out.buff, TT.out.bp, TT.out.count); //move remainder to front
+  // move remainder to front (if any)
+  if (TT.out.count) memmove(TT.buff, TT.out.bp, TT.out.count);
 }
 
 static void parse_flags(char *what, char *arg,
@@ -114,6 +115,40 @@ static void parse_flags(char *what, char *arg,
   free(pre);
 }
 
+// Multiply detecting overflow.
+static unsigned long long overmul(unsigned long long x, unsigned long long y)
+{
+  unsigned long long ll = x*y;
+
+  if (x && y && (ll<x || ll<y)) error_exit("overflow");
+
+  return ll;
+}
+
+// Handle funky posix 1x2x3 syntax.
+static unsigned long long argxarg(char *arg, int cap)
+{
+  long long ll = 1;
+  char x, *s, *new;
+
+  arg = xstrdup(arg);
+  for (new = s = arg;; new = s+1) {
+    // atolx() handlex 0x hex prefixes, so skip past those looking for separator
+    if ((s = strchr(new+2*!strncmp(new, "0x", 2), 'x'))) {
+      if (s==new) break;
+      x = *s;
+      *s = 0;
+    }
+    ll = overmul(ll, atolx(new));
+    if (s) *s = x;
+    else break;
+  }
+  if (s || ll<cap || ll>(cap ? LONG_MAX : LLONG_MAX)) error_exit("bad %s", arg);
+  free(arg);
+
+  return ll;
+}
+
 void dd_main()
 {
   char **args, *arg;
@@ -124,16 +159,14 @@ void dd_main()
 
   TT.in.sz = TT.out.sz = 512; //default io block size
   for (args = toys.optargs; (arg = *args); args++) {
-    if (strstart(&arg, "bs=")) bs = atolx_range(arg, 1, LONG_MAX);
-    else if (strstart(&arg, "ibs=")) TT.in.sz = atolx_range(arg, 1, LONG_MAX);
-    else if (strstart(&arg, "obs=")) TT.out.sz = atolx_range(arg, 1, LONG_MAX);
-    else if (strstart(&arg, "count=")) count = atolx_range(arg, 0, LLONG_MAX);
+    if (strstart(&arg, "bs=")) bs = argxarg(arg, 1);
+    else if (strstart(&arg, "ibs=")) TT.in.sz = argxarg(arg, 1);
+    else if (strstart(&arg, "obs=")) TT.out.sz = argxarg(arg, 1);
+    else if (strstart(&arg, "count=")) count = argxarg(arg, 0);
     else if (strstart(&arg, "if=")) TT.in.name = arg;
     else if (strstart(&arg, "of=")) TT.out.name = arg;
-    else if (strstart(&arg, "seek="))
-      TT.out.offset = atolx_range(arg, 0, LLONG_MAX);
-    else if (strstart(&arg, "skip="))
-      TT.in.offset = atolx_range(arg, 0, LLONG_MAX);
+    else if (strstart(&arg, "seek=")) TT.out.offset = argxarg(arg, 0);
+    else if (strstart(&arg, "skip=")) TT.in.offset = argxarg(arg, 0);
     else if (strstart(&arg, "status=")) {
       if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
       else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
@@ -154,8 +187,7 @@ void dd_main()
 
   // For bs=, in/out is done as it is. so only in.sz is enough.
   // With Single buffer there will be overflow in a read following partial read.
-  TT.in.buff = TT.out.buff = xmalloc(TT.in.sz + (bs ? 0 : TT.out.sz));
-  TT.in.bp = TT.out.bp = TT.in.buff;
+  TT.in.bp = TT.out.bp = TT.buff = xmalloc(TT.in.sz+TT.out.sz*!bs);
 
   if (!TT.in.name) TT.in.name = "stdin";
   else TT.in.fd = xopenro(TT.in.name);
@@ -170,13 +202,12 @@ void dd_main()
 
   // Implement skip=
   if (TT.in.offset) {
-    off_t off = TT.in.offset;
+    unsigned long long off = TT.in.offset;
 
     if (!(TT.iflag & _DD_iflag_skip_bytes)) off *= TT.in.sz;
     if (lseek(TT.in.fd, off, SEEK_CUR) < 0) {
       while (off > 0) {
-        int chunk = off < TT.in.sz ? off : TT.in.sz;
-        ssize_t n = read(TT.in.fd, TT.in.bp, chunk);
+        ssize_t n = read(TT.in.fd, TT.in.bp, minof(off, TT.in.sz));
 
         if (n < 0) {
           perror_msg("%s", TT.in.name);
@@ -203,19 +234,19 @@ void dd_main()
       && ftruncate(TT.out.fd, bs)) perror_exit("truncate");
   }
 
-  if (!(TT.iflag & _DD_iflag_count_bytes) && count*TT.in.sz>count)
-    count *= TT.in.sz;
+  if (count!=ULLONG_MAX && !(TT.iflag & _DD_iflag_count_bytes))
+    count = overmul(count, TT.in.sz);
 
   while (count) {
-    int chunk = minof(count, TT.in.sz);
     ssize_t n;
 
-    TT.in.bp = TT.in.buff + TT.in.count;
+    TT.in.bp = TT.buff + TT.in.count;
     if (TT.conv & _DD_conv_sync) memset(TT.in.bp, 0, TT.in.sz);
     errno = 0;
-    if (!(n = read(TT.in.fd, TT.in.bp, chunk))) break;
-    if (n < 0) {
+    if (1>(n = read(TT.in.fd, TT.in.bp, minof(count, TT.in.sz)))) {
       if (errno == EINTR) continue;
+      if (!n) break;
+
       //read error case.
       perror_msg("%s: read error", TT.in.name);
       if (!(TT.conv & _DD_conv_noerror)) exit(1);
@@ -248,10 +279,12 @@ void dd_main()
     }
   }
   if (TT.out.count) write_out(1); //write any remaining input blocks
-  if ((TT.conv & _DD_conv_fsync) && fsync(TT.out.fd)<0)
+  if ((TT.conv & _DD_conv_fsync) && fsync(TT.out.fd))
     perror_exit("%s: fsync", TT.out.name);
 
-  close(TT.in.fd);
-  close(TT.out.fd);
-  if (TT.in.buff) free(TT.in.buff);
+  if (CFG_TOYBOX_FREE) {
+    close(TT.in.fd);
+    close(TT.out.fd);
+    if (TT.buff) free(TT.buff);
+  }
 }
