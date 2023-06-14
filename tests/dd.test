@@ -15,6 +15,8 @@ testing "count=2" "dd if=input count=2 ibs=1 $opt" "hi" "high\n" ""
 testing "count= 2" "dd if=input 'count= 2' ibs=1 $opt" "hi" "high\n" ""
 toyonly testing "count=0x2" "dd if=input 'count=0x2' ibs=1 $opt" "hi" \
   "high\n" ""
+testing 'posix 2x3x4' "dd if=input count=2x3x4 ibs=1 $opt" \
+  'abcdefghijklmnopqrstuvwx' 'abcdefghijklmnopqrstuvwxyz' ''
 testing "count=-2" "dd if=input 'count=-2' ibs=1 2>/dev/null || echo errored" "errored\n" "" ""
 
 testing "if=(file)" "dd if=input $opt" "I WANT\n" "I WANT\n" ""
