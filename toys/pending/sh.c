@@ -31,6 +31,7 @@
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
  * TODO: Handle embedded NUL bytes in the command line? (When/how?)
  * TODO: set -e -o pipefail, shopt -s nullglob
+ * TODO: utf8 isspace
  *
  * bash man page:
  * control operators || & && ; ;; ;& ;;& ( ) | |& <newline>
@@ -2058,9 +2059,11 @@ barf:
           long long la = 0, lb = LLONG_MAX, lc = 1;
 
           ss = ++slice;
-          if ((lc = recalculate(&la, &ss, 0)) && *ss == ':') {
+          nospace(&ss);
+          if ((*ss==':' ? 1 : (lc = recalculate(&la, &ss, 0))) && *ss == ':') {
             ss++;
-            lc = recalculate(&lb, &ss, 0);
+            if (**nospace(&ss)=='}') lb = 0;
+            else lc = recalculate(&lb, &ss, 0);
           }
           if (!lc || *ss != '}') {
             for (s = ss; *s != '}' && *s != ':'; s++);

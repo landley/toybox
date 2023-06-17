@@ -108,6 +108,10 @@ testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 testing 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n' '' ''
 testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
   '' ''
+testing '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
+  'abcde\nnextEOF\n' '' ''
+testing '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' \
+  'abcde\nhello\n' '' ''
 ln -s "$(which echo)" echo2
 testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
   'hello\n' '' ''
@@ -515,6 +519,10 @@ testing '$""' 'ABC=def; echo $"$ABC"' 'def\n' '' ''
 testing '"$""" does not nest' 'echo "$"abc""' '$abc\n' '' ''
 testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
 testing 'bad ${^}' '{ echo ${^};} 2>&1 | grep -o bad' 'bad\n' '' ''
+shxpect '${:} empty len is err' I$'ABC=def; echo ${ABC:}\n' RE'ABC' X
+testing '${::} both empty=0' 'ABC=def; echo ${ABC::}' '\n' '' ''
+testing '${::} first empty' 'ABC=def; echo ${ABC: : 2 }' 'de\n' '' ''
+testing '${::} second empty' 'ABC=def; echo ${ABC: 2 : }' '\n' '' ''
 testing '${:}' 'ABC=def; echo ${ABC:1}' 'ef\n' '' ''
 testing '${a: }' 'ABC=def; echo ${ABC: 1}' 'ef\n' '' ''
 testing '${a :}' 'ABC=def; { echo ${ABC :1};} 2>&1 | grep -o bad' 'bad\n' '' ''
@@ -682,6 +690,10 @@ testing "[[1 >0]] doesn't need that second space" \
 testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
   'yes\n' '' ''
 testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
+
+testing 'quoting contexts nest' \
+        $'echo -n "$(echo "hello $(eval $\'echo -\\\\\\ne \\\'world\\n \\\'\')")"' \
+  'hello world\n ' '' ''
 
 # TODO finish variable list from shell init
 
