@@ -2066,9 +2066,10 @@ barf:
             else lc = recalculate(&lb, &ss, 0);
           }
           if (!lc || *ss != '}') {
-            for (s = ss; *s != '}' && *s != ':'; s++);
-            error_msg("bad %.*s @ %ld", (int)(s-slice), slice,(long)(ss-slice));
-//TODO fix error message
+            // Find ${blah} context for error message
+            while (*slice!='$') slice--;
+            error_msg("bad %.*s @ %ld", (int)(strchr(ss, '}')+1-slice), slice,
+              (long)(ss-slice));
             goto fail;
           }
 
