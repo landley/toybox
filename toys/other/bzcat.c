@@ -684,29 +684,24 @@ static void do_bunzip2(int fd, char *name)
     dotbz = 0;
 
   // For - no replace
-  if (toys.optflags&FLAG_t) outfd = xopen("/dev/null", O_WRONLY);
-  else if ((fd || strcmp(name, "-")) && !(toys.optflags&FLAG_c)) {
-    if (toys.optflags&FLAG_k) {
-      if (!dotbz || !access(name, X_OK)) {
-        error_msg("%s exists", name);
-
-        return;
-      }
-    }
+  if (FLAG(t)) outfd = xopen("/dev/null", O_WRONLY);
+  else if ((fd || strcmp(name, "-")) && !FLAG(c)) {
+    if (FLAG(k) && (!dotbz || !access(name, X_OK)))
+      return error_msg("%s exists", name);
     outfd = copy_tempfile(fd, name, &tmp);
     rename++;
   }
 
-  if (toys.optflags&FLAG_v) printf("%s:", name);
+  if (FLAG(v)) printf("%s:", name);
   err = bunzipStream(fd, outfd);
-  if (toys.optflags&FLAG_v) {
+  if (FLAG(v)) {
     printf("%s\n", err ? err : "ok");
     toys.exitval |= !!err;
   } else if (err) error_msg_raw(err);
 
   // can't test outfd==1 because may have been called with stdin+stdout closed
   if (rename) {
-    if (toys.optflags&FLAG_k) {
+    if (FLAG(k)) {
       free(tmp);
       tmp = 0;
     } else {
