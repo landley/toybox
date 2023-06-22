@@ -11,7 +11,7 @@
  * No standard.
 
 
-USE_BZCAT(NEWTOY(bzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_BZCAT(NEWTOY(bzcat, 0, TOYFLAG_USR|TOYFLAG_BIN))
 USE_BUNZIP2(NEWTOY(bunzip2, "cftkv", TOYFLAG_USR|TOYFLAG_BIN))
 
 config BUNZIP2
@@ -59,6 +59,8 @@ config BZCAT
 #define RETVAL_NOT_BZIP_DATA     (-1)
 #define RETVAL_DATA_ERROR        (-2)
 #define RETVAL_OBSOLETE_INPUT    (-3)
+#define RETVAL_EOF_IN            (-4)
+#define RETVAL_EOF_OUT           (-5)
 
 // This is what we know about each huffman coding group
 struct group_data {
@@ -118,7 +120,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
     // If we need to read more data from file into byte buffer, do so
     if (bd->inbufPos == bd->inbufCount) {
       if (0 >= (bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
-        error_exit("input EOF");
+        longjmp((void *)toybuf, RETVAL_EOF_IN);
       bd->inbufPos = 0;
     }
 
@@ -440,13 +442,15 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
 }
 
 // Flush output buffer to disk
-static void flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
+static int flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
 {
   if (bd->outbufPos) {
     if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
-      error_exit("output EOF");
+      return RETVAL_EOF_OUT;
     bd->outbufPos = 0;
   }
+
+  return 0;
 }
 
 static void burrows_wheeler_prep(struct bunzip_data *bd, struct bwdata *bw)
@@ -561,7 +565,8 @@ static int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw,
 
       // Output bytes to buffer, flushing to file if necessary
       while (copies--) {
-        if (bd->outbufPos == IOBUF_SIZE) flush_bunzip_outbuf(bd, out_fd);
+        if (bd->outbufPos == IOBUF_SIZE && flush_bunzip_outbuf(bd, out_fd))
+          return RETVAL_EOF_OUT;
         bd->outbuf[bd->outbufPos++] = outbyte;
         bw->dataCRC = (bw->dataCRC << 8)
                 ^ bd->crc32Table[(bw->dataCRC >> 24) ^ outbyte];
@@ -643,17 +648,18 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
 static char *bunzipStream(int src_fd, int dst_fd)
 {
   struct bunzip_data *bd;
-  char *bunzip_errors[] = {0, "not bzip", "bad data", "old format"};
+  char *bunzip_errors[] = {0, "not bzip", "bad data", "old format", "in EOF",
+    "out EOF"};
   int i, j;
 
-  if (!(i = start_bunzip(&bd,src_fd, 0, 0))) {
-    i = write_bunzip_data(bd,bd->bwdata, dst_fd, 0, 0);
+  if (!(i = setjmp((void *)toybuf)) && !(i = start_bunzip(&bd, src_fd, 0, 0))) {
+    i = write_bunzip_data(bd, bd->bwdata, dst_fd, 0, 0);
     if (i==RETVAL_LAST_BLOCK) {
       if (bd->bwdata[0].headerCRC==bd->totalCRC) i = 0;
       else i = RETVAL_DATA_ERROR;
     }
   }
-  flush_bunzip_outbuf(bd, dst_fd);
+  if (!i) i = flush_bunzip_outbuf(bd, dst_fd);
 
   for (j=0; j<THREADS; j++) free(bd->bwdata[j].dbuf);
   free(bd);
@@ -695,7 +701,7 @@ static void do_bunzip2(int fd, char *name)
   if (FLAG(v)) printf("%s:", name);
   err = bunzipStream(fd, outfd);
   if (FLAG(v)) {
-    printf("%s\n", err ? err : "ok");
+    printf("%s\n", err ? : "ok");
     toys.exitval |= !!err;
   } else if (err) error_msg_raw(err);
 
@@ -704,7 +710,7 @@ static void do_bunzip2(int fd, char *name)
     if (FLAG(k)) {
       free(tmp);
       tmp = 0;
-    } else {
+    } else if (!err) {
       if (dotbz) *dotbz = '.';
       if (!unlink(name)) perror_msg_raw(name);
     }
