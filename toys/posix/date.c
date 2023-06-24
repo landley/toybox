@@ -7,7 +7,7 @@
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.
 
-USE_DATE(NEWTOY(date, "d:D:I(iso-8601):;r:s:u(utc)[!dr]", TOYFLAG_BIN))
+USE_DATE(NEWTOY(date, ">1d:D:I(iso-8601):;r:s:u(utc)[!dr]", TOYFLAG_BIN))
 
 config DATE
   bool "date"
@@ -176,15 +176,14 @@ void date_main(void)
     setdate = TT.s;
   }
 
-  // Fall through if no arguments
+  // Fall through to display if no arguments
   if (!setdate);
-  // Display the date?
-  else if (*setdate == '+') {
+  // Supplying a format argument means display
+  else if (toys.optc && *toys.optargs[0] == '+')
     format_string = toys.optargs[0]+1;
-    setdate = toys.optargs[1];
 
   // Set the date
-  } else if (setdate) {
+  else {
     struct timeval tv;
 
     parse_date(setdate, &t);
