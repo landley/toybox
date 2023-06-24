@@ -107,7 +107,7 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
 // Show matches in one file
 static void do_grep(int fd, char *name)
 {
-  long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0;
+  long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0, new = 1;
   struct double_list *dlb = 0;
   char *bars = 0;
   FILE *file;
@@ -159,7 +159,7 @@ static void do_grep(int fd, char *name)
     for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) shoe->rc = 0;
 
     // Loop to handle multiple matches in same line
-    do {
+    if (new) do {
       regmatch_t *mm = (void *)toybuf;
       struct arg_list *seek;
 
@@ -348,7 +348,10 @@ got:
     }
     free(line);
 
-    if (FLAG(m) && mcount >= TT.m) break;
+    if (FLAG(m) && mcount >= TT.m) {
+      if (!after) break;
+      new = 0;
+    }
   }
 
   if (FLAG(L)) xprintf("%s%c", name, TT.delim);
@@ -356,12 +359,7 @@ got:
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
   fclose(file);
-  while (dlb) {
-    struct double_list *dl = dlist_pop(&dlb);
-
-    free(dl->data);
-    free(dl);
-  }
+  llist_traverse(dlb, llist_free_double);
 }
 
 static int lensort(struct arg_list **a, struct arg_list **b)
