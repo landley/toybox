@@ -14,7 +14,7 @@
  * -E remove empty files --remove-empty-files
  * git syntax (rename, etc)
 
-USE_PATCH(NEWTOY(patch, ">2(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"F#g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, ">2(no-backup-if-mismatch)(dry-run)F#g#fulp#v(verbose)@d:i:Rs(quiet)[!sv]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
@@ -31,6 +31,7 @@ config PATCH
     -R	Reverse patch
     -s	Silent except for errors
     -u	Ignored (only handles "unified" diffs)
+    -v	Verbose (-vv to see decisions)
     --dry-run Don't change files, just confirm patch applies
 
     This version of patch only handles unified diffs, and only modifies
@@ -46,7 +47,7 @@ config PATCH
 
 GLOBALS(
   char *i, *d;
-  long p, g, F;
+  long v, p, g, F;
 
   void *current_hunk;
   long oldline, oldlen, newline, newlen, linenum, outnum;
@@ -88,9 +89,6 @@ static void do_line(void *data)
   if (TT.state>1)
     if (0>dprintf(TT.state==2 ? 2 : TT.fileout,"%s\n",dlist->data+(TT.state>3)))
       perror_exit("write");
-
-  if (FLAG(x))
-    fprintf(stderr, "DO %d %ld: %s\n", TT.state, TT.outnum, dlist->data);
 
   llist_free_double(data);
 }
@@ -142,14 +140,18 @@ static int loosecmp(char *aa, char *bb)
 
 static int apply_one_hunk(void)
 {
-  struct double_list *plist, *buf = 0, *check;
-  int matcheof, trail = 0, backwarn = 0, allfuzz, fuzz, i;
+  struct double_list *plist, *buf = 0, *check = 0;
+  int matcheof, trail = 0, allfuzz, fuzz, ii;
   int (*lcmp)(char *aa, char *bb) = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
+  long backwarn = 0;
+  char *data = toybuf;
+
+  if (TT.v>1) printf("START %d\n", TT.hunknum);
 
   // Match EOF if there aren't as many ending context lines as beginning
   dlist_terminate(TT.current_hunk);
   for (fuzz = 0, plist = TT.current_hunk; plist; plist = plist->next) {
-    char c = *plist->data, *s;
+    char *s = plist->data, c = *s;
 
     if (c==' ') trail++;
     else trail = 0;
@@ -159,106 +161,99 @@ static int apply_one_hunk(void)
     // count as context since they're matched.
     if (c==' ' || c=="-+"[FLAG(R)]) {
       s = plist->data+1;
-      while (isspace(*s)) s++;
+      while (isspace(*++s));
       if (*s && s[1] && !isspace(s[1])) fuzz++;
     }
-
-    if (FLAG(x)) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
   matcheof = !trail || trail < TT.context;
   if (fuzz<2) allfuzz = 0;
   else allfuzz = TT.F ? : TT.context ? TT.context-1 : 0;
-
-  if (FLAG(x)) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
   // Loop through input data searching for this hunk. Match all context
   // lines and lines to be removed until we've found end of complete hunk.
   plist = TT.current_hunk;
   fuzz = 0;
   for (;;) {
-    char *data = get_line(TT.filein);
-
-    // Figure out which line of hunk to compare with next. (Skip lines
-    // of the hunk we'd be adding.)
-    while (plist && *plist->data == "+-"[FLAG(R)]) {
-      if (data && !lcmp(data, plist->data+1))
-        if (!backwarn) backwarn = TT.linenum;
-      plist = plist->next;
-    }
-
-    // Is this EOF?
-    if (!data) {
-      if (FLAG(x)) fprintf(stderr, "INEOF\n");
-
-      // Does this hunk need to match EOF?
-      if (!plist && matcheof) break;
-
-      if (backwarn && !FLAG(s))
-        fprintf(stderr, "Possibly reversed hunk %d at %ld\n",
-            TT.hunknum, TT.linenum);
-
-      // File ended before we found a place for this hunk.
-      fail_hunk();
-      goto done;
-    } else {
+    if (data) {
+      data = get_line(TT.filein);
+      check = data ? dlist_add(&buf, data) : 0;
       TT.linenum++;
-      if (FLAG(x)) fprintf(stderr, "IN: %s\n", data);
     }
-    check = dlist_add(&buf, data);
+    if (TT.v>1) printf("READ[%ld] %s\n", TT.linenum, data ? : "(NULL)");
 
-    // Compare this line with next expected line of hunk. Match can fail
+    // Compare buffered line(s) with expected lines of hunk. Match can fail
     // because next line doesn't match, or because we hit end of a hunk that
     // needed EOF and this isn't EOF.
-    for (i = 0;; i++) {
-      if (!plist || lcmp(check->data, plist->data+1)) {
-
-        // Match failed: can we fuzz it?
-        if (plist && *plist->data == ' ' && fuzz<allfuzz) {
-          if (FLAG(x))
-            fprintf(stderr, "FUZZED: %ld %s\n", TT.linenum, plist->data);
-          fuzz++;
-
-          goto fuzzed;
+    for (;;) {
+      // Find hunk line to match (skip added lines) and detect reverse matches
+      while (plist && *plist->data == "+-"[FLAG(R)]) {
+        // TODO: proper backwarn = full hunk applies in reverse, not just 1 line
+        if (data) {
+          ii = strcspn(data, " \t");
+          if (data[ii+!!data[ii]] && !lcmp(data, plist->data+1))
+            backwarn = TT.linenum;
         }
-
-        if (FLAG(x)) {
-          int bug = 0;
-
-          if (!plist) fprintf(stderr, "NULL plist\n");
-          else {
-            while (plist->data[bug] == check->data[bug]) bug++;
-            fprintf(stderr, "NOT(%d:%d!=%d): %s\n", bug, plist->data[bug],
-              check->data[bug], plist->data);
-          }
-        }
-
-        // If this hunk must match start of file, fail if it didn't.
-        if (!TT.context || trail>TT.context) {
-          fail_hunk();
-          goto done;
-        }
-
-        // Write out first line of buffer and recheck rest for new match.
-        TT.state = 3;
-        do_line(check = dlist_pop(&buf));
-        plist = TT.current_hunk;
-        fuzz = 0;
-
-        // If end of the buffer without finishing a match, read more lines.
-        if (!buf) break;
-        check = buf;
-      } else {
-        if (FLAG(x)) fprintf(stderr, "MAYBE: %s\n", plist->data);
-fuzzed:
-        // This line matches. Advance plist, detect successful match.
         plist = plist->next;
-        if (!plist && !matcheof) goto out;
-        check = check->next;
-        if (check == buf) break;
       }
+      if (TT.v>1 && plist)
+        printf("HUNK %s\nLINE %s\n", plist->data+1, check ? check->data : "");
+
+      // End of hunk?
+      if (!plist) {
+        if (TT.v>1) printf("END OF HUNK\n");
+        if (matcheof == !data) goto out;
+
+      // Compare line and handle match
+      } else if (check && !lcmp(check->data, plist->data+1)) {
+        if (TT.v>1) printf("MATCH\n");
+handle_match:
+        plist = plist->next;
+        if ((check = check->next) == buf) {
+          if (plist || matcheof) break;
+          goto out;
+        } else continue;
+      }
+
+      // Did we hit EOF?
+      if (!data) {
+        if (TT.v>1) printf("EOF\n");
+        if (backwarn && !FLAG(s))
+          fprintf(stderr, "Possibly reversed hunk %d at %ld\n",
+              TT.hunknum, backwarn);
+
+        // File ended before we found a place for this hunk.
+        fail_hunk();
+        goto done;
+      }
+      if (TT.v>1) printf("NOT MATCH\n");
+
+      // Match failed: can we fuzz it?
+      if (plist && *plist->data == ' ' && fuzz<allfuzz) {
+        fuzz++;
+        if (TT.v>1) printf("FUZZ %d %s\n", fuzz, check->data);
+        goto handle_match;
+      }
+
+      // If this hunk must match start of file, fail if it didn't.
+      if (!TT.context || trail>TT.context) {
+        fail_hunk();
+        goto done;
+      }
+
+      // Write out first line of buffer and recheck rest for new match.
+      TT.state = 3;
+      if (TT.v>1) printf("WRITE %s\n", buf->data);
+      do_line(check = dlist_pop(&buf));
+      plist = TT.current_hunk;
+      fuzz = 0;
+
+      // If end of the buffer without finishing a match, read more lines.
+      if (!buf) break;
+      check = buf;
     }
   }
 out:
+  if (TT.v) xprintf("Hunk #%d succeeded at %ld.\n", TT.hunknum, TT.linenum);
   // We have a match.  Emit changed data.
   TT.state = "-+"[FLAG(R)];
   while ((plist = dlist_pop(&TT.current_hunk))) {
