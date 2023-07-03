@@ -77,7 +77,7 @@ config NSENTER
 #define setns(fd, nstype) syscall(SYS_setns, fd, nstype)
 
 GLOBALS(
-  char *UupnmiC[6];
+  char *UupnmiC[7];
   long t;
 )
 
