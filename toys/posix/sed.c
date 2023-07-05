@@ -42,8 +42,8 @@ config SED
     -z	Use \0 rather than \n as input line separator
 
     A SCRIPT is one or more COMMANDs separated by newlines or semicolons.
-    All -e SCRIPTs are combined as if separated by newlines, followed by all -f
-    SCRIPT_FILEs. If no -e or -f then first argument is the SCRIPT.
+    All -e SCRIPTs and -f SCRIPT_FILE contents are combined in order as if
+    separated by newlines. If no -e or -f then first argument is the SCRIPT.
 
     COMMANDs apply to every line unless prefixed with an ADDRESS of the form:
 
