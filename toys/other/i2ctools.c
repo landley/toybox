@@ -17,6 +17,7 @@ USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CGET(NEWTOY(i2cget, "<2>3fy", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CTRANSFER(NEWTOY(i2ctransfer, "<2vfy", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config I2CDETECT
   bool "i2cdetect"
@@ -66,6 +67,22 @@ config I2CSET
     Write an i2c register. MODE is b for byte, w for 16-bit word, i for I2C block.
 
     -f	Force access to busy devices
+    -y	Skip confirmation prompts (yes to all)
+
+config I2CTRANSFER
+  bool "i2ctransfer"
+  default y
+  help
+    usage: i2ctransfer [-fy] BUS DESC [DATA...]...
+
+    Make i2c transfers. DESC is 'r' for read or 'w' for write, followed by
+    the number of bytes to read or write, followed by '@' and a 7-bit address.
+    For any message after the first, the '@' and address can be omitted to
+    reuse the previous address. A 'w' DESC must be followed by the number of
+    DATA bytes that was specified in the DESC.
+
+    -f	Force access to busy devices
+    -v	Verbose (show messages sent, not just received)
     -y	Skip confirmation prompts (yes to all)
 */
 
@@ -312,4 +329,88 @@ void i2cset_main(void)
   ioctl_data.data = &data;
   xioctl(fd, I2C_SMBUS, &ioctl_data);
   close(fd);
+}
+
+#define FOR_i2ctransfer
+#include "generated/flags.h"
+
+static void show_msgs(FILE *fp, struct i2c_rdwr_ioctl_data *data, int before)
+{
+  int i;
+
+  for (i = 0; i < data->nmsgs; i++) {
+    struct i2c_msg *msg = &data->msgs[i];
+    int j, write = !msg->flags, hexdump;
+
+    // Even with -v we can't show read data before it's read!
+    hexdump = (before && write) || (!before && !write) || (!before && FLAG(v));
+    if (!before && !FLAG(v) && !hexdump) continue;
+
+    if (before || FLAG(v)) {
+      fprintf(fp, "msg %d: addr 0x%02x, %s, length %u%s", i, msg->addr,
+              write ? "write" : "read", msg->len, hexdump ? ", data " : "");
+    }
+    if (hexdump) {
+      for (j = 0; j < msg->len; j++) fprintf(fp, "0x%02x ", msg->buf[j]);
+    }
+    fprintf(fp, "\n");
+  }
+}
+
+void i2ctransfer_main(void)
+{
+  int fd, bus = atolx_range(toys.optargs[0], 0, 0x3f), i = 1, j;
+  char *arg, *addr_str;
+  struct i2c_rdwr_ioctl_data ioctl_data;
+  struct i2c_msg msgs[I2C_RDWR_IOCTL_MAX_MSGS], *msg;
+
+  ioctl_data.msgs = msgs;
+  ioctl_data.nmsgs = 0;
+
+  while ((arg = toys.optargs[i++])) {
+    if (ioctl_data.nmsgs >= I2C_RDWR_IOCTL_MAX_MSGS) error_exit("too much!");
+
+    msg = &msgs[ioctl_data.nmsgs];
+    if (*arg == 'r') {
+      msg->flags = I2C_M_RD;
+    } else if (*arg == 'w') {
+      msg->flags = 0;
+    } else error_exit("expected read or write: %s", arg);
+
+    addr_str = strchr(arg, '@');
+    if (addr_str) {
+      msg->addr = atolx_range(addr_str + 1, 0, 0x7f);
+      *addr_str = '\0';
+    } else {
+      if (ioctl_data.nmsgs == 0) error_exit("missing address: %s", arg);
+      msg->addr = msgs[ioctl_data.nmsgs - 1].addr;
+    }
+
+    // The struct field is 16 bits, but the kernel (as of 6.4) limits each
+    // message to 8KiB. Either is far larger than you're likely to see in
+    // practice.
+    msg->len = atolx_range(arg + 1, 0, 0xffff);
+    msg->buf = xzalloc(msg->len);
+    if (*arg == 'w') {
+      for (j = 0; j < msg->len; j++) {
+        arg = toys.optargs[i++];
+        if (!arg) error_exit("expected %d data bytes", msg->len);
+        msg->buf[j] = atolx_range(arg, 0, 0xff);
+      }
+    }
+
+    ioctl_data.nmsgs++;
+  }
+
+  fprintf(stderr, "Will send following messages on bus %d...\n", bus);
+  show_msgs(stderr, &ioctl_data, 1);
+  confirm("Send transfers on bus %d?", bus);
+
+  fd = i2c_open(bus, 0, 0);
+  xioctl(fd, I2C_RDWR, &ioctl_data);
+  close(fd);
+
+  show_msgs(stdout, &ioctl_data, 0);
+
+  for (i = 0; i < ioctl_data.nmsgs; i++) free(msgs[i].buf);
 }
