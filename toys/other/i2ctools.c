@@ -13,7 +13,7 @@
  * TODO: I2C_M_TEN bit addressing (-t, larger range in probe...)
 
 // note: confirm() needs "y" to be in same place for all commands
-USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CDETECT(NEWTOY(i2cdetect, ">3aF#<0>63lqry[!qr][!Fl]", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CGET(NEWTOY(i2cget, "<2>3fy", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_SBIN))
@@ -91,6 +91,10 @@ config I2CTRANSFER
 #define TT this.i2ctools
 #include "toys.h"
 
+GLOBALS(
+  long F;
+)
+
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 
@@ -113,6 +117,7 @@ static int i2c_open(int bus, int slave, long chip)
   sprintf(toybuf, "/dev/i2c-%d", bus);
   fd = xopen(toybuf, O_RDONLY);
   if (slave) xioctl(fd, slave, (void *)chip);
+
   return fd;
 }
 
@@ -148,99 +153,84 @@ static int i2c_quick_write(int fd, int addr)
   return ioctl(fd, I2C_SMBUS, &ioctl_data);
 }
 
-static void i2cdetect_dash_F(int bus)
-{
-  char *funcs[] = {
-    "I2C", "10 bit", 0, "SMBus PEC", 0, 0, "SMBus Block Process Call",
-    "SMBus Quick Command", "SMBus Receive Byte", "SMBus Send Byte",
-    "SMBus Read Byte", "SMBus Write Byte", "SMBus Read Word",
-    "SMBus Write Word", "SMBus Process Call", "SMBus Read Block",
-    "SMBus Write Block", "I2C Read Block", "I2C Write Block" };
-  unsigned sup = i2c_get_funcs(bus), i;
-
-  printf("Functionalities implemented by %s:\n", toybuf);
-  for (i = 0; i<ARRAY_LEN(funcs); i++)
-    if (funcs[i]) printf("%-32s %s\n", funcs[i], (sup&(1<<i)) ? "yes" : "no");
-}
-
 static int i2cdetect_dash_l(struct dirtree *node)
 {
-  int suffix_len = strlen("/name");
-  int bus;
-  char *fname, *p;
+  char *suffix = "/name", *fname, *p;
+  int suffix_len = strlen(suffix), bus;
   unsigned long funcs;
 
   if (!node->parent) return DIRTREE_RECURSE; // Skip the directory itself.
 
   if (sscanf(node->name, "i2c-%d", &bus)!=1) return 0;
-  funcs = i2c_get_funcs(bus);
+  funcs = i2c_get_funcs(bus) & I2C_FUNC_I2C;
 
   fname = dirtree_path(node, &suffix_len);
-  strcat(fname, "/name");
+  strcat(fname, suffix);
   xreadfile(fname, toybuf, sizeof(toybuf));
   free(fname);
   if ((p = strchr(toybuf, '\n'))) *p = 0;
 
   // "i2c-1	i2c	Synopsys DesignWare I2C adapter		I2C adapter"
-  printf("%s\t%-10s\t%-32s\t%s\n", node->name,
-         (funcs & I2C_FUNC_I2C) ? "i2c" : "?", toybuf,
-         (funcs & I2C_FUNC_I2C) ? "I2C Adapter" : "?");
+  printf("%s\t%-10s\t%-32s\t%s\n", node->name, funcs ? "i2c" : "?", toybuf,
+         funcs ? "I2C Adapter" : "?");
 
   return 0;
 }
 
 void i2cdetect_main(void)
 {
-  if (FLAG(l)) {
-    if (toys.optc) error_exit("-l doesn't take arguments");
-    dirtree_flagread("/sys/class/i2c-dev", DIRTREE_SHUTUP, i2cdetect_dash_l);
-  } else if (FLAG(F)) {
-    if (toys.optc != 1) error_exit("-F BUS");
-    i2cdetect_dash_F(atolx_range(*toys.optargs, 0, 0x3f));
-  } else {
-    int bus, first = 0x03, last = 0x77, fd, row, addr;
-    char byte;
+  int bus, first, last, fd, addr = 0;
+  char byte;
 
-    if (FLAG(a)) {
-      first = 0x00;
-      last = 0x7f;
+  if (FLAG(l)|FLAG(F)) {
+    if (toys.optc) error_exit("bad '%s'", *toys.optargs);
+    if (FLAG(l))
+      dirtree_flagread("/sys/class/i2c-dev", DIRTREE_SHUTUP, i2cdetect_dash_l);
+    else {
+      unsigned sup = i2c_get_funcs(TT.F), i;
+      char *funcs[] = {
+        "I2C", "10 bit", 0, "SMBus PEC", 0, 0, "SMBus Block Process Call",
+        "SMBus Quick Command", "SMBus Receive Byte", "SMBus Send Byte",
+        "SMBus Read Byte", "SMBus Write Byte", "SMBus Read Word",
+        "SMBus Write Word", "SMBus Process Call", "SMBus Read Block",
+        "SMBus Write Block", "I2C Read Block", "I2C Write Block" };
+
+      printf("Functionalities implemented by %s:\n", toybuf);
+      for (i = 0; i<ARRAY_LEN(funcs); i++)
+        if (funcs[i])
+          printf("%-32s %s\n", funcs[i], (sup&(1<<i)) ? "yes" : "no");
     }
 
-    if (toys.optc!=1 && toys.optc!=3) help_exit("Needs 1 or 3 arguments");
-    bus = atolx_range(*toys.optargs, 0, 0x3f);
-    if (toys.optc==3) {
-      first = atolx_range(toys.optargs[1], 0, 0x7f);
-      last = atolx_range(toys.optargs[2], 0, 0x7f);
-      if (first > last) error_exit("first > last");
-    }
-
-    confirm("Probe chips 0x%02x-0x%02x on bus %d?", first, last, bus);
-
-    fd = i2c_open(bus, 0, 0);
-    printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
-    for (row = 0; row < 0x80; row += 16) {
-      xprintf("%02x:", row & 0xf0);
-      for (addr = row; addr<row+16; ++addr) {
-        if (addr<first || addr>last) {
-          printf("   ");
-
-          continue;
-        }
-        if (ioctl(fd, I2C_SLAVE, addr) == -1) {
-          if (errno == EBUSY) {
-            xprintf(" UU");
-            continue;
-          }
-          perror_exit("ioctl(I2C_SLAVE)");
-        }
-        if ((FLAG(r) ? i2c_read_byte(fd, addr, &byte)
-                     : i2c_quick_write(fd, addr)) == -1) xprintf(" --");
-        else xprintf(" %02x", addr);
-      }
-      putchar('\n');
-    }
-    close(fd);
+    return;
   }
+
+  if (!(toys.optc&1)) help_exit("Needs 1 or 3 arguments");
+  bus = atolx_range(*toys.optargs, 0, 0x3f);
+  if (toys.optc==3) {
+    first = atolx_range(toys.optargs[1], 0, 0x7f);
+    last = atolx_range(toys.optargs[2], 0, 0x7f);
+    if (first > last) error_exit("first > last");
+  } else {
+    first = FLAG(a) ? 0 : 3;
+    last = FLAG(a) ? 0x7f : 0x77;
+  }
+
+  confirm("Probe chips 0x%02x-0x%02x on bus %d?", first, last, bus);
+
+  fd = i2c_open(bus, 0, 0);
+  printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
+  while (addr < 0x80) {
+    if (!(addr&0xf)) xprintf("%02x:", addr);
+    if (addr<first || addr>last) printf("   ");
+    else if (ioctl(fd, I2C_SLAVE, addr) == -1) {
+      if (errno == EBUSY) xprintf(" UU");
+      else perror_exit("ioctl(I2C_SLAVE)");
+    } else if ((FLAG(r) ? i2c_read_byte(fd, addr, &byte)
+                        : i2c_quick_write(fd, addr)) == -1) xprintf(" --");
+    else xprintf(" %02x", addr);
+    if (!(++addr&0xf)) putchar('\n');
+  }
+  close(fd);
 }
 
 #define FOR_i2cdump
