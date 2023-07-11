@@ -160,7 +160,6 @@ static int apply_one_hunk(void)
     // avoids the "all context was blank or } lines" issue. Removed lines
     // count as context since they're matched.
     if (c==' ' || c=="-+"[FLAG(R)]) {
-      s = plist->data+1;
       while (isspace(*++s));
       if (*s && s[1] && !isspace(s[1])) fuzz++;
     }
