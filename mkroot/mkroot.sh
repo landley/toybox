@@ -64,7 +64,6 @@ if [ -z "$NOAIRLOCK"] && [ -n "$CROSS_COMPILE" ]; then
     rm .singleconfig_airlock || exit 1
   fi
   export PATH="$AIRLOCK"
-  CPIO_OPTS+=--no-preserve-owner
 fi
 
 # Create per-target work directories
@@ -290,7 +289,7 @@ else
   [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT/linux.dtb" || exit 1 ;}
   if [ -n "$MODULES" ]; then
     make ARCH=$KARCH INSTALL_MOD_PATH=modz modules_install &&
-      (cd modz && find lib/modules | cpio -o -H newc $CPIO_OPTS ) | gzip \
+      (cd modz && find lib/modules | cpio -o -H newc -R +0:+0 ) | gzip \
        > "$OUTPUT/modules.cpio.gz" || exit 1
   fi
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
@@ -299,7 +298,7 @@ fi
 # clean up and package root filesystem for initramfs.
 if [ -z "$BUILTIN" ]; then
   announce initramfs
-  { (cd "$ROOT" && find . | cpio -o -H newc $CPIO_OPTS ) || exit 1
+  { (cd "$ROOT" && find . -printf '%P\n' | cpio -o -H newc -R +0:+0 ) || exit 1
     ! test -e "$OUTPUT/modules.cpio.gz" || zcat $_;} | gzip \
     > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
