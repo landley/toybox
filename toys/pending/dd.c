@@ -4,6 +4,9 @@
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/dd.html
+ *
+ * Deviations from posix: no conversions, no cbs=
+ * TODO: seek=n with unseekable output? (Read output and... write it back?)
 
 USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -45,8 +48,7 @@ GLOBALS(
   struct {
     char *name, *bp;
     int fd;
-    long sz, count;
-    unsigned long long offset;
+    unsigned long long sz, count;
   } in, out;
   unsigned conv, iflag, oflag;
 )
@@ -88,6 +90,7 @@ static void write_out(int all)
 {
   TT.out.bp = TT.buff;
   while (TT.out.count) {
+    // Posix says a bunch about short reads... and didn't think of short writes.
     ssize_t nw = writeall(TT.out.fd, TT.out.bp, all ? TT.out.count : TT.out.sz);
 
     all = 0; //further writes will be on obs
@@ -152,7 +155,7 @@ static unsigned long long argxarg(char *arg, int cap)
 void dd_main()
 {
   char **args, *arg;
-  unsigned long long bs = 0, count = ULLONG_MAX;
+  unsigned long long bs = 0, count = ULLONG_MAX, seek = 0, skip = 0;
   int trunc = O_TRUNC;
 
   TT.show_xfer = TT.show_records = 1;
@@ -165,8 +168,8 @@ void dd_main()
     else if (strstart(&arg, "count=")) count = argxarg(arg, 0);
     else if (strstart(&arg, "if=")) TT.in.name = arg;
     else if (strstart(&arg, "of=")) TT.out.name = arg;
-    else if (strstart(&arg, "seek=")) TT.out.offset = argxarg(arg, 0);
-    else if (strstart(&arg, "skip=")) TT.in.offset = argxarg(arg, 0);
+    else if (strstart(&arg, "seek=")) seek = argxarg(arg, 0);
+    else if (strstart(&arg, "skip=")) skip = argxarg(arg, 0);
     else if (strstart(&arg, "status=")) {
       if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
       else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
@@ -198,16 +201,14 @@ void dd_main()
     TT.out.name = "stdout";
     TT.out.fd = 1;
   } else TT.out.fd = xcreate(TT.out.name,
-    O_WRONLY|O_CREAT|(trunc*!TT.out.offset), 0666);
+    O_WRONLY|O_CREAT|(trunc*!seek), 0666);
 
   // Implement skip=
-  if (TT.in.offset) {
-    unsigned long long off = TT.in.offset;
-
-    if (!(TT.iflag & _DD_iflag_skip_bytes)) off *= TT.in.sz;
-    if (lseek(TT.in.fd, off, SEEK_CUR) < 0) {
-      while (off > 0) {
-        ssize_t n = read(TT.in.fd, TT.in.bp, minof(off, TT.in.sz));
+  if (skip) {
+    if (!(TT.iflag & _DD_iflag_skip_bytes)) skip *= TT.in.sz;
+    if (lseek(TT.in.fd, skip, SEEK_CUR) < 0) {
+      while (skip > 0) {
+        ssize_t n = read(TT.in.fd, TT.in.bp, minof(skip, TT.in.sz));
 
         if (n < 0) {
           perror_msg("%s", TT.in.name);
@@ -217,21 +218,20 @@ void dd_main()
           xprintf("%s: Can't skip\n", TT.in.name);
           return;
         }
-        off -= n;
+        skip -= n;
       }
     }
   }
 
   // Implement seek= and truncate as necessary. We handled position zero
   // truncate with O_TRUNC on open, so output to /dev/null etc doesn't error.
-  bs = TT.out.offset;
-  if (!(TT.oflag & _DD_oflag_seek_bytes)) bs *= TT.out.sz;
-  if (bs) {
+  if (!(TT.oflag & _DD_oflag_seek_bytes)) seek *= TT.out.sz;
+  if (seek) {
     struct stat st;
 
-    xlseek(TT.out.fd, bs, SEEK_CUR);
+    xlseek(TT.out.fd, seek, SEEK_CUR);
     if (trunc && !fstat(TT.out.fd, &st) && S_ISREG(st.st_mode)
-      && ftruncate(TT.out.fd, bs)) perror_exit("truncate");
+      && ftruncate(TT.out.fd, seek)) perror_exit("truncate");
   }
 
   if (count!=ULLONG_MAX && !(TT.iflag & _DD_iflag_count_bytes))
