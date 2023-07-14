@@ -14,7 +14,7 @@
  * Deviations from gnu: -N switches off -q (no --show-control-chars)
  *   No --quoting-style=shell-escape, mostly because no short or long opt for it
 
-USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(show-control-chars)\241(group-directories-first)\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(block-size)#=1024<1(show-control-chars)\241(group-directories-first)\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -31,7 +31,7 @@ config LS
     -H  follow command line symlinks   -i  inode number
     -L  follow symlinks                -N  no escaping, even on tty
     -p  put '/' after dir names        -q  unprintable chars as '?'
-    -R  recursively list in subdirs    -s  storage used (1024 byte units)
+    -R  recursively list in subdirs    -s  storage used (in blocks)
     -Z  security context
 
     output formats:
@@ -45,6 +45,8 @@ config LS
     sort by:  (also --sort=longname,longname... ends with alphabetical)
     -c  ctime      -r  reverse    -S  size     -t  time    -u  atime    -U  none
     -X  extension  -!  dirfirst   -~  nocase
+
+    --block-size N	block size (default 1024)
 
     --color  =always (default)  =auto (when stdout is tty) =never
         exe=green  suid=red  suidfile=redback  stickydir=greenback
@@ -61,7 +63,7 @@ config LS
 // ls -lR starts .: then ./subdir:
 
 GLOBALS(
-  long w, l;
+  long w, l, block_size;
   char *color, *sort;
 
   struct dirtree *files, *singledir;
@@ -127,9 +129,10 @@ static int numlen(long long ll)
   return snprintf(0, 0, "%llu", ll);
 }
 
-static int print_with_h(char *s, long long value, int units)
+static int print_with_h(char *s, long long value, int blocks)
 {
-  if (FLAG(h)) return human_readable(s, value*units, 0);
+  if (blocks) value = (value * 1024) / TT.block_size;
+  if (FLAG(h)) return human_readable(s, value, 0);
   else return sprintf(s, "%lld", value);
 }
 
@@ -153,10 +156,10 @@ static void entrylen(struct dirtree *dt, unsigned *len)
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
       len[5] = numlen(dev_major(st->st_rdev))+5;
-    } else len[5] = print_with_h(tmp, st->st_size, 1);
+    } else len[5] = print_with_h(tmp, st->st_size, 0);
   }
 
-  len[6] = FLAG(s) ? print_with_h(tmp, st->st_blocks, 1024) : 0;
+  len[6] = FLAG(s) ? print_with_h(tmp, st->st_blocks, 1) : 0;
   len[7] = FLAG(Z) ? strwidth((char *)dt->extra) : 0;
 }
 
@@ -407,7 +410,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6]+totals[7]+!!totals[7];
     if ((FLAG(h)||FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)||FLAG(s)) && indir->parent)
     {
-      print_with_h(tmp, blocks, 1024);
+      print_with_h(tmp, blocks, 1);
       xprintf("total %s\n", tmp);
     }
   }
@@ -481,7 +484,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     if (FLAG(i)) zprint(zap, "lu ", totals[1], st->st_ino);
 
     if (FLAG(s)) {
-      print_with_h(tmp, st->st_blocks, 1024);
+      print_with_h(tmp, st->st_blocks, 1);
       zprint(zap, "s ", totals[6], (unsigned long)tmp);
     }
 
@@ -519,7 +522,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
         printf("% *d,% 4d", totals[5]-4, dev_major(st->st_rdev),
           dev_minor(st->st_rdev));
       else {
-        print_with_h(tmp, st->st_size, 1);
+        print_with_h(tmp, st->st_size, 0);
         zprint(zap, "s", totals[5]+1, (unsigned long)tmp);
       }
 
