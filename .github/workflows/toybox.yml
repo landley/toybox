@@ -26,8 +26,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - env:
-      ASAN: 1
     - name: Setup
       run: sudo apt-get install build-essential
     - name: Configure
