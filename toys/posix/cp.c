@@ -429,7 +429,7 @@ void cp_main(void)
 
     // "mv across devices" triggers cp fallback path, so set that as default
     errno = EXDEV;
-    if (CFG_MV && toys.which->name[0] == 'm') {
+    if (CFG_MV && *toys.which->name == 'm') {
       if (!FLAG(f) || FLAG(n)) {
         struct stat st;
         int exists = !stat(TT.destname, &st);
@@ -462,6 +462,7 @@ void cp_main(void)
 void mv_main(void)
 {
   toys.optflags |= FLAG_d|FLAG_p|FLAG_r;
+  TT.pflags =~0;
 
   cp_main();
 }
