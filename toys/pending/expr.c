@@ -59,7 +59,7 @@ config EXPR
 GLOBALS(
   char **tok; // current token, not on the stack since recursive calls mutate it
 
-  char *refree;
+  struct arg_list *allocated; // list of strings allocated during evaluation
 )
 
 // Scalar value.  If s != NULL, it's a string, otherwise it's an int.
@@ -67,6 +67,15 @@ struct value {
   char *s;
   long long i;
 };
+
+// Keep track of an allocated string.
+void track_str(char* str)
+{
+  struct arg_list *node = xmalloc(sizeof(struct arg_list));
+  node->arg = str;
+  node->next = TT.allocated;
+  TT.allocated = node;
+}
 
 // Get the value as a string.
 char *get_str(struct value *v)
@@ -115,8 +124,7 @@ static void re(char *target, char *pattern, struct value *ret)
     if (pat.re_nsub>0) {
       ret->s = xmprintf("%.*s", (int)(m[1].rm_eo-m[1].rm_so),
           target+m[1].rm_so);
-      if (TT.refree) free(TT.refree);
-      TT.refree = ret->s;
+      track_str(ret->s); // free it later
     } else assign_int(ret, m[0].rm_eo);
   } else {
     if (pat.re_nsub>0) ret->s = "";
@@ -257,5 +265,6 @@ void expr_main(void)
 
   toys.exitval = is_false(&ret);
 
-  if (TT.refree) free(TT.refree);
+  // Free all the strings we allocated.
+  llist_traverse(TT.allocated, llist_free_arg);
 }
