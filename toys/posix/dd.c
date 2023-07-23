@@ -13,7 +13,7 @@ USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
 config DD
   bool "dd"
-  default n
+  default y
   help
     usage: dd [if|of=FILE] [ibs|obs|bs|count|seek|skip=N] [conv|status|iflag|oflag=FLAG[,FLAG...]]
 
