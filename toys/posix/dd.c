@@ -7,7 +7,6 @@
  *
  * Deviations from posix: no conversions, no cbs=
  * TODO: seek=n with unseekable output? (Read output and... write it back?)
- *   when conv=sync adds zeroes, does that decrease input count?
 
 USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 

@@ -3,6 +3,9 @@
 # Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
 # Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
 
+# TODO test skip= for seekable and nonseekable input.
+# TODO bs overrides ibs= and obs=, and disables block aggregation
+
 [ -f testing.sh ] && . testing.sh
 
 # 'dd' command, stderr prints redirecting to /dev/null
@@ -36,6 +39,7 @@ testcmd "with if of bs" \
 testcmd "with if of ibs obs" \
   "if=/dev/zero of=sda.txt ibs=512 obs=256 count=1 &&
    stat -c '%s' sda.txt && rm -f sda.txt" "512\n" "" ""
+// TODO check block size of transactions
 testcmd "with if of ibs obs count" \
   "if=/dev/zero of=sda.txt ibs=512 obs=256 count=3 &&
    stat -c '%s' sda.txt && rm -f sda.txt" "1536\n" "" ""
@@ -53,6 +57,13 @@ testcmd "if=file of=file (same file)" "if=input of=input &&
    [ -f input ] && cat input && echo 'yes'" "yes\n" "I WANT\n" ""
 testcmd "same file notrunc" \
   "if=input of=input conv=notrunc && cat input" "I WANT\n" "I WANT\n" ""
+testcmd "seek truncate" \
+  'of=input bs=3 count=2 seek=7 oflag=seek_bytes && cat input' \
+  '1234567ABCDEF' '1234567890abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJK'
+testcmd "seek notrunc" \
+  'of=input bs=3 count=2 seek=7 conv=notrunc oflag=seek_bytes && cat input' \
+  '1234567ABCDEFdefghijklmnopqrstuvwxyz' '1234567890abcdefghijklmnopqrstuvwxyz'\
+  'ABCDEFGHIJK'
 
 testcmd "with ibs obs bs" "ibs=2 obs=5 bs=9" "I WANT\n" "" "I WANT\n"
 testcmd "with ibs obs bs if" "ibs=2 obs=5 bs=9 if=input" "I WANT\n" "I WANT\n"\
@@ -109,3 +120,9 @@ testcmd "iflag=skip_bytes" "if=input skip=2 ibs=4096 iflag=skip_bytes" "gh" \
 testcmd "oflag=seek_bytes" \
   "if=input of=output seek=2 obs=4096 oflag=seek_bytes status=none && \
    xxd -p output" "000030313233\n" "0123" ""
+
+# The sleep decouples input blocks to force short reads for conv=sync to pad
+testing 'sync padding ticks down count' \
+  'for i in one two three four five "$(seq 1 100)"
+   do echo "$i"; sleep .1; done | dd bs=1024 count=5 conv=sync | sha1sum' \
+  '02dcf1f497ccbe940f57818dfc34f2d0def8b3f9  -\n' '' ''
