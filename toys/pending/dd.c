@@ -7,6 +7,7 @@
  *
  * Deviations from posix: no conversions, no cbs=
  * TODO: seek=n with unseekable output? (Read output and... write it back?)
+ *   when conv=sync adds zeroes, does that decrease input count?
 
 USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -40,17 +41,12 @@ config DD
 
 #define FOR_dd
 #include "toys.h"
+#include <sys/uio.h>
 
 GLOBALS(
+  // Display fields
   int show_xfer, show_records;
   unsigned long long bytes, in_full, in_part, out_full, out_part, start;
-  char *buff;
-  struct {
-    char *name, *bp;
-    int fd;
-    unsigned long long sz, count;
-  } in, out;
-  unsigned conv, iflag, oflag;
 )
 
 struct dd_flag {
@@ -86,26 +82,6 @@ static void status()
   }
 }
 
-static void write_out(int all)
-{
-  TT.out.bp = TT.buff;
-  while (TT.out.count) {
-    // Posix says a bunch about short reads... and didn't think of short writes.
-    ssize_t nw = writeall(TT.out.fd, TT.out.bp, all ? TT.out.count : TT.out.sz);
-
-    all = 0; //further writes will be on obs
-    if (nw <= 0) perror_exit("%s: write error", TT.out.name);
-    if (nw == TT.out.sz) TT.out_full++;
-    else TT.out_part++;
-    TT.out.count -= nw;
-    TT.out.bp += nw;
-    TT.bytes += nw;
-    if (TT.out.count < TT.out.sz) break;
-  }
-  // move remainder to front (if any)
-  if (TT.out.count) memmove(TT.buff, TT.out.bp, TT.out.count);
-}
-
 static void parse_flags(char *what, char *arg,
     const struct dd_flag* flags, int flag_count, unsigned *result)
 {
@@ -136,7 +112,7 @@ static unsigned long long argxarg(char *arg, int cap)
 
   arg = xstrdup(arg);
   for (new = s = arg;; new = s+1) {
-    // atolx() handlex 0x hex prefixes, so skip past those looking for separator
+    // atolx() handles 0x hex prefixes, so skip past those looking for separator
     if ((s = strchr(new+2*!strncmp(new, "0x", 2), 'x'))) {
       if (s==new) break;
       x = *s;
@@ -152,22 +128,41 @@ static unsigned long long argxarg(char *arg, int cap)
   return ll;
 }
 
+
+// Point 1 or 2 iovec at len bytes at buf, starting at "start" and wrapping
+// around at buflen.
+int iovwrap(char *buf, unsigned long long buflen, unsigned long long start,
+  unsigned long long len, struct iovec *iov)
+{
+  iov[0].iov_base = buf + start;
+  iov[0].iov_len = len;
+  if (start+len<=buflen) return 1;
+
+  iov[1].iov_len = len-(iov[0].iov_len = buflen-start);
+  iov[1].iov_base = buf;
+
+  return 2;
+}
+
 void dd_main()
 {
-  char **args, *arg;
-  unsigned long long bs = 0, count = ULLONG_MAX, seek = 0, skip = 0;
-  int trunc = O_TRUNC;
+  char **args, *arg, *iname = 0, *oname = 0, *buf;
+  unsigned long long bs = 0, seek = 0, skip = 0, ibs = 512, obs = 512,
+    count = ULLONG_MAX, buflen;
+  long long len;
+  struct iovec iov[2];
+  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, ii;
+  unsigned conv, iflag, oflag;
 
   TT.show_xfer = TT.show_records = 1;
 
-  TT.in.sz = TT.out.sz = 512; //default io block size
   for (args = toys.optargs; (arg = *args); args++) {
     if (strstart(&arg, "bs=")) bs = argxarg(arg, 1);
-    else if (strstart(&arg, "ibs=")) TT.in.sz = argxarg(arg, 1);
-    else if (strstart(&arg, "obs=")) TT.out.sz = argxarg(arg, 1);
+    else if (strstart(&arg, "ibs=")) ibs = argxarg(arg, 1);
+    else if (strstart(&arg, "obs=")) obs = argxarg(arg, 1);
     else if (strstart(&arg, "count=")) count = argxarg(arg, 0);
-    else if (strstart(&arg, "if=")) TT.in.name = arg;
-    else if (strstart(&arg, "of=")) TT.out.name = arg;
+    else if (strstart(&arg, "if=")) iname = arg;
+    else if (strstart(&arg, "of=")) oname = arg;
     else if (strstart(&arg, "seek=")) seek = argxarg(arg, 0);
     else if (strstart(&arg, "skip=")) skip = argxarg(arg, 0);
     else if (strstart(&arg, "status=")) {
@@ -175,116 +170,114 @@ void dd_main()
       else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
       else error_exit("unknown status '%s'", arg);
     } else if (strstart(&arg, "conv="))
-      parse_flags("conv", arg, dd_conv, ARRAY_LEN(dd_conv), &TT.conv);
+      parse_flags("conv", arg, dd_conv, ARRAY_LEN(dd_conv), &conv);
     else if (strstart(&arg, "iflag="))
-      parse_flags("iflag", arg, dd_iflag, ARRAY_LEN(dd_iflag), &TT.iflag);
+      parse_flags("iflag", arg, dd_iflag, ARRAY_LEN(dd_iflag), &iflag);
     else if (strstart(&arg, "oflag="))
-      parse_flags("oflag", arg, dd_oflag, ARRAY_LEN(dd_oflag), &TT.oflag);
+      parse_flags("oflag", arg, dd_oflag, ARRAY_LEN(dd_oflag), &oflag);
     else error_exit("bad arg %s", arg);
   }
-  if (bs) TT.in.sz = TT.out.sz = bs;
+  if (bs) ibs = obs = bs; // bs overrides ibs and obs regardless of position
 
+  TT.start = millitime();
   sigatexit(status);
   xsignal(SIGUSR1, status);
-  TT.start = millitime();
 
-  // For bs=, in/out is done as it is. so only in.sz is enough.
-  // With Single buffer there will be overflow in a read following partial read.
-  TT.in.bp = TT.out.bp = TT.buff = xmalloc(TT.in.sz+TT.out.sz*!bs);
+  // If bs set, output blocks match input blocks (passing along short reads).
+  // Else read ibs blocks and write obs, which worst case requires ibs+obs-1.
+  buf = xmalloc(buflen = ibs+obs*!bs);
+  if (buflen<ibs || buflen<obs) error_exit("tilt");
 
-  if (!TT.in.name) TT.in.name = "stdin";
-  else TT.in.fd = xopenro(TT.in.name);
-
-  if (TT.conv & _DD_conv_notrunc) trunc = 0;
-
-  if (!TT.out.name) {
-    TT.out.name = "stdout";
-    TT.out.fd = 1;
-  } else TT.out.fd = xcreate(TT.out.name,
-    O_WRONLY|O_CREAT|(trunc*!seek), 0666);
+  if (conv & _DD_conv_notrunc) trunc = 0;
+  if (iname) ifd = xopenro(iname);
+  else iname = "stdin";
+  if (oname) ofd = xcreate(oname, O_WRONLY|O_CREAT|(trunc*!seek),0666);
+  else oname = "stdout";
 
   // Implement skip=
   if (skip) {
-    if (!(TT.iflag & _DD_iflag_skip_bytes)) skip *= TT.in.sz;
-    if (lseek(TT.in.fd, skip, SEEK_CUR) < 0) {
-      while (skip > 0) {
-        ssize_t n = read(TT.in.fd, TT.in.bp, minof(skip, TT.in.sz));
-
-        if (n < 0) {
-          perror_msg("%s", TT.in.name);
-          if (TT.conv & _DD_conv_noerror) status();
+    if (!(iflag & _DD_iflag_skip_bytes)) skip *= ibs;
+    if (lseek(ifd, skip, SEEK_CUR) < 0) {
+      for (; skip > 0; skip -= len) {
+        len = read(ifd, buf, minof(skip, ibs));
+        if (len < 0) {
+          perror_msg_raw(iname);
+          if (conv & _DD_conv_noerror) status();
           else return;
-        } else if (!n) {
-          xprintf("%s: Can't skip\n", TT.in.name);
-          return;
-        }
-        skip -= n;
+        } else if (!len) return xprintf("%s: Can't skip\n", iname);
       }
     }
   }
 
   // Implement seek= and truncate as necessary. We handled position zero
   // truncate with O_TRUNC on open, so output to /dev/null etc doesn't error.
-  if (!(TT.oflag & _DD_oflag_seek_bytes)) seek *= TT.out.sz;
+  if (!(oflag & _DD_oflag_seek_bytes)) seek *= obs;
   if (seek) {
     struct stat st;
 
-    xlseek(TT.out.fd, seek, SEEK_CUR);
-    if (trunc && !fstat(TT.out.fd, &st) && S_ISREG(st.st_mode)
-      && ftruncate(TT.out.fd, seek)) perror_exit("truncate");
+    xlseek(ofd, seek, SEEK_CUR);
+    if (trunc && !fstat(ofd, &st) && S_ISREG(st.st_mode) && ftruncate(ofd,seek))
+      perror_exit("truncate");
   }
 
-  if (count!=ULLONG_MAX && !(TT.iflag & _DD_iflag_count_bytes))
-    count = overmul(count, TT.in.sz);
+  if (count!=ULLONG_MAX && !(iflag & _DD_iflag_count_bytes))
+    count = overmul(count, ibs);
 
-  while (count) {
-    ssize_t n;
+  // output start position, output bytes available
+  opos = olen = 0;
+  for (;;) {
+    // Write as many output blocks as we can. Using writev() avoids memmove()
+    // to realign data but is still a single atomic write.
+    while (olen>=obs || (olen && (bs || !count))) {
+      errno = 0;
+      len = writev(ofd, iov, iovwrap(buf, buflen, opos, minof(obs, olen), iov));
+      if (len<1) {
+        if (errno==EINTR) continue;
+        perror_exit("%s: write error", oname);
+      }
+      TT.bytes += len;
+      olen -= len;
+      if ((opos += len)>=buflen) opos -= buflen;
+      if (len == obs) TT.out_full++;
+      else TT.out_part++;
+    }
+    if (!count) break;
 
-    TT.in.bp = TT.buff + TT.in.count;
-    if (TT.conv & _DD_conv_sync) memset(TT.in.bp, 0, TT.in.sz);
+    // Read next block of input. (There MUST be enough space, we sized buf.)
+    len = opos+olen;
+    if (len>buflen) len -= buflen;
     errno = 0;
-    if (1>(n = read(TT.in.fd, TT.in.bp, minof(count, TT.in.sz)))) {
-      if (errno == EINTR) continue;
-      if (!n) break;
+    if (2 == (ii = iovwrap(buf, buflen, len, minof(count, ibs), iov)))
+      memset(iov[1].iov_base, 0, iov[1].iov_len);
+    memset(iov[0].iov_base, 0, iov[0].iov_len);
+    len = readv(ifd, iov, ii);
+    if (len<1) {
+      if (errno==EINTR) continue;
+      if (!len) count = 0;
+      else {
+        //read error case.
+        perror_msg("%s: read error", iname);
+        if (!(conv & _DD_conv_noerror)) xexit();
 
-      //read error case.
-      perror_msg("%s: read error", TT.in.name);
-      if (!(TT.conv & _DD_conv_noerror)) exit(1);
-      status();
-      xlseek(TT.in.fd, TT.in.sz, SEEK_CUR);
-      if (!(TT.conv & _DD_conv_sync)) continue;
-      // if SYNC, then treat as full block of nuls
-      n = TT.in.sz;
-    }
-    if (n == TT.in.sz) {
-      TT.in_full++;
-      TT.in.count += n;
-    } else {
-      TT.in_part++;
-      if (TT.conv & _DD_conv_sync) TT.in.count += TT.in.sz;
-      else TT.in.count += n;
-    }
-    count -= n;
+        // Complain and try to seek past it
+        status();
+        lseek(ifd, ibs, SEEK_CUR);
+        if (conv & _DD_conv_sync) olen += ibs;
+      }
 
-    TT.out.count = TT.in.count;
-    if (bs) {
-      write_out(1);
-      TT.in.count = 0;
       continue;
     }
-
-    if (TT.in.count >= TT.out.sz) {
-      write_out(0);
-      TT.in.count = TT.out.count;
-    }
+    if (len == ibs) TT.in_full++;
+    else TT.in_part++;
+    if (conv & _DD_conv_sync) len = ibs;
+    olen += len;
+    count -= minof(len, count);
   }
-  if (TT.out.count) write_out(1); //write any remaining input blocks
-  if ((TT.conv & _DD_conv_fsync) && fsync(TT.out.fd))
-    perror_exit("%s: fsync", TT.out.name);
+  if ((conv & _DD_conv_fsync) && fsync(ofd)) perror_exit("%s: fsync", oname);
 
   if (CFG_TOYBOX_FREE) {
-    close(TT.in.fd);
-    close(TT.out.fd);
-    if (TT.buff) free(TT.buff);
+    close(ifd);
+    close(ofd);
+    free(buf);
   }
 }
