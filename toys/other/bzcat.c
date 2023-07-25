@@ -671,7 +671,12 @@ static void do_bzcat(int fd, char *name)
 {
   char *err = bunzipStream(fd, 1);
 
-  if (err) error_exit_raw(err);
+  if (err) {
+    // Exit silently for "out EOF" because pipelines.
+    if (err[1] != 'u') error_exit_raw(err);
+    toys.exitval = 1;
+    xexit();
+  }
 }
 
 void bzcat_main(void)
