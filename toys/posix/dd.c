@@ -107,7 +107,7 @@ static unsigned long long overmul(unsigned long long x, unsigned long long y)
 static unsigned long long argxarg(char *arg, int cap)
 {
   long long ll = 1;
-  char x, *s, *new;
+  char x QUIET, *s, *new;
 
   arg = xstrdup(arg);
   for (new = s = arg;; new = s+1) {
