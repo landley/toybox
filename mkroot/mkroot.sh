@@ -261,11 +261,13 @@ else
   cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
 
   # Write linux-miniconfig
+  mkdir "${OUTDOC=$OUTPUT/docs}" &&
   { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=linux-miniconfig"
     echo -e "# make ARCH=$KARCH -j \$(nproc)\n# boot $VMLINUX\n\n"
 
     # Expand list of =y symbols, first generic then architecture-specific
     for i in BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,NLS_CODEPAGE_437,NLS_ISO8859_1,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET,COMPAT_32BIT_TIME,EARLY_PRINTK,IKCONFIG,IKCONFIG_PROC "$KCONF" "$KEXTRA" ; do
+      echo "$i" >> "$OUTDOC"/linux-microconfig
       echo "# architecture ${X:-independent}"
       csv2cfg "$i" y
       X=specific
@@ -273,8 +275,8 @@ else
     [ -n "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
     for i in $MODULES; do csv2cfg "$i" m; done
     echo "$KERNEL_CONFIG"
-  } > "$OUTPUT/linux-miniconfig" &&
-  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/linux-miniconfig" &&
+  } > "$OUTDOC/linux-miniconfig" &&
+  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTDOC/linux-miniconfig" &&
 
   # Second config pass to remove stupid kernel defaults
   # See http://lkml.iu.edu/hypermail/linux/kernel/1912.3/03493.html
@@ -282,7 +284,7 @@ else
     -e 's@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set\n@g' \
        <<< VT,SCHED_DEBUG,DEBUG_MISC,X86_DEBUG_FPU)" -i .config &&
   yes "" | make ARCH=$KARCH oldconfig > /dev/null &&
-  cp .config "$OUTPUT/linux-fullconfig" &&
+  cp .config "$OUTDOC/linux-fullconfig" &&
 
   # Build kernel. Copy config, device tree binary, and kernel binary to output
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) all || exit 1
