@@ -265,6 +265,7 @@ void cpio_main(void)
       len = getline(&name, &size, stdin);
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
+      if (!len) continue;
       nlen = len+1;
       if ((FLAG(L)?stat:lstat)(name, &st) || (S_ISREG(st.st_mode)
           && st.st_size && (fd = open(name, O_RDONLY))<0)
