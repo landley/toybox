@@ -14,7 +14,10 @@ fi
 
 if [ ! -x "$WRAPDIR/logpath" ]
 then
-  mkdir -p "$WRAPDIR" && PREFIX="$WRAPDIR/" scripts/single.sh logpath || exit 1
+  mkdir -p "$WRAPDIR" || exit 1
+  [ -e "$(which logpath)" ] && cp -H "$(which logpath)" "$WRAPDIR/logpath" ||
+    mkdir -p "$WRAPDIR" && PREFIX="$WRAPDIR/" scripts/single.sh logpath ||
+    exit 1
   echo "$PATH" | tr : '\n' | while read DIR
   do
     find "$DIR/" -type f,l -maxdepth 1 -executable -exec basename {} \; | \
