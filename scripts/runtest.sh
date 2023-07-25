@@ -132,15 +132,15 @@ testing()
     return 0
   fi
 
-  echo -ne "$3" > ../expected
+  echo -ne "$3" > "$TESTDIR"/expected
   [ ! -z "$4" ] && echo -ne "$4" > input || rm -f input
-  echo -ne "$5" | ${EVAL:-eval --} "$2" > ../actual
+  echo -ne "$5" | ${EVAL:-eval --} "$2" > "$TESTDIR"/actual
   RETVAL=$?
 
   # Catch segfaults
   [ $RETVAL -gt 128 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
-  DIFF="$(cd ..; diff -au${NOSPACE:+w} expected actual)"
+  DIFF="$(cd "$TESTDIR"; diff -au${NOSPACE:+w} expected actual 2>&1)"
   [ -z "$DIFF" ] && do_pass || VERBOSE=all do_fail
   if ! verbose_has quiet && { [ -n "$DIFF" ] || verbose_has spam; }
   then
