@@ -51,9 +51,7 @@ static void do_xxd(int fd, char *name)
     if (limit) limit += TT.s;
   }
 
-  while (0<(len = readall(fd, toybuf,
-                          (limit && limit-pos<c)?limit-pos:c)))
-  {
+  while (0<(len = readall(fd, toybuf, (limit && limit-pos<c) ? limit-pos : c))){
     if (!FLAG(p)) printf("%08llx: ", TT.o + pos);
     pos += len;
     space = 2*TT.c;
