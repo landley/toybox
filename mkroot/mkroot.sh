@@ -248,7 +248,7 @@ else
   # Write the qemu launch script
   if [ -n "$QEMU" ]; then
     [ -z "$BUILTIN" ] && INITRD="-initrd initramfs.cpio.gz"
-    { echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
+    { echo qemu-system-"$QEMU" -m 256 '"$@"' $QEMU_MORE -nographic -no-reboot \
         -kernel linux-kernel $INITRD ${DTB:+-dtb linux.dtb} \
         "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" &&
       echo "echo -e '\\e[?7h'"
