@@ -235,6 +235,7 @@ rm -rf path
 dd if=/dev/zero bs=4k count=1 seek=1 of=blah.img 2>/dev/null
 [ $(du blah.img | sed 's/[ \t].*//') -ne 4 ] && SKIP=999
 rm -f blah.img
+[ "$(uname)" == "Darwin" ] && SKIP=999
 
   yes | head -n $((1<<18)) > bang
   {
