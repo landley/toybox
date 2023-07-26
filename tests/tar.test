@@ -231,8 +231,10 @@ toyonly testing "autodetect falls back to gzip -d when no zcat" \
   "PATH=path; tar tf $FILES/tar/tar.tgz" "dir/\ndir/file\n" "" ""
 rm -rf path
 
-# Tests that don't produce the same results on MacOS X as Linux
-[ "$(uname)" == Darwin ] && SKIP=999
+# Only run sparse tests if filesystem can handle sparse files @4k granularity
+dd if=/dev/zero bs=4k count=1 seek=1 of=blah.img 2>/dev/null
+[ $(du blah.img | sed 's/[ \t].*//') -ne 4 ] && SKIP=999
+rm -f blah.img
 
   yes | head -n $((1<<18)) > bang
   {
@@ -277,7 +279,7 @@ rm -rf path
     "807664bcad0e827793318ff742991d6f006b2127\n" "" ""
   rm fweep2 fweep2.tar
 
-SKIP=0 # End of tests that don't work on MacOS X
+SKIP=0 # End of sparse tests
 
 mkdir -p links
 touch links/orig
