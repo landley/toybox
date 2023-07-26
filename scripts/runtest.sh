@@ -176,7 +176,7 @@ testcmd()
 # X close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
-  local NAME CASE VERBOSITY LEN PID A B X O
+  local NAME CASE VERBOSITY IN OUT ERR LEN PID A B X O
 
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
