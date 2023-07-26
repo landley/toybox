@@ -10,13 +10,16 @@ void verror_msg(char *msg, int err, va_list va)
 {
   char *s = ": %s";
 
-  fprintf(stderr, "%s: ", toys.which->name);
-  if (msg) vfprintf(stderr, msg, va);
-  else s+=2;
-  if (err>0) fprintf(stderr, s, strerror(err));
-  if (err<0 && CFG_TOYBOX_HELP)
-    fprintf(stderr, " (see \"%s --help\")", toys.which->name);
-  if (msg || err) putc('\n', stderr);
+  // Exit silently in a pipeline
+  if (err != EPIPE) {
+    fprintf(stderr, "%s: ", toys.which->name);
+    if (msg) vfprintf(stderr, msg, va);
+    else s+=2;
+    if (err>0) fprintf(stderr, s, strerror(err));
+    if (err<0 && CFG_TOYBOX_HELP)
+      fprintf(stderr, " (see \"%s --help\")", toys.which->name);
+    if (msg || err) putc('\n', stderr);
+  }
   if (!toys.exitval) toys.exitval = (toys.which->flags>>24) ? : 1;
 }
 
@@ -55,14 +58,11 @@ void error_exit(char *msg, ...)
 // Die with an error message and strerror(errno)
 void perror_exit(char *msg, ...)
 {
-  // Die silently if our pipeline exited.
-  if (errno != EPIPE) {
-    va_list va;
+  va_list va;
 
-    va_start(va, msg);
-    verror_msg(msg, errno, va);
-    va_end(va);
-  }
+  va_start(va, msg);
+  verror_msg(msg, errno, va);
+  va_end(va);
 
   xexit();
 }
