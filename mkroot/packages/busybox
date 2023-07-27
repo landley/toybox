@@ -1,0 +1,43 @@
+#!/bin/echo Try "scripts/mkroot.sh dropbear"
+
+echo === download source
+
+download d5514f5cf8eb89a3b20ac3b965f4463f14a5709a \
+  http://www.busybox.net/downloads/busybox-1.31.1.tar.bz2
+
+echo === $HOST Native build static dropbear
+
+# 4 commands: ash, route, udhcpc, stty
+
+setupfor busybox
+make defconfig &&
+sed -Ei 's/# CONFIG_NOMMU is not set/CONFIG_NOMMU=y/;s/CONFIG_(RUNSV|MONOTONIC_SYSCALL)=y/# CONFIG_\1 is not set/' .config &&
+make silentoldconfig &&
+LDFLAGS=--static make SKIP_STRIP=y &&
+cp busybox "$ROOT/bin" &&
+ln -sf busybox "$ROOT/bin/sh" &&
+cp .config "$ROOT/../busybox-config"
+cleanup
+
+# busybox doesn't support $(<file)
+mkdir -p "$ROOT/etc/rc" &&
+echo '[ -z "$CONSOLE" ] && CONSOLE="$(cat /sys/class/tty/console/active)"' > \
+  "$ROOT/etc/rc/busybox.sh" &&
+
+cat > "$ROOT"/etc/dhcp.sh << 'EOF' &&
+#!/bin/sh
+
+[ "$1" = bound ] || exit
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+ifconfig $interface $ip $BROADCAST $NETMASK
+[ -n "$router" ] && exit
+echo "deleting routers"
+while route del default gw 0.0.0.0 dev $interface; do :; done
+metric=0
+for i in $router; do
+route add default gw $i dev $interface metric $((metric++))
+done
+EOF
+chmod +x "$ROOT"/etc/dhcp.sh || exit 1
+
