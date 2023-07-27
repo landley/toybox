@@ -15,7 +15,7 @@ done
 
 # Set default directory locations (overrideable from command line)
 : ${TOP:=$PWD/root} ${BUILD:=$TOP/build} ${LOG:=$BUILD/log}
-: ${AIRLOCK:=$BUILD/airlock} ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/mkroot/root}
+: ${AIRLOCK:=$BUILD/airlock} ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/mkroot/packages}
 
 announce() { printf "\033]2;$CROSS $*\007" >/dev/tty; printf "\n=== $*\n";}
 die() { echo "$@" >&2; exit 1; }
