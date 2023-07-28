@@ -270,7 +270,7 @@ else
       echo "$i" >> "$OUTDOC"/linux-microconfig
       echo "# architecture ${X:-independent}"
       csv2cfg "$i" y
-      X=specific
+      X=${X:+extra} X=${X:-specific}
     done
     [ -n "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
     for i in $MODULES; do csv2cfg "$i" m; done

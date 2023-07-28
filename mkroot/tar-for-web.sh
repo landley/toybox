@@ -11,15 +11,15 @@ do
   tar cvzfC $i.tgz root --exclude=fs $j || break
 done
 
-# Add top level README
+# Generate top level README
 KVERS=$(toybox sed -n '3s@# Linux/[^ ]* \(.*\) Kernel Configuration@\1@p' root/*/docs/linux-fullconfig)
 cat > root/README << EOF
 Bootable system images created by:
 
   mkroot/mkroot.sh LINUX=~/linux CROSS=allnonstop
 
-Each system image is built from two packages: toybox and Linux.
-Run the ./qemu-*.sh script in the tarball to boot the system
+Each system image is built from two packages: toybox and linux.
+Run the ./qemu-*.sh script in each tarball to boot the system
 to a shell prompt under qemu. Run the "exit" command to shut down the
 virtual system and exit the emulator.
 
