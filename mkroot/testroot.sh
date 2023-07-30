@@ -95,5 +95,6 @@ done
 
 [ -n "$PASS" ] && echo PASS=$PASS
 [ -n "$NOPASS" ] && echo NOPASS=$NOPASS
-X="$(ls root | egrep -xv "$(ls root/*/linux-kernel | sed 's@root/\([^/]*\)/linux-kernel@\1@' | tr '\n' '|')build" | xargs)"
-[ -n "$X" ] && echo No kernel: $X
+bd() { sed 's@.*/\([^/]*\)/[^/]*@\1@'; }
+NO="$(ls -d root/*/fs | bd | egrep -xv "$(ls root/*/linux-kernel | bd | tr '\n' '|')build" | xargs)"
+[ -n "$NO" ] && echo No kernel: $NO
