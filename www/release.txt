@@ -1,6 +1,6 @@
-VERBOSE=fail make distclean defconfig toybox tests
+make distclean defconfig tests
 news.html - release notes
-Update version in main.c
+Update version in toys.h
   - git commit toys.h www/news.html
 tag repo
   - git tag $VER
@@ -12,18 +12,21 @@ source tarball
   scp www/news.html landley.net:landley.net/toybox/
 binaries
   cd ../clean
-  git pull ../toybox
-  make distclean; make defconfig root CROSS=all
-  mkdir send; for i in root/*/fs/bin/toybox; do X=${i#*/}; X=${X%%/*}; cp $i send/toybox-$X; done
-  ssh landley.net "mkdir landley.net/toybox/downloads/binaries/$VER"
-  scp send/toybox-* landley.net:landley.net/toybox/downloads/binaries/$VER/
-  update symlink
-update help.html
-  make clean; make defconfig; make
-  (./toybox --version && ./toybox help -ah) > www/help.html
-  scp www/help.html landley.net:landley.net/toybox/
-scripts/mkstatus.py -> status.html
-  - scp www/status.gen landley.net:landley.net/toybox/
+  git pull --tags ../toybox
+  mkroot/mkroot.sh CROSS=allnonstop LINUX=~/linux/linux
+  mkroot/testroot.sh
+
+  ssh landley.net "mkdir -p landley.net/toybox/downloads/binaries/{,mkroot/}$VER"
+  mkroot/tar-for-web.sh landley.net:landley.net/toybox/downloads/binaries $VER
+
+  ssh landley.net "cd landley.net/toybox/downloads/binaries && rm -f latest && ln -s $VER latest && cd mkroot && rm -f latest && ln -s $VER latest"
+
+  make clean; make defconfig toybox
+  ./toybox help -ah > www/help.html
+  scripts/mkstatus.py
+
+  scp www/{news,help,status}.html landley.net:landley.net/toybox/
+
 roadmap.html
 code.html
 Inform mailing list (with link to https://landley.net/toybox)
@@ -31,4 +34,4 @@ Update #toybox topic
   Toybox 0.7.3 released February 21, 2017. http://landley.net/toybox
 
 todo:
-  x86-64, sparc, cortex-m toolchains
+  sparc, cortex-m toolchains
