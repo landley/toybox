@@ -2,13 +2,19 @@
 
 # tar up completed system images to send to website, with READMEs
 
+rm -f root/toybox-* root/*.tgz
+for i in root/*/fs/bin/toybox
+do
+  cp $i root/toybox-$(echo $i | sed 's@root/\([^/]*\)/.*@\1@') || exit 1
+done
+
 for i in root/*/run-qemu.sh
 do
   i=${i%/run-qemu.sh} j=${i#root/}
   [ ! -e "$i" ] && continue
   # Add README, don't include "fs" dir (you can extract it from cpio.gz)
   cp mkroot/README.root $i/docs/README &&
-  tar cvzfC $i.tgz root --exclude=fs $j || break
+  tar cvzfC $i.tgz root --exclude=fs $j || exit 1
 done
 
 # Generate top level README
@@ -28,4 +34,8 @@ See https://landley.net/toybox/FAQ.html#mkroot for details.
 Built from mkroot $(git describe --tags), and Linux $KVERS with patches in linux-patches/
 EOF
 
-# scp root/*.tgz root/README website:dir
+if [ $# -eq 2 ]
+then
+  scp root/toybox-* "$1/$2/" &&
+  scp root/*.tgz root/README "$1/mkroot/$2/"
+fi
