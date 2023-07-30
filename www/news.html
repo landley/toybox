@@ -8,6 +8,271 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<!-- new entry template
+<a name="DD-MM-YYYY" /><a href="#01-01-2001"><hr><h2><b>Jan 1, 2001</b></h2></a>
+<blockquote>
+<p>
+Don't Panic
+</p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.0.1.tar.gz>Toybox 0.0.1</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.0.1>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.0.1>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.0.1>mkroot images</a>
+bootable under QEMU (built using a <a href=https://github.com/landley/linux/tree/mkroot-0.1>lightly patched</a> linux-0.1).</p>
+
+<p>New commands</p>
+
+<u>Features</u>:
+<u>Bugfixes</u>:
+<u>Library</u>:
+<u>Mkroot</u>:
+<u>Pending</u>:
+<u>Cleanup</u>:
+<u>Portability</u>:
+<u>Documentation</u>:
+<u>Plumbing</u>:
+<u>Test suite</u>:
+<u>Build</u>:
+-->
+
+<a name="30-07-2023" /><a href="#30-07-2023"><hr><h2><b>July 30, 2023</b></h2></a>
+<blockquote>
+<p>The way it functioned was very interesting. When the Drink button was
+pressed it made an instant but highly detailed examination of the subject's
+taste buds, a spectroscopic analysis of the subject's metabolism and then
+sent tiny experimental signals down the neural pathways to the taste centers
+of the subject's brain to see what was likely to go down well. However, no
+one knew quite why it did this because it invariably delivered a cupful of
+liquid that was almost, but not quite, entirely unlike tea.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.10.tar.gz>Toybox 0.8.10</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.10>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.10>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.10>mkroot images</a>
+bootable under QEMU (built using a <a href=https://github.com/landley/linux/tree/mkroot-6.4>lightly patched</a> linux-6.4).</p>
+
+<p>New command <b>shuf</b>, and Elliott added <b>i2ctransfer</b>.
+Finished cleaning up <b>dd</b> a promoted it out of pending.</p>
+
+<p>Lots of changes to mkroot, <a href=http://landley.net/talks/mkroot-2023.txt>working</a>
+on updated documentation but the release is already overdue...</p>
+
+<p><u>Features</u>:
+Added a bunch of options to <b>tar</b> (-s --ignore-case --wildcards
+--anchored --wildcards-match-slash --one-file-system), <b>ls --sort</b>
+(which takes a comma separated list of fallback sorts, and new
+sort types to sort by extension, case insensitive, and directory first),
+<b>cpio -R</b> to set user/group of all files and <b>cpio -L</b> to
+follow symlinks, <b>gzip -t</b> to test file integrity, <b>find -readable</b>,
+<b>cut -DFR</b> now has --longopts aliases (as suggested by the coreutils list).
+Taught <b>blkid</b> to recognize iso (cdrom) image files, <b>oneit</b> now
+autodetects console from sysfs with no -c argument, added "next address"
+support to <b>i2cget</b> and enforced bus limit,
+added posix 1x2x3 support to <b>dd</b> (with overflow detection, and 0x
+at the start still means hexadecimal).</p>
+
+<p>Jarno Mäkipää taught <b>i2cget</b> to read without passing a command byte.
+Elliott added <b>xxd -e</b> (little endian), <b>lspci -x</b> (hex dump of
+pci config space), <b>ls --block-size</b>, widened the default
+VSIZE field width in Android's default <b>ps</b> display (they're up to 10 gigabytes of
+ASLR padding for hello world), and increased the <b>vi</b>/<b>top</b>
+output buffer size to reduce flicker redrawing the screen.</p>
+
+<p><u>Bugfixes</u>:
+Taught <b>switch_root</b> to move mountpoints into the new root.
+The <b>head</b> command now uses lseek to restore unused data from seekable
+inputs (tested with <b>read i; echo =$i; head -n 1; done &lt; input</b>).
+In <b>lspci</b> handle PCI bridges and don't show "revision 0".
+Missing /proc entries no longer cause <b>vmstat</b> errors, the output
+fits into 80 columns more often, and adds reclaimable to the cached field.
+Fix </b>help -u -au</b>, and the "see othercommand" generation.
+Adding fuzz support subtly broke <b>patch</b> in a couple places: fixed -R and
+matching EOF. Trying to create a directory that already exists is no longer an
+error for <b>cpio -i</b>, and <b>-d</b> just warns about directory creation
+failure instead of exiting. Adding <b>--wildcards</b> logic to <b>tar</b>
+broke the full string
+matching (it checked after every / but not at the start of the string
+when there weren't any), and <b>tar</b> now waits for the compression program
+to exit and passes on any error result instead of killing it (which could
+truncate output). Fixed more <b>realpath/readlink</b> corner cases, with tests.
+Fix a <b>sed</b> bug when s//&amp;/ (the copy-matched-text operator) was the
+first change made to the string. Fix error message for <b>find</b> -commands
+that need an argument but were at the end of the command line (it said
+"unknown command" instead of "command needs argument"). Fixed <b>killall5</b>
+parsing of command names with spaces in them. Fixed <b>grep -m -A</b> used
+together (-m stops new matches but -A still shows lines after match).
+Fixed <b>mv</b> to --preserve=all when copying between filesystems.
+Moved the EPIPE skip from perror_exit() to verror_msg() so we never
+output a "hey, our output pipe unexpected closed!" error message when
+we're not the last command in a pipeline.</p>
+
+<p>Franke Busse reported that <b>bunzip2</b> was deleting its input file
+on error, and <b>date -s +abc</b> was segfaulting.
+Jooyung Han fixed <b>nsenter</b> using -C and -t together.
+More fixes from Eric Roshan-Eisner's toysh fuzzing, and he also sent a fix
+for an error message in the <b>patch</b> command.
+Elliott fixed stdin handling in <b>log</b> and <b>logger</b> to read a line at
+a time and log each one separately, fixed an off by one bounds check
+in <b>readelf</b> (and factored out the bounds checking logic so it's
+common between sections, and improved the error messages), fixed
+a <b>gpiod</b> crash.</p>
+
+<p><u>Library</u>:
+Implemented DIRTREE_BREADTH to do breadth first processing of directories
+(among other things, allowing entries to be sorted and processed in a
+consistent order). The dirtree plumbing now has macros for the mode bits
+instead of hardwired numbers,
+better adler32 calculation in deflate.c,
+and <b>fs_type_name()</b> can now convert most of the linux/magic.h constants
+into "mount -t TYPE" names.</p>
+
+<p><u>Mkroot</u>:
+Moved mkroot into its own directory: you now run <b>mkroot/mkroot.sh</b> instead
+of scripts/mkroot.sh, and all the mkroot plumbing should be under there now.
+What was scripts/root is now <b>mkroot/packages</b>, and I added a "busybox"
+package to download and build that (useful for testing command
+implementations side by side).</p>
+
+<p>Reorganized the contents of each root/$ARCH build directory so only
+the files necessary to run are at the top level, and everything else
+(kernel configs) is in a docs/ subdirectory. Added linux-microconfig
+with the three CSV lines actually used by the build.
+New <b>mkroot/tar-for-web.sh</b> script that generates tarballs for
+uploading to the web page and adds two README files (one at the top level
+and one to each tarball's docs directory). The generated tarballs don't
+contain the fs/ dir, instead the README explains how to extract
+and recreate the cpio.gz archive.</p>
+
+<p>Taught KCONF=value,value,value... CSV format to understand NAME=VALUE
+entries, and merged most KERNEL_CONFIG lines into KCONF.
+(Note that while it can handle NAME="this that" you need to escape it as
+NAME=\"this\ that\" to work right.) Added the legacy NLS
+dependencies the VFAT driver needs (even though we selected UTF8) to the
+base config. The init script now tests if stdin is open via
+"2>/dev/null <0 || blah" so only does the exec redirect for /dev/console
+when necessary.
+Fixed the .config checker to replace the toybox config when CONFIG_SH=y
+isn't set, so "make defconfig; mkroot/mkroot.sh" should work now.
+Switched initramfs packaging to use more portable <b>cpio -R 0:0</b>
+instead of --no-preserve-owner. Moved the -m 256 before $@ in run-qemu.sh
+so setting memory size on the command line overrides the default.
+The <b>mkroot/record-commands</b> setup script will now use logpath
+out of the $PATH if it exists, rather than having to compile it each time.
+Bo Svangård fixed a typo in the cpio command line that's ignored by toybox but
+breaks with the host tools.</p>
+
+<u>Pending</u>:
+
+<p>Moritz Weber put in more work on <b>git</b> (still very unfinished).
+Eli Lipsitz fixed bugs in init and login. Elliott added risc-v support
+to ptrace, and fixed :w in vi (it didn't
+takes a filename argument and would crash if you started with no filename)
+and improved error reporting. Jarno Mäkipää taught vi about backspace
+and improved empty file handling. Rob fixed vi -s. Various cleanups to
+<b>tcpsvd</b>.</p>
+
+<p>More toysh work: command line option parsing stops at first nonoption argument,
+all piped segments are now implicitly subshelled so variable
+lifetimes match bash's and loops don't have to exit before proceedinng to the
+next one (ala "while true; do echo hello; done | while read i; do echo $i; done"
+hanging on a full output pipe). Several changes to HERE document processing
+(variable expansions can cause line continuations in a HERE document, etc),
+and better line continuation handling in general, added set -u,
+fixed if/while return codes, wired up the "local" builtin, fixed an escape
+passthrough bug reported by Mingliang Hu, support undelimited redirects
+(ala cat&lt;file with no spaces), fixed ${X::} with no arguments.</p>
+
+<u>Cleanup</u>:
+
+<p>Converted <b>chgrp</b> to FLAG() macros and did some minor cleanup on <b>bootchartd</b>,
+(which needs tests), <b>basename</b>, <b>bzcat</b>, <b>test</b>,
+<b>i2cdetect</b>. Elliott switched <b>flock</b>
+to FLAG() macros, switched nohup to use octal permissions insted of macros,
+widened the default VSIZE field width in Android's default <b>ps</b> display
+(which is now inserting 10 gigabytes of ASLR padding into "hello world"), and increased
+the vi/top output buffer size to reduce flicker redrawing the screen. Multiple cleanups to
+<b>cpio</b>. Added requested --gratuitous-longopt synonyms to <b>ls</b>.
+Consistently capitalize TODO comments in the tree so they're easier to search for.
+Silence yet more perennial "warning: variable is never used uninitialized" gcc false
+positives.</p>
+
+<u>Portability</u>:
+utf-8 support still isn't automatic in libc (you have to set an appropriate locale to
+enable it), and locales aren't entirely standardized: try C.UTF-8 (which MacOS hasn't got)
+and fall back to en_US.UTF-8 (which Gentoo hasn't got).
+Removed itoa() from seq.c because cygwin pollutes the namespace with
+DOS debris.</p>
+
+<p>Dan Bryant renamed xrunread()'s "stdin" argument to "to_stdin" to work around
+broken headers that #define stdin as a macro instead of a global variable.
+Elliott enabled copy_file_range() on Android.</p>
+
+<u>Documentation</u>:
+<p>Calling <b>command --help</b> and <b>toybox --help command</b> shows
+the toybox URL banner, but "help command" doesn't.
+Reorder the <b>find</b> help text so match filters that take an argument are mostly
+in the left column. Minor help text tweaks in sleep, find, xxd, cpio.
+The README now points to the same binary cross compilers as the FAQ.
+Update <b>sed</b> help text now that -e and -f get processed in command
+line order when used together.</p>
+
+<u>Plumbing</u>:
+The FLAG() macros now always return 1 or 0, so we can CONSTANT*FLAG(X) without needing
+a !! in there. The help plumbing now has HELP_FLAGS.
+Each command's option string in NEWTOY() may now use octal escapes with the
+high bit set to use control characters as option flags, with the resulting
+FLAG_X## macro using the 2 digit hex value (without the high bit set). For
+example if you needed "command -:" then ":" is ascii 58 (hex 3A,
+toybox's <b>ascii</b> command is useful for this), +128 is 186, which in octal
+becomes "\272" and tested with if (FLAG(X3A)) in the code.</p>
+
+<u>Test suite</u>:
+
+<p>Each command.test now runs in an empty subdirectory, and working files like
+expected/actual go elsewhere (only "input" is created for you in there, and only
+when you provide input in the current test's 4th argument), so the directory
+listing doesn't contain anything the test didn't put there. (This simplified
+several tests.)
+The realpath test broke on mksh (which doesn't export $PWD by default).
+Elliott fixed the ifconfig tests on android. General tidying and adding
+tests to sed, ls, modinfo. The tar tests broke on github because it
+switched to a filesystem that can't do sparse files with 4k granularity,
+added a check to skip those tests (and also skip them on MacOS, which
+fails for a different reason.)
+When a test's name field was blank (meaning the actual test command line
+should be displayed as the name) the test plumbing was adding the command
+name to the display twice.
+The <b>make tests</b> target now defaults to building toybox with ASAN when
+not testing an existing binary. (You still have to specify ASAN=1 manually
+for individual command tests.)</p>
+
+<p>Fixed <b>demo_utf8towc</b> which had the range check backwards (0x10ffff is
+the biggest _output_, not input). The range check was an attempt to avoid
+spending a long time going through all 4 billion entries, but wasn't testing
+everything it needed to, so now it advances the counter with a bit shift
+based on the number of bytes consumed by the match (avoiding large swaths
+of redundant checks but still theoretically testing all meaningfully different
+4 byte inputs).</p>
+
+<u>Build</u>:
+Fix return code of verbose mode in scripts/build.sh so <b>make V=1</b> succeeds.
+Speed up the MacOS build: their gsed is slow to launch so avoid one repeated call in a
+loop, and reimplement the wait $PID codepath because their bash is 17 years old.
+The llvm+bionic toolchain warns about printf("  "+FLAG(m)) unless you add an
+extra ,0 argument, but gcc+glibc warns if you DO add the extra argument... so
+I used the write() system call to avoid the compiler "helping" in a way I
+can't make it STOP. Similarly, now that FLAG(u) is always 1 or 0,
+<b>size = FLAG(u) ? : sizeof(toybuf)</b>
+is either 1 or 4096, which is what I _want_, and the compiler warning about it
+is counterproductive. LLVM needs a new -Wno-invalid-source-encoding flag
+or else it complains about octal escapes in string constants. (When I want
+to put utf-8 in there I can just do so, why would I octal escape it?
+Stop "helping".)</p>
+
 <a name="10-01-2023" /><a href="#10-01-2023"><hr><h2><b>January 10, 2023</b></h2></a>
 <blockquote>
 <p>"Why," Arthur said, "is there a sofa in that field?"</br>
@@ -15,7 +280,7 @@ a development environment. See the links on the left for details.</p>
 continuum!"</br>
 "And this is his sofa, is it?"</p>
 <p>- The Hitchhiker's Guide to the Galaxy</p>
-</p></blockquote>
+</blockquote>
 
 <p><a href=downloads/toybox-0.8.9.tar.gz>Toybox 0.8.9</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.8.9>git commit</a>)
