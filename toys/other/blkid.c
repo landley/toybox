@@ -124,7 +124,7 @@ static void do_blkid(int fd, char *name)
       uint64_t test;
 
       // Skip tests not in this 4k block
-      if (fstypes[i].magic_offset > off+sizeof(toybuf)) {
+      if (fstypes[i].magic_offset + fstypes[i].magic_len > off+sizeof(toybuf)) {
         pass++;
         continue;
       }
