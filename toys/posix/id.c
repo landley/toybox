@@ -96,7 +96,7 @@ static void do_id(char *username)
     pw = getpwnam(username);
     if (!pw) {
       uid = atolx_range(username, 0, INT_MAX);
-      if ((pw = getpwuid(uid))) username = pw->pw_name;
+      if ((pw = bufgetpwuid(uid))) username = pw->pw_name;
     }
     if (!pw) error_exit("no such user '%s'", username);
     uid = euid = pw->pw_uid;
