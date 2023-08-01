@@ -165,11 +165,10 @@ out of the $PATH if it exists, rather than having to compile it each time.
 Bo Svangård fixed a typo in the cpio command line that's ignored by toybox but
 breaks with the host tools.</p>
 
-<u>Pending</u>:
-
-<p>Moritz Weber put in more work on <b>git</b> (still very unfinished).
+<p><u>Pending</u>:
+Moritz Weber put in more work on <b>git</b> (still very unfinished).
 Eli Lipsitz fixed bugs in init and login. Elliott added risc-v support
-to ptrace, and fixed :w in vi (it didn't
+to strace, and fixed :w in vi (it didn't
 takes a filename argument and would crash if you started with no filename)
 and improved error reporting. Jarno Mäkipää taught vi about backspace
 and improved empty file handling. Rob fixed vi -s. Various cleanups to
@@ -186,9 +185,8 @@ fixed if/while return codes, wired up the "local" builtin, fixed an escape
 passthrough bug reported by Mingliang Hu, support undelimited redirects
 (ala cat&lt;file with no spaces), fixed ${X::} with no arguments.</p>
 
-<u>Cleanup</u>:
-
-<p>Converted <b>chgrp</b> to FLAG() macros and did some minor cleanup on <b>bootchartd</b>,
+<p><u>Cleanup</u>:
+Converted <b>chgrp</b> to FLAG() macros and did some minor cleanup on <b>bootchartd</b>,
 (which needs tests), <b>basename</b>, <b>bzcat</b>, <b>test</b>,
 <b>i2cdetect</b>. Elliott switched <b>flock</b>
 to FLAG() macros, switched nohup to use octal permissions insted of macros,
@@ -200,7 +198,7 @@ Consistently capitalize TODO comments in the tree so they're easier to search fo
 Silence yet more perennial "warning: variable is never used uninitialized" gcc false
 positives.</p>
 
-<u>Portability</u>:
+<p><u>Portability</u>:
 utf-8 support still isn't automatic in libc (you have to set an appropriate locale to
 enable it), and locales aren't entirely standardized: try C.UTF-8 (which MacOS hasn't got)
 and fall back to en_US.UTF-8 (which Gentoo hasn't got).
@@ -211,8 +209,8 @@ DOS debris.</p>
 broken headers that #define stdin as a macro instead of a global variable.
 Elliott enabled copy_file_range() on Android.</p>
 
-<u>Documentation</u>:
-<p>Calling <b>command --help</b> and <b>toybox --help command</b> shows
+<p><u>Documentation</u>:
+Calling <b>command --help</b> and <b>toybox --help command</b> shows
 the toybox URL banner, but "help command" doesn't.
 Reorder the <b>find</b> help text so match filters that take an argument are mostly
 in the left column. Minor help text tweaks in sleep, find, xxd, cpio.
@@ -220,7 +218,7 @@ The README now points to the same binary cross compilers as the FAQ.
 Update <b>sed</b> help text now that -e and -f get processed in command
 line order when used together.</p>
 
-<u>Plumbing</u>:
+<p><u>Plumbing</u>:
 The FLAG() macros now always return 1 or 0, so we can CONSTANT*FLAG(X) without needing
 a !! in there. The help plumbing now has HELP_FLAGS.
 Each command's option string in NEWTOY() may now use octal escapes with the
@@ -230,9 +228,8 @@ example if you needed "command -:" then ":" is ascii 58 (hex 3A,
 toybox's <b>ascii</b> command is useful for this), +128 is 186, which in octal
 becomes "\272" and tested with if (FLAG(X3A)) in the code.</p>
 
-<u>Test suite</u>:
-
-<p>Each command.test now runs in an empty subdirectory, and working files like
+<p><u>Test suite</u>:
+Each command.test now runs in an empty subdirectory, and working files like
 expected/actual go elsewhere (only "input" is created for you in there, and only
 when you provide input in the current test's 4th argument), so the directory
 listing doesn't contain anything the test didn't put there. (This simplified
@@ -258,7 +255,7 @@ based on the number of bytes consumed by the match (avoiding large swaths
 of redundant checks but still theoretically testing all meaningfully different
 4 byte inputs).</p>
 
-<u>Build</u>:
+<p><u>Build</u>:
 Fix return code of verbose mode in scripts/build.sh so <b>make V=1</b> succeeds.
 Speed up the MacOS build: their gsed is slow to launch so avoid one repeated call in a
 loop, and reimplement the wait $PID codepath because their bash is 17 years old.
