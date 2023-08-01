@@ -28,11 +28,11 @@ config CUT
     -b	Select bytes (with -n round start/end down to start of utf8 char)
     -c	Select UTF-8 characters
     -C	Select unicode columns
-    -d	Use DELIM (default is TAB for -f, run of whitespace for -F)
+    -d	Input delimiter (default is TAB for -f, run of whitespace for -F)
     -D	Don't sort/collate selections or match -fF lines without delimiter
     -f	Select fields (words) separated by single DELIM character
     -F	Select fields separated by DELIM regex
-    -O	Output delimiter (default one space for -F, input delim for -f)
+    -O	Output separator (default one space for -F, input delim for -f)
     -s	Skip lines without delimiters
 */
 #define FOR_cut
@@ -213,7 +213,7 @@ void cut_main(void)
     error_exit("-s needs -Ff");
   if ((toys.optflags&(FLAG_d|FLAG_f|FLAG_F))==FLAG_d)
     error_exit("-d needs -Ff");
-  if (!TT.d) TT.d = (FLAG(F)) ? "[[:space:]][[:space:]]*" : "\t";
+  if (!TT.d) TT.d = FLAG(F) ? "[[:space:]][[:space:]]*" : "\t";
   if (FLAG(F)) xregcomp(&TT.reg, TT.d, REG_EXTENDED);
   if (!TT.O) {
     if (FLAG(F)) TT.O = " ";
