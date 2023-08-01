@@ -151,7 +151,7 @@ void dd_main()
   long long len;
   struct iovec iov[2];
   int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, ii;
-  unsigned conv, iflag, oflag;
+  unsigned conv = 0, iflag = 0, oflag = 0;
 
   TT.show_xfer = TT.show_records = 1;
 
