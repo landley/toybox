@@ -207,7 +207,7 @@ void toy_init(struct toy_list *which, char *argv[])
 
 // Run an internal toybox command.
 // Only returns if it can't run command internally, otherwise xexit() when done.
-static void toy_exec_which(struct toy_list *which, char *argv[])
+void toy_exec_which(struct toy_list *which, char *argv[])
 {
   // Return if we can't find it (which includes no multiplexer case),
   if (!which || (which->flags&TOYFLAG_NOFORK)) return;
@@ -219,7 +219,7 @@ static void toy_exec_which(struct toy_list *which, char *argv[])
   // Signed typecast so stack growth direction is irrelevant: we're measuring
   // the distance between two pointers on the same stack, hence the labs().
   if (!CFG_TOYBOX_NORECURSE && toys.stacktop)
-    if (labs((long)toys.stacktop-(long)&which)>6000) return;
+    if (labs((long)toys.stacktop-(long)&which)>24000) return;
 
   // Return if we need to re-exec to acquire root via suid bit.
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;

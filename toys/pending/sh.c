@@ -2704,16 +2704,18 @@ notfd:
 // Call binary, or run script via xexec("sh --")
 static void sh_exec(char **argv)
 {
-  char *pp = getvar("PATH" ? : _PATH_DEFPATH), *cc = TT.isexec ? : *argv, *ss,
+  char *pp = getvar("PATH" ? : _PATH_DEFPATH), *ss = TT.isexec ? : *argv,
     **sss = 0, **oldenv = environ, **argv2;
-  struct string_list *sl;
+  struct string_list *sl = 0;
+  struct toy_list *tl = 0;
 
   if (getpid() != TT.pid) signal(SIGINT, SIG_DFL); // TODO: restore all?
   errno = ENOENT;
-  if (strchr(ss = cc, '/')) {
+  if (strchr(ss, '/')) {
     if (access(ss, X_OK)) ss = 0;
-  } else for (sl = find_in_path(pp, cc); sl || (ss = 0); free(llist_pop(&sl)))
-    if (!access(ss = sl->str, X_OK)) break;
+  } else if (CFG_TOYBOX_NORECURSE || !toys.stacktop || !(tl = toy_find(ss)))
+    for (sl = find_in_path(pp, ss); sl || (ss = 0); free(llist_pop(&sl)))
+      if (!access(ss = sl->str, X_OK)) break;
 
   if (ss) {
     struct sh_vars **vv = visible_vars();
@@ -2730,13 +2732,16 @@ static void sh_exec(char **argv)
     }
     aa.v[aa.c] = 0;
     if (!sss) {
-      arg_add(&aa, 0);
+      if (aa.c<uu) aa.v[++aa.c] = 0;
+      else arg_add(&aa, 0);
       sss = aa.v+aa.c-1;
     }
     *sss = xmprintf("_=%s", ss);
 
-    // exec or source
+    // Run builtin, exec command, or call shell script without #!
+    toy_exec_which(tl, argv);
     execve(ss, argv, environ);
+    // shell script without #!
     if (errno == ENOEXEC) {
       for (argc = 0; argv[argc]; argc++);
       argv2 = xmalloc((argc+3)*sizeof(char *));

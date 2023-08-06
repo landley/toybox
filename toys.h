@@ -92,6 +92,7 @@ void show_help(FILE *out, int full);
 void check_help(char **arg);
 void toy_singleinit(struct toy_list *which, char *argv[]);
 void toy_init(struct toy_list *which, char *argv[]);
+void toy_exec_which(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
 
 // Array of available commands
