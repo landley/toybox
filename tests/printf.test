@@ -85,3 +85,5 @@ testcmd "invalid oct" "'one\079two'" "one\a9two" "" ""
 # extension for ESC
 testcmd "%b \e" "'%b' '\\e' | xxd -p" "1b\n" "" ""
 testcmd "\e" "'\\e' | xxd -p" "1b\n" "" ""
+
+testcmd '\0 in %b' '%b ab\\x07\\0x07 | xxd -p' '61620700783037\n' '' ''

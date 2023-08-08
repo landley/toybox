@@ -46,6 +46,7 @@ static int handle_slash(char **esc_val, int posix)
   else {
     if (posix && *ptr=='0') ptr++;
     if (*ptr >= '0' && *ptr <= '7') base = 8;
+    else if (ptr != *esc_val) goto done;
   }
   len = (char []){0,3,2}[base/8];
 
@@ -69,6 +70,7 @@ static int handle_slash(char **esc_val, int posix)
     ptr++;
     len--;
   }
+done:
   *esc_val = ptr;
 
   return result;
