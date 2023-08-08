@@ -319,11 +319,38 @@ static void show_notes(unsigned long offset, unsigned long size)
         printf("NT_GNU_ABI_TAG\tOS: %s, ABI: %u.%u.%u",
           !elf_int(&p)?"Linux":"?", elf_int(&p), elf_int(&p), elf_int(&p)), j=1;
       } else if (type == 3) {
-// TODO should this set j=1?
         printf("NT_GNU_BUILD_ID\t");
         for (;j<descsz;j++) printf("%02x", *p++);
       } else if (type == 4) {
         printf("NT_GNU_GOLD_VERSION\t%.*s", descsz, p), j=1;
+      } else if (type == 5) {
+        printf("NT_GNU_PROPERTY_TYPE_0\t");
+        while (descsz-j > 8) { // Ignore 0-padding at the end.
+          int pr_type = elf_int(&p);
+          int pr_size = elf_int(&p), k, pr_data;
+
+          j += 8;
+          printf("\n    Properties:    ");
+          if (pr_size != 4) {
+            // Just hex dump anything we aren't familiar with.
+            for (k=0;k<pr_size;k++) printf("%02x", *p++);
+            xputc('\n');
+            j += pr_size;
+          } else {
+            pr_data = elf_int(&p);
+            j += 4;
+            if (pr_type == 0xc0000000) {
+              printf("arm64 features:");
+              if (pr_data & 1) printf(" bti");
+              if (pr_data & 2) printf(" pac");
+              xputc('\n');
+            } else if (pr_type == 0xc0008002) {
+              printf("x86 isa needed: x86-64v%d", ffs(pr_data));
+            } else {
+              printf("other (%#x): %#x", pr_type, pr_data);
+            }
+          }
+        }
       } else p -= 4;
     } else if (notematch(namesz, &p, "Android")) {
       if (type == 1) {
@@ -332,10 +359,8 @@ static void show_notes(unsigned long offset, unsigned long size)
       } else p -= 8;
     } else if (notematch(namesz, &p, "CORE")) {
       if (*(desc = nt_type_core(type)) != '0') printf("%s", desc), j=1;
-// TODO else p -= 5?
     } else if (notematch(namesz, &p, "LINUX")) {
       if (*(desc = nt_type_linux(type)) != '0') printf("%s", desc), j=1;
-// TODO else p -= 6?
     }
 
     // If we didn't do custom output above, show a hex dump.
