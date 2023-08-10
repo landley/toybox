@@ -18,7 +18,7 @@
  * Nice explanation and Python implementation:
  * http://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
 
-USE_EXPR(NEWTOY(expr, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_EXPR(NEWTOY(expr, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config EXPR
   bool "expr"
@@ -26,29 +26,26 @@ config EXPR
   help
     usage: expr ARG1 OPERATOR ARG2...
 
-    Evaluate expression and print result. For example, "expr 1 + 2".
+    Evaluate expression and print result. For example, "expr 1 + 2" prints "3".
 
     The supported operators are (grouped from highest to lowest priority):
 
       ( )    :    * / %    + -    != <= < >= > =    &    |
 
     Each constant and operator must be a separate command line argument.
-    All operators are infix, meaning they expect a constant (or expression
-    that resolves to a constant) on each side of the operator. Operators of
-    the same priority (within each group above) are evaluated left to right.
-    Parentheses may be used (as separate arguments) to elevate the priority
-    of expressions.
+    All operators are infix, requiring a value on each side of the operator.
+    Operators of the same priority are evaluated left to right. Parentheses
+    elevate the priority of expression they contain. The & and | operators
+    are logical (not bitwise).
+
+    All operators yield integers, and most operators expect integer arguments.
+    Comparisons may alphabetically compare strings, logical operators treat a
+    blank string as false and nonblank as true, and the regex operator
+    (str : pattern) yields the initial number of matching bytes. (So
+    "abc : ab" is 2, but "abc : bc" is 0.)
 
     Calling expr from a command shell requires a lot of \( or '*' escaping
-    to avoid interpreting shell control characters.
-
-    The & and | operators are logical (not bitwise) and may operate on
-    strings (a blank string is "false"). Comparison operators may also
-    operate on strings (alphabetical sort).
-
-    Constants may be strings or integers. Comparison, logical, and regex
-    operators may operate on strings (a blank string is "false"), other
-    operators require integers.
+    to avoid interpreting shell control characters, vs the shell's "$((1+6/3))".
 */
 
 // TODO: int overflow checking
@@ -57,12 +54,10 @@ config EXPR
 #include "toys.h"
 
 GLOBALS(
-  char **tok; // current token, not on the stack since recursive calls mutate it
-
-  char *refree;
+  char **tok, *delete;
 )
 
-// Scalar value.  If s != NULL, it's a string, otherwise it's an int.
+// If s string, otherwise int.
 struct value {
   char *s;
   long long i;
@@ -78,12 +73,11 @@ char *get_str(struct value *v)
 // Get the value as an integer and return 1, or return 0 on error.
 int get_int(struct value *v, long long *ret)
 {
+  char *end;
+
   if (v->s) {
-    char *endp;
-
-    *ret = strtoll(v->s, &endp, 10);
-
-    if (*endp) return 0; // If endp points to NUL, all chars were converted
+    *ret = strtoll(v->s, &end, 10); // base 10 or autodetect?
+    if (*end) return 0;
   } else *ret = v->i;
 
   return 1;
@@ -93,7 +87,7 @@ int get_int(struct value *v, long long *ret)
 void assign_int(struct value *v, long long i)
 {
   v->i = i;
-  v->s = NULL;
+  v->s = 0;
 }
 
 // Check if v is 0 or the empty string.
@@ -113,10 +107,9 @@ static void re(char *target, char *pattern, struct value *ret)
   if (!regexec(&pat, target, 2, m, 0) && !m[0].rm_so) {
     // Return first parenthesized subexpression as string, or length of match
     if (pat.re_nsub>0) {
-      ret->s = xmprintf("%.*s", (int)(m[1].rm_eo-m[1].rm_so),
-          target+m[1].rm_so);
-      if (TT.refree) free(TT.refree);
-      TT.refree = ret->s;
+      ret->s = xmprintf("%.*s", (int)(m[1].rm_eo-m[1].rm_so), target+m[1].rm_so);
+      free(TT.delete);
+      TT.delete = ret->s;
     } else assign_int(ret, m[0].rm_eo);
   } else {
     if (pat.re_nsub>0) ret->s = "";
@@ -208,25 +201,24 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
   }
 }
 
-// Evalute a compound expression using recursive "Precedence Climbing"
-// algorithm, setting 'ret'.
+// Recurive "Precedence Climbing" evaluation of compound expression, setting ret
 static void eval_expr(struct value *ret, int min_prec)
 {
-  if (!*TT.tok) error_exit("Unexpected end of input");
+  struct value rhs;
 
-  // Evaluate LHS atom, setting 'ret'.
-  if (!strcmp(*TT.tok, "(")) { // parenthesized expression
-    TT.tok++;  // consume (
+  if (!*TT.tok) error_exit("need arg @%ld", TT.tok-toys.optargs);
 
+  // Everything is infix, so set ret to first value, handling parentheses
+  if (!strcmp(*TT.tok, "(")) {
+    TT.tok++;
     eval_expr(ret, 1);        // We're inside ( ), so min_prec = 1
     if (ret->s && !strcmp(ret->s, ")")) error_exit("empty ( )");
-    if (!*TT.tok) error_exit("Expected )");
-    if (strcmp(*TT.tok, ")")) error_exit("Expected ) but got %s", *TT.tok);
+    if (!*TT.tok || strcmp(*TT.tok, ")"))
+      error_exit("Expected ) @%ld", TT.tok-toys.optargs);
   } else ret->s = *TT.tok;  // simple literal, all values start as strings
   TT.tok++;
 
   // Evaluate RHS and apply operator until precedence is too low.
-  struct value rhs;
   while (*TT.tok) {
     struct op_def *o = OPS;
 
@@ -247,7 +239,6 @@ void expr_main(void)
 {
   struct value ret = {0};
 
-  toys.exitval = 2; // if exiting early, indicate error
   TT.tok = toys.optargs; // initialize global token
   eval_expr(&ret, 1);
   if (*TT.tok) error_exit("Unexpected extra input '%s'\n", *TT.tok);
@@ -257,5 +248,5 @@ void expr_main(void)
 
   toys.exitval = is_false(&ret);
 
-  if (TT.refree) free(TT.refree);
+  if (CFG_TOYBOX_FREE && TT.delete) free(TT.delete);
 }
