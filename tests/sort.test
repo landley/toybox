@@ -109,7 +109,19 @@ testcmd "-uc" "-uc 2>&1 | grep -o [0-9]*" "3\n" "" "a\nb\nb\nc"
 testcmd "-C 1" "-C || echo yes" "yes\n" "" "one\ntwo\nthree"
 testcmd "-C 2" "-C && echo yes" "yes\n" "" "a\nb\nc\n"
 
-optional SORT_FLOAT
+toyonly testcmd 'negative -k' '-k-2,-2 -k-1r' 'a b z\nd e q\nx e a\nb m n\n' \
+  '' 'a b z\nd e q\nb m n\nx e a\n'
+toyonly testcmd 'negative -k2' '-k-2' 'a b z\nx e a\nd e q\nb m n\n' \
+  '' 'a b z\nd e q\nb m n\nx e a\n'
+
+testcmd 'missing key becomes ""' '-k3r' 'm n o\ng h i\na b c\nd e\nj k\n' \
+  '' 'a b c\nd e\ng h i\nj k\nm n o\n'
+toyonly testcmd 'negative straddle' '-k-1r' 'm n o\nj k\ng h i\nd e\na b c\n' \
+  '' 'a b c\nd e\ng h i\nj k\nm n o\n'
+toyonly testcmd 'missing negative' '-k-3r' 'm n o\ng h i\na b c\nd e\nj k\n' \
+  '' 'a b c\nd e\ng h i\nj k\nm n o\n'
+
+optional TOYBOX_FLOAT
 
 # not numbers < NaN < -infinity < numbers < +infinity
 testing "-g" "sort -g" \

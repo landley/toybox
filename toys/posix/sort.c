@@ -39,9 +39,9 @@ config SORT
     second word to the end of the line, -k2,2 looks at only the second word,
     -k2,4 looks from the start of the second to the end of the fourth word.
     -k2.4,5 starts from the fourth character of the second word, to the end
-    of the fifth word. Specifying multiple keys uses the later keys as tie
-    breakers, in order. A type specifier appended to a sort key (such as -2,2n)
-    applies only to sorting that key.
+    of the fifth word. Negative values count from the end. Specifying multiple
+    keys uses the later keys as tie breakers, in order. A type specifier
+    appended to a sort key (such as -2,2n) applies only to sorting that key.
 
 config SORT_FLOAT
   bool
@@ -75,45 +75,53 @@ GLOBALS(
 
 struct sort_key {
   struct sort_key *next_key;  // linked list
-  unsigned range[4];          // start word, start char, end word, end char
+  long range[4];              // start word, start char, end word, end char
   int flags;
 };
+
+static int skip_key(char *str)
+{
+  int end = 0;
+
+  // Skip leading blanks
+  if (str[end] && !TT.t) while (isspace(str[end])) end++;
+
+  // Skip body of key
+  for (; str[end]; end++) {
+    if (TT.t) {
+      if (str[end]==*TT.t) {
+        end++;
+        break;
+      }
+    } else if (isspace(str[end])) break;
+  }
+
+  return end;
+}
 
 // Copy of the part of this string corresponding to a key/flags.
 
 static char *get_key_data(char *str, struct sort_key *key, int flags)
 {
-  int start = 0, end, len, i, j;
+  long start = 0, end, len, h, i, j, k;
 
   // Special case whole string, so we don't have to make a copy
-
   if(key->range[0]==1 && !key->range[1] && !key->range[2] && !key->range[3]
     && !(flags&(FLAG_b|FLAG_d|FLAG_i|FLAG_bb))) return str;
 
   // Find start of key on first pass, end on second pass
-
   len = strlen(str);
   for (j=0; j<2; j++) {
-    if (!key->range[2*j]) end=len;
+    if (!(k = key->range[2*j])) end=len;
 
     // Loop through fields
     else {
-      end = 0;
-      for (i = 1; i < key->range[2*j]+j; i++) {
-
-        // Skip leading blanks
-        if (str[end] && !TT.t) while (isspace(str[end])) end++;
-
-        // Skip body of key
-        for (; str[end]; end++) {
-          if (TT.t) {
-            if (str[end]==*TT.t) {
-              end++;
-              break;
-            }
-          } else if (isspace(str[end])) break;
-        }
+      if (k<1) for (end = h = 0;; end += h) {
+        ++k;
+        if (!(h = skip_key(str+end))) break;
       }
+      if (k<1) end = len*!j;
+      else for (end = 0, i = 1; i<k+j; i++) end += skip_key(str+end);
     }
     if (!j) start = end;
   }
@@ -127,11 +135,11 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
   if (flags&FLAG_bb) while (end>start && isspace(str[end-1])) end--;
 
   // Handle offsets on start and end
-  if (key->range[3]) {
+  if (key->range[3]>0) {
     end += key->range[3]-1;
     if (end>len) end=len;
   }
-  if (key->range[1]) {
+  if (key->range[1]>0) {
     start += key->range[1]-1;
     if (start>len) start=len;
   }
@@ -161,8 +169,7 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
 
 static struct sort_key *add_key(void)
 {
-  void **stupid_compiler = &TT.key_list;
-  struct sort_key **pkey = (struct sort_key **)stupid_compiler;
+  struct sort_key **pkey = (struct sort_key **)&TT.key_list;
 
   while (*pkey) pkey = &((*pkey)->next_key);
   return *pkey = xzalloc(sizeof(struct sort_key));
