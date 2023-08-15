@@ -10,11 +10,10 @@
  *   add -Z -ll --color
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
- *   ignore -k because we default to 1024 byte blocks
  * Deviations from gnu: -N switches off -q (no --show-control-chars)
  *   No --quoting-style=shell-escape, mostly because no short or long opt for it
 
-USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(block-size)#=1024<1(show-control-chars)\241(group-directories-first)\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(sort):(color):;(full-time)(show-control-chars)\377(block-size)#=1024<1\241(group-directories-first)\376ZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb][-k\377]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -37,16 +36,17 @@ config LS
     output formats:
     -1  list one file per line         -C  columns (sorted vertically)
     -g  like -l but no owner           -h  human readable sizes
-    -l  long (show full details)       -ll long with nanoseconds (--full-time)
-    -m  comma separated                -n  long with numeric uid/gid
-    -o  long without group column      -r  reverse order
-    -w  set column width               -x  columns (horizontal sort)
+    -k  reset --block-size to default  -l  long (show full details)
+    -m  comma separated                -ll long with nanoseconds (--full-time)
+    -n  long with numeric uid/gid      -o  long without group column
+    -r  reverse order                  -w  set column width
+    -x  columns (horizontal sort)
 
     sort by:  (also --sort=longname,longname... ends with alphabetical)
     -c  ctime      -r  reverse    -S  size     -t  time    -u  atime    -U  none
     -X  extension  -!  dirfirst   -~  nocase
 
-    --block-size N	block size (default 1024)
+    --block-size N	block size (default 1024, -k resets to 1024)
     --color  =always (default)  =auto (when stdout is tty) =never
         exe=green  suid=red  suidfile=redback  stickydir=greenback
         device=yellow  symlink=turquoise/red  dir=blue  socket=purple

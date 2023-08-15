@@ -135,7 +135,7 @@ static void forget_arg(struct opts *opt)
 {
   if (opt->arg) {
     if (opt->type=='*') llist_traverse((void *)*opt->arg, free);
-    *opt->arg = 0;
+    *opt->arg = opt->val[2].l;
   }
 }
 
@@ -365,7 +365,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
           if (*options==1) break;
           if (CFG_TOYBOX_DEBUG && !opt)
             error_exit("[] unknown target %c", *options);
-          if (opt->c == *options) {
+          if (opt->c == (127&*options)) {
             bits |= ll;
             break;
           }
