@@ -25,6 +25,7 @@ config PATCH
     Apply a unified diff to one or more files.
 
     -d	Modify files in DIR
+    -F	Fuzz factor (number of non-matching context lines allowed per hunk)
     -i	Input patch file (default=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
@@ -39,7 +40,8 @@ config PATCH
     to stderr, and exits with nonzero status if any hunks fail.
 
     A file compared against /dev/null (or with a date <= the epoch) is
-    created/deleted as appropriate.
+    created/deleted as appropriate. The default -F value is the number of
+    leading/trailing context lines minus one (usually 2).
 */
 
 #define FOR_patch
@@ -141,7 +143,7 @@ static int loosecmp(char *aa, char *bb)
 static int apply_one_hunk(void)
 {
   struct double_list *plist, *buf = 0, *check = 0;
-  int matcheof, trail = 0, allfuzz, fuzz, ii;
+  int matcheof, trail = 0, allfuzz = 0, fuzz, ii;
   int (*lcmp)(char *aa, char *bb) = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
   long backwarn = 0;
   char *data = toybuf;
@@ -165,8 +167,7 @@ static int apply_one_hunk(void)
     }
   }
   matcheof = !trail || trail < TT.context;
-  if (fuzz<2) allfuzz = 0;
-  else allfuzz = TT.F ? : TT.context ? TT.context-1 : 0;
+  if (fuzz>1) allfuzz = TT.F ? : TT.context ? TT.context-1 : 0;
 
   // Loop through input data searching for this hunk. Match all context
   // lines and lines to be removed until we've found end of complete hunk.
