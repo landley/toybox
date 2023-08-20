@@ -27,6 +27,9 @@ binaries
 
   scp www/{news,help,status}.html landley.net:landley.net/toybox/
 
+for i in $(toybox); do [ "$i" != '[' ] && echo "<a href=help.html#$i>$i</a>"; done > www/commands.html
+Edit version in quick.html
+
 roadmap.html
 code.html
 Inform mailing list (with link to https://landley.net/toybox)
