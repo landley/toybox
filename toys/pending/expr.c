@@ -206,7 +206,7 @@ static void eval_expr(struct value *ret, int min_prec)
 {
   struct value rhs;
 
-  if (!*TT.tok) error_exit("need arg @%ld", TT.tok-toys.optargs);
+  if (!*TT.tok) error_exit("need arg @%td", TT.tok-toys.optargs);
 
   // Everything is infix, so set ret to first value, handling parentheses
   if (!strcmp(*TT.tok, "(")) {
@@ -214,7 +214,7 @@ static void eval_expr(struct value *ret, int min_prec)
     eval_expr(ret, 1);        // We're inside ( ), so min_prec = 1
     if (ret->s && !strcmp(ret->s, ")")) error_exit("empty ( )");
     if (!*TT.tok || strcmp(*TT.tok, ")"))
-      error_exit("Expected ) @%ld", TT.tok-toys.optargs);
+      error_exit("Expected ) @%td", TT.tok-toys.optargs);
   } else ret->s = *TT.tok;  // simple literal, all values start as strings
   TT.tok++;
 
