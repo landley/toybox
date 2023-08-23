@@ -650,9 +650,9 @@ void readelf_main(void)
     int fd = open(TT.f = *arg, O_RDONLY);
     struct stat sb;
 
-    if (fd == -1) perror_msg("%s", TT.f);
+    if (fd == -1) perror_msg_raw(TT.f);
     else {
-      if (fstat(fd, &sb)) perror_msg("%s", TT.f);
+      if (fstat(fd, &sb)) perror_msg_raw(TT.f);
       else if (!sb.st_size) error_msg("%s: empty", TT.f);
       else if (!S_ISREG(sb.st_mode)) error_msg("%s: not a regular file",TT.f);
       else {

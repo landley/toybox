@@ -129,7 +129,7 @@ static void do_gzip(int ifd, char *in)
 
   // Are we reading file.gz to write to file?
   if (!ofd) {
-    if (fstat(ifd, &sb)) return perror_msg("%s", in);
+    if (fstat(ifd, &sb)) return perror_msg_raw(in);
 
     // Add or remove .gz suffix as necessary
     if (!FLAG(d)) out = xmprintf("%s%s", in, ".gz");

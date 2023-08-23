@@ -136,7 +136,7 @@ static void do_grep(int fd, char *name)
     if (bin && FLAG(I)) return;
   }
 
-  if (!(file = fdopen(fd, "r"))) return perror_msg("%s", name);
+  if (!(file = fdopen(fd, "r"))) return perror_msg_raw(name);
 
   // Loop through lines of input
   for (;;) {
@@ -150,7 +150,7 @@ static void do_grep(int fd, char *name)
     lcount++;
     errno = 0;
     ulen = len = getdelim(&line, &ulen, TT.delim, file);
-    if (len == -1 && errno) perror_msg("%s", name);
+    if (len == -1 && errno) perror_msg_raw(name);
     if (len<1) break;
     if (line[ulen-1] == TT.delim) line[--ulen] = 0;
 

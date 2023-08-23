@@ -60,7 +60,7 @@ static char *resolve(char *arg)
 
   if (FLAG(s)) flags |= ABS_KEEP;
   else if (FLAG(L)) arg = dd = xabspath(arg, ABS_KEEP);
-  if (!(s = xabspath(arg, flags)) && !FLAG(q)) perror_msg("%s", arg);
+  if (!(s = xabspath(arg, flags)) && !FLAG(q)) perror_msg_raw(arg);
   free(dd);
 
   // Trim off this prefix if path under here

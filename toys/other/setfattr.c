@@ -36,6 +36,6 @@ void setfattr_main(void)
     if (TT.x) rc = (h?lremovexattr:removexattr)(*s, TT.x);
     else rc = (h?lsetxattr:setxattr)(*s, TT.n, TT.v, TT.v?strlen(TT.v):0, 0);
 
-    if (rc) perror_msg("%s", *s);
+    if (rc) perror_msg_raw(*s);
   }
 }
