@@ -9,7 +9,7 @@ USE_PASSWD(NEWTOY(passwd, ">1a:dlu", TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 
 config PASSWD
   bool "passwd"
-  default y
+  default n
   help
     usage: passwd [-a ALGO] [-dlu] [USER]
 
@@ -56,7 +56,7 @@ void passwd_main(void)
   uid_t myuid;
   struct passwd *pw = 0;
   struct spwd *sp;
-  char *pass, *name, *encrypted = 0, salt[MAX_SALT_LEN];
+  char *pass, *name, *encrypted = 0, salt[32];
 
   // If we're root or not -lud, load specified user. Exit if not allowed.
   if (!(myuid = getuid()) || !(toys.optflags&(FLAG_l|FLAG_u|FLAG_d))) {
