@@ -92,8 +92,8 @@ void userdel_main(void)
 {
   struct passwd *pwd = xgetpwnam(*toys.optargs);
 
-  update_password("/etc/passwd", pwd->pw_name, NULL);
-  update_password("/etc/shadow", pwd->pw_name, NULL);
+  update_password("/etc/passwd", pwd->pw_name, 0, 0);
+  update_password("/etc/shadow", pwd->pw_name, 0, 0);
 
   // delete the group named USER, and remove user from group.
   // could update_password() be used for this? 

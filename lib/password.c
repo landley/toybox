@@ -1,45 +1,48 @@
 /* password.c - password read/update helper functions.
  *
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
- *
- * TODO: cleanup
  */
 
 #include "toys.h"
 
+// generate $id$salt$hash given a password and algorithm. Generates salt if NULL
+//char *toy_crypt(char *pass, char *salt, char *algo)
 // generate ID prefix and random salt for given encryption algorithm.
-int get_salt(char *salt, char *algo)
+int get_salt(char *salt, char *algo, int rand)
 {
   struct {
     char *type, id, len;
   } al[] = {{"des", 0, 2}, {"md5", 1, 8}, {"sha256", 5, 16}, {"sha512", 6, 16}};
-  int i;
+  char *s;
+  int i, len;
 
   for (i = 0; i < ARRAY_LEN(al); i++) {
-    if (!strcmp(algo, al[i].type)) {
-      int len = al[i].len;
-      char *s = salt;
-
-      if (al[i].id) s += sprintf(s, "$%c$", '0'+al[i].id);
-
-      // Read appropriate number of random bytes for salt
-      xgetrandom(libbuf, ((len*6)+7)/8);
-
-      // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
-      for (i = 0; i<len; i++) {
-        int bitpos = i*6, bits = bitpos/8;
-
-        bits = ((libbuf[i]+(libbuf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
-        bits += 46;
-        if (bits > 57) bits += 7;
-        if (bits > 90) bits += 6;
-
-        s[i] = bits;
-      }
-      salt[len] = 0;
-
-      return s-salt;
+    for (s = al[i].type, len = 0; algo[len]; len++) {
+      while (ispunct(algo[len])) len++;
+      if (tolower(algo[len]) != tolower(*s++)) break;
     }
+    if (algo[len]) continue;
+
+    len = al[i].len;
+    s = salt + (al[i].id ? sprintf(salt, "$%c$", '0'+al[i].id) : 0);
+
+    // Read appropriate number of random bytes for salt
+    if (rand) xgetrandom(libbuf, ((len*6)+7)/8);
+
+    // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
+    for (i = 0; i<len; i++) {
+      int bitpos = i*6, bits = bitpos/8;
+
+      bits = ((libbuf[i]+(libbuf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
+      bits += 46;
+      if (bits > 57) bits += 7;
+      if (bits > 90) bits += 6;
+
+      s[i] = bits;
+    }
+    s[len] = 0;
+
+    return s-salt;
   }
 
   return -1;
@@ -79,79 +82,91 @@ int read_password(char *buf, int buflen, char *mesg)
   return ret;
 }
 
-/* update colon-separated text files ala /etc/{passwd,shadow,group,gshadow}
- * username = string match for first entry in line
- * entry = new entry (NULL deletes matching line from file)
- * pos = which entry to replace with "entry" (0 is first)
- */
-// filename+ = new copy being written, filename- = backup of old version
+// update colon-separated text files ala /etc/{passwd,shadow,group,gshadow}
 // returns 1 for success, 0 for failure
+
+// username = string match for first entry in line
+// entry = new entry (NULL deletes matching line, contains : adds/replaces line)
+// pos = if no : in "entry", which field to replace (0 is first)
+// filename+ = new copy being written, filename- = backup of old version
+
 int update_password(char *filename, char *username, char *entry, int pos)
 {
-  char *filenamesfx = xmprintf("%s-", filename), *line = 0, *start, *end;
-  FILE *ofp, *nfp;
-  int ret = 0, found = 0, len = strlen(username)*!strchr(username, ':'), ii;
+  char *ff = xmprintf("%s-", filename), *line = 0, *start, *end, *out, *oo;
+  FILE *ofp;
+  int len = strlen(username)*!strchr(username,':'), rc = 0, ret = 0, found = 0,
+      nfd;
   struct flock lock = {.l_type = F_WRLCK};
+  struct stat st;
   long long ll = 0;
 
-  // Open old filename ("r" won't let us lock), get blocking lock
-  if (!(ofp = fopen(filename, "w+")) || 0>fcntl(fileno(ofp), F_SETLK, &lock)) {
-    perror_msg("%s", filename);
+  // Open old filename ("r" won't let us lock) and get blocking lock
+  if (!(ofp = fopen(filename, "w+")) || 0>fcntl(fileno(ofp), F_SETLK, &lock)\
+      || fstat(fileno(ofp), &st))
+  {
+    perror_msg_raw(filename);
     goto free_storage;
   }
 
   // Delete old backup, link new backup. (Failure here isn't fatal.)
-  unlink(filenamesfx);
-  if (0>link(filename, filenamesfx)) perror_msg("%s", filenamesfx);
+  unlink(ff);
+  if (0>link(filename, ff)) perror_msg_raw(ff);
 
   // Open new file to copy entries to
-  filenamesfx[strlen(filenamesfx)-1] = '+';
-  if (!(nfp = fopen(filenamesfx, "w+"))) {
-    perror_msg("%s", filenamesfx);
+  ff[strlen(ff)-1] = '+';
+  if (-1 == (nfd = xcreate(ff, O_CREAT|O_EXCL|O_WRONLY, st.st_mode))) {
+    perror_msg_raw(ff);
     goto free_storage;
   }
 
   // Loop through lines
-  while (getline(&line, (void *)&ll, ofp)) {
+  for (; getline(&line, (void *)&ll, ofp)!=-1; memset(line, 0, strlen(line))) {
     // find matching line
-    start = end = line;
-    if (strncmp(chomp(line), username, len) || line[len]!=':') {
+    oo = 0;
+    start = end = chomp(line);
+    if (strncmp(line, username, len) || !(line[len] && line[len]!=':'))
+      out = line;
+    else {
       found++;
-      if (!entry) continue;
 
-      // Find start and end of span to replace
-      for (ii = pos;;) {
-        while (*end != ':') {
-          if (!*end) break;
-          end++;
+    // Delete or replace whole line?
+      if (!entry) out = 0;
+      else if (strchr(entry, ':')) out = entry;
+
+      // Replace entry at pos
+      else {
+        for (;; pos--, start = ++end) {
+          while (*end && *end != ':') end++;
+          if (!pos || !*end) break;
         }
-        if (ii) {
-          start = ++end;
-          ii--;
-        } else break;
+        if (pos>=0) out = line;
+        else oo = out = xmprintf("%*s%s%s\n", (int)(start-line),line,entry,end);
       }
-      if (ii) start = end = line;
     }
-
-    // Write with replacement (if any)
-    fprintf(nfp, "%*s%s%s\n", (int)(start-line), line,
-            (start==line) ? "" : entry, end);
-    memset(line, 0, strlen(line));
+    if (out) {
+      rc = dprintf(nfd, "%s\n", out);
+      free(out);
+      if (rc<0) {
+        perror_msg_raw(ff);
+        goto free_storage;
+      }
+      free(oo);
+    }
   }
   free(line);
-  fflush(nfp);
-  fsync(fileno(nfp));
-  fclose(nfp);  // automatically unlocks
+  if (!found && entry && strchr(entry, ':')) dprintf(nfd, "%s\n", entry);
+  fsync(nfd);
+  close(nfd);  // automatically unlocks
 
-  if (!found || rename(filenamesfx, filename)) {
-    if (found) perror_msg("%s -> %s", filenamesfx, filename);
-    else if (entry) fprintf(nfp, "%s\n", entry);
-    unlink(filenamesfx);
-  } else ret = 1;
+  if (!found || rename(ff, filename)) {
+    if (found) perror_msg("%s -> %s", ff, filename);
+    else if (entry) error_msg("No %s in %s", username, filename);
+  } else ret = 1, *ff = 0;
 
 free_storage:
   if (ofp) fclose(ofp);
-  free(filenamesfx);
+  if (ff && *ff) unlink(ff);
+  free(ff);
 
   return ret;
 }

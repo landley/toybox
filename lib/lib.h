@@ -356,7 +356,9 @@ char *escape_url(char *str, char *and);
 char *unescape_url(char *str, int do_cut);
 
 // password.c
-int get_salt(char *salt, char * algo);
+int get_salt(char *salt, char *algo, int rand);
+int read_password(char *buff, int buflen, char *mesg);
+int update_password(char *filename, char *username, char *entry, int pos);
 
 // commas.c
 void comma_args(struct arg_list *al, void *data, char *err,
@@ -423,6 +425,3 @@ pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid);
 
 #define minof(a, b) ({typeof(a) aa = (a); typeof(b) bb = (b); aa<bb ? aa : bb;})
 #define maxof(a, b) ({typeof(a) aa = (a); typeof(b) bb = (b); aa>bb ? aa : bb;})
-
-// Functions in need of further review/cleanup
-#include "lib/pending.h"

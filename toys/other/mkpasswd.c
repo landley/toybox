@@ -14,11 +14,10 @@ config MKPASSWD
   help
     usage: mkpasswd [-P FD] [-m TYPE] [-S SALT] [PASSWORD] [SALT]
 
-    Crypt PASSWORD using crypt(3)
+    Encrypt PASSWORD using crypt(3), with either random or provided SALT.
 
     -P FD	Read password from file descriptor FD
     -m TYPE	Encryption method (des, md5, sha256, or sha512; default is des)
-    -S SALT
 */
 
 #define FOR_mkpasswd
@@ -31,24 +30,26 @@ GLOBALS(
 
 void mkpasswd_main(void)
 {
-  char salt[MAX_SALT_LEN] = {0,};
+  char salt[32] = {0,};
   int i;
 
-  if (!TT.m) TT.m = "des";
   if (toys.optc == 2) {
     if (TT.S) error_exit("duplicate salt");
     TT.S = toys.optargs[1];
   }
 
-  if (-1 == (i = get_salt(salt, TT.m))) error_exit("bad -m");
+  if (-1 == (i = get_salt(salt, TT.m ? : "des", !TT.S))) error_exit("bad -m");
   if (TT.S) {
-    char *s = TT.S;
+    char *mirv = strrchr(salt, '$'), *s = TT.S;
 
-    // In C locale, isalnum() means [A-Za-Z0-0]
+    if (mirv) mirv++;
+    else mirv = salt;
+
+    // In C locale, isalnum() means [a-zA-Z0-9]
     while (isalnum(*s) || *s == '.' || *s == '/') s++;
-    if (*s) error_exit("salt not in [./A-Za-z0-9]");
-
-    snprintf(salt+i, sizeof(salt)-i, "%s", TT.S);
+    if (*s || s-TT.S!=strlen(mirv))
+      error_exit("bad SALT (need [a-zA-Z0-9] len %d)", (int)strlen(mirv));
+    strcpy(mirv, TT.S);
   }
 
   // Because read_password() doesn't have an fd argument
@@ -73,5 +74,5 @@ void mkpasswd_main(void)
   }
 
   // encrypt & print the password
-  xprintf("%s\n",crypt(*toys.optargs ? *toys.optargs : toybuf, salt));
+  xprintf("%s\n", crypt(*toys.optargs ? *toys.optargs : toybuf, salt));
 }

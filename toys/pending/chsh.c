@@ -4,17 +4,18 @@
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/chsh.html
 
-USE_CHSH(NEWTOY(chsh, "s:", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_CHSH(NEWTOY(chsh, ">1R:s:a", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config CHSH
   bool "chsh"
   default n
   help
-    usage: chsh [-s SHELL] [USER]
+    usage: chsh [-s SHELL] [-R CHROOT_DIR] [USER]
 
     Change user's login shell.
 
     -s	Use SHELL instead of prompting
+    -R	Act on CHROOT_DIR instead of host
 
     Non-root users can only change their own shell to one listed in /etc/shells.
 */
@@ -23,7 +24,7 @@ config CHSH
 #include "toys.h"
 
 GLOBALS(
-  char *s;
+  char *s, *R;
 )
 
 void chsh_main()
@@ -36,18 +37,14 @@ void chsh_main()
   // Get uid user information, may be discarded later
 
   if ((user = *toys.optargs)) {
-    passwd_info = xgetpwnam(user);
-    if (geteuid() && strcmp(passwd_info->pw_name, user))
-      error_exit("Permission denied\n");
-  } else {
-    passwd_info = xgetpwuid(getuid());
-    user = passwd_info->pw_name;
-  }
+    if (strcmp((passwd_info = xgetpwnam(user))->pw_name, user))
+      if (geteuid()) errno = EPERM, error_exit(0);
+  } else user = (passwd_info = xgetpwuid(getuid()))->pw_name;
 
   // Get a password, encrypt it, wipe it, and check it
   if (mlock(toybuf, sizeof(toybuf))) perror_exit("mlock");
   if (!(shadow_info = getspnam(passwd_info->pw_name))) perror_exit("getspnam");
-  if (read_password(toybuf, sizeof(toybuf), "Password: ")) perror_exit("woaj"); //xexit();
+  if (read_password(toybuf, sizeof(toybuf), "Password: ")) *toybuf = 0;
   if (!(encrypted = crypt(toybuf, shadow_info->sp_pwdp))) perror_exit("crypt");
   memset(toybuf, 0, sizeof(toybuf));
   munlock(toybuf, sizeof(toybuf)); // prevents memset from "optimizing" away.
@@ -57,21 +54,16 @@ void chsh_main()
   file = xfopen("/etc/shells", "r");
   if (toys.optflags) shell = TT.s;
   else {
-    xprintf("Changing the login shell for %s\n"
-            "Enter the new value, or press ENTER for default\n"
-            "    Login shell [%s]: ", user, passwd_info->pw_shell);
+    xprintf("Login shell for %s [%s]:", user, passwd_info->pw_shell);
     if (!(shell = xgetline(stdin))) xexit();
+    if (!*shell) xexit();
   }
 
   // Verify supplied shell in /etc/shells, or get default shell
-  if (strlen(shell))
-    while ((line = xgetline(file)) && strcmp(shell, line)) free(line);
+  if (*shell) while ((line = xgetline(file)) && strcmp(shell, line)) free(line);
   else do line = xgetline(file); while (line && *line != '/');
   if (!line) error_exit("Shell not found in '/etc/shells'");
 
   // Update /etc/passwd
-  passwd_info->pw_shell = line;
-  if (-1 == update_password("/etc/passwd", user, NULL)) perror_exit("Failed to remove passwd entry");
-  file = xfopen("/etc/passwd", "a");
-  if (putpwent(passwd_info, file)) perror_exit("putwent");
+  if (!update_password("/etc/passwd", user, line,6)) perror_exit("/etc/passwd");
 }

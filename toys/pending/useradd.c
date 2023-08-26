@@ -39,6 +39,7 @@ GLOBALS(
   long gid;
 )
 
+// TODO user exists error
 void useradd_main(void)
 {
   char *s = *toys.optargs, *entry;
@@ -119,7 +120,7 @@ void useradd_main(void)
   entry = xmprintf("%s:%s:%ld:%ld:%s:%s:%s", pwd.pw_name, pwd.pw_passwd,
       (long)pwd.pw_uid, (long)pwd.pw_gid, pwd.pw_gecos, pwd.pw_dir,
       pwd.pw_shell);
-  if (update_password("/etc/passwd", pwd.pw_name, entry)) error_exit("updating passwd file failed");
+  update_password("/etc/passwd", pwd.pw_name, entry, 0);
   free(entry);
 
   if (toys.optflags & FLAG_S) 
@@ -127,7 +128,7 @@ void useradd_main(void)
       (unsigned)(time(NULL))/(24*60*60)); //passwd is not set initially
   else entry = xmprintf("%s:!!:%u:0:99999:7:::", pwd.pw_name, 
             (unsigned)(time(0))/(24*60*60)); //passwd is not set initially
-  update_password("/etc/shadow", pwd.pw_name, entry);
+  update_password("/etc/shadow", pwd.pw_name, entry, 0);
   free(entry);
 
   // create home dir & copy skel dir to home

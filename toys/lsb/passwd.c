@@ -1,4 +1,4 @@
-/* passwd.c - Program to update user password.
+/* passwd.c - update user password.
  *
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
  * Modified 2012 Jason Kyungwan Han <asura321@gmail.com>
@@ -13,9 +13,9 @@ config PASSWD
   help
     usage: passwd [-a ALGO] [-dlu] [USER]
 
-    Update user's authentication tokens. Defaults to current user.
+    Update user's login password. Defaults to current user.
 
-    -a ALGO	Encryption method (des, md5, sha256, sha512) default: des
+    -a ALGO	Encryption method (des, md5, sha256, sha512) default: md5
     -d		Set password to ''
     -l		Lock (disable) account
     -u		Unlock (enable) account
@@ -53,17 +53,17 @@ static void weak_check(char *new, char *old, char *user)
 
 void passwd_main(void)
 {
-  uid_t myuid;
+  uid_t myuid = getuid();
   struct passwd *pw = 0;
   struct spwd *sp;
   char *pass, *name, *encrypted = 0, salt[32];
 
   // If we're root or not -lud, load specified user. Exit if not allowed.
-  if (!(myuid = getuid()) || !(toys.optflags&(FLAG_l|FLAG_u|FLAG_d))) {
+  if (!myuid || !(toys.optflags&(FLAG_l|FLAG_u|FLAG_d))) {
     if (*toys.optargs) pw = xgetpwnam(*toys.optargs);
     else pw = xgetpwuid(myuid);
   }
-  if (!pw || (myuid && (myuid != pw->pw_uid))) error_exit("Not root");
+  if (!pw || (myuid && myuid != pw->pw_uid)) error_exit("Not root");
 
   // Get password from /etc/passwd or /etc/shadow
   // TODO: why still support non-shadow passwords...?
@@ -83,7 +83,7 @@ void passwd_main(void)
     *(encrypted = toybuf) = 0;
   } else {
     if (!TT.a) TT.a = "des";
-    if (get_salt(salt, TT.a)<0) error_exit("bad -a '%s'", TT.a);
+    if (get_salt(salt, TT.a, 1)<0) error_exit("bad -a '%s'", TT.a);
 
     printf("Changing password for %s\n", name);
     if (myuid) {

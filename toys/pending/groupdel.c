@@ -5,7 +5,7 @@
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/groupdel.html
 
-USE_GROUPDEL(NEWTOY(groupdel, "<1>2", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
+USE_GROUPDEL(NEWTOY(groupdel, "<1>2?", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 USE_GROUPDEL(OLDTOY(delgroup, groupdel, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
 config GROUPDEL
@@ -55,7 +55,7 @@ void groupdel_main(void)
     if (CFG_TOYBOX_FREE) endpwent();
   }
 
-  update_password("/etc/group", grp->gr_name, entry);
-  update_password("/etc/gshadow", grp->gr_name, entry);
+  update_password("/etc/group", grp->gr_name, entry, 3);
+  update_password("/etc/gshadow", grp->gr_name, entry, 3);
   if (CFG_TOYBOX_FREE) free(entry);
 }
