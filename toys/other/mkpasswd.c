@@ -31,24 +31,27 @@ GLOBALS(
 void mkpasswd_main(void)
 {
   char salt[32] = {0,};
-  int i;
+  int ii, jj, kk;
 
   if (toys.optc == 2) {
     if (TT.S) error_exit("duplicate salt");
     TT.S = toys.optargs[1];
   }
 
-  if (-1 == (i = get_salt(salt, TT.m ? : "des", !TT.S))) error_exit("bad -m");
+  if (-1 == get_salt(salt, TT.m ? : "des", !TT.S)) error_exit("bad -m");
   if (TT.S) {
     char *mirv = strrchr(salt, '$'), *s = TT.S;
 
     if (mirv) mirv++;
     else mirv = salt;
+    ii = strlen(mirv);
 
     // In C locale, isalnum() means [a-zA-Z0-9]
     while (isalnum(*s) || *s == '.' || *s == '/') s++;
-    if (*s || s-TT.S!=strlen(mirv))
-      error_exit("bad SALT (need [a-zA-Z0-9] len %d)", (int)strlen(mirv));
+    jj = s-TT.S;
+    kk = ii==16 ? 8 : ii;
+    if (*s || jj>ii || jj<kk)
+      error_exit("bad SALT (need [a-zA-Z0-9] len %d-%d)", ii, kk);
     strcpy(mirv, TT.S);
   }
 
@@ -65,11 +68,11 @@ void mkpasswd_main(void)
       if (read_password(toybuf, sizeof(toybuf), "Password: ")) 
         perror_exit("password read failed");
     } else {
-      for (i = 0; i<sizeof(toybuf)-1; i++) {
-        if (!xread(0, toybuf+i, 1)) break;
-        if (toybuf[i] == '\n' || toybuf[i] == '\r') break;
+      for (ii = 0; ii<sizeof(toybuf)-1; ii++) {
+        if (!xread(0, toybuf+ii, 1)) break;
+        if (toybuf[ii] == '\n' || toybuf[ii] == '\r') break;
       }
-      toybuf[i] = 0;
+      toybuf[ii] = 0;
     }
   }
 
