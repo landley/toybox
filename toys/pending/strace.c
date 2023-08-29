@@ -167,13 +167,6 @@ static void xptrace(int req, pid_t pid, void *addr, void *data)
   if (ptrace(req, pid, addr, data)) perror_exit("ptrace %d pid %d", req, pid);
 }
 
-static void get_regs(void)
-{
-  struct iovec v = {.iov_base=&TT.regs, .iov_len=sizeof(TT.regs)};
-
-  xptrace(PTRACE_GETREGSET, TT.pid, (void *)1, &v); // NT_PRSTATUS
-}
-
 static void ptrace_struct(long addr, void *dst, size_t bytes)
 {
   int offset = 0, i;
@@ -186,6 +179,53 @@ static void ptrace_struct(long addr, void *dst, size_t bytes)
     memcpy(dst + offset, &v, sizeof(v));
     offset += sizeof(long);
   }
+}
+
+#define C(n) n, #n
+
+static void print_bits(int bitmask, long v, char *zero, ...)
+{
+  va_list ap;
+  int first = 1;
+
+  if (!v && zero) {
+    fprintf(stderr, "%s", zero);
+    return;
+  }
+  va_start(ap, zero);
+  for (;;) {
+    int this = va_arg(ap, int);
+    char *name;
+
+    if (!this) break;
+    name = va_arg(ap, char*);
+    if (bitmask) {
+      if (v & this) {
+        fprintf(stderr, "%s%s", first?"":"|", name);
+        first = 0;
+        v &= ~this;
+      }
+    } else {
+      if (v == this) {
+        fprintf(stderr, "%s", name);
+        v = 0;
+        break;
+      }
+    }
+  }
+  va_end(ap);
+  if (v) fprintf(stderr, "%s%#lx", first?"":"|", v);
+}
+
+static void print_mode(unsigned m)
+{
+  if (m & S_IFMT) {
+    print_bits(0, m & S_IFMT, "", C(S_IFREG), C(S_IFDIR), C(S_IFLNK),
+      C(S_IFBLK), C(S_IFCHR), C(S_IFIFO), C(S_IFSOCK), 0);
+    fputc('|', stderr);
+    m &= ~S_IFMT;
+  }
+  fprintf(stderr, "%#o", m);
 }
 
 // TODO: this all relies on having the libc structs match the kernel structs,
@@ -240,19 +280,20 @@ static void print_struct(long addr)
     struct stat sb;
 
     ptrace_struct(addr, &sb, sizeof(sb));
-    // TODO: decode IFMT bits in st_mode
     if (FLAG(v)) {
       // TODO: full atime/mtime/ctime dump.
-      fprintf(stderr, "{st_dev=makedev(%#x, %#x), st_ino=%ld, st_mode=%o, "
-        "st_nlink=%ld, st_uid=%d, st_gid=%d, st_blksize=%ld, st_blocks=%ld, "
-        "st_size=%lld, st_atime=%ld, st_mtime=%ld, st_ctime=%ld}",
-        dev_major(sb.st_dev), dev_minor(sb.st_dev), sb.st_ino, sb.st_mode,
-        (long) sb.st_nlink, sb.st_uid, sb.st_gid, (long) sb.st_blksize,
-        sb.st_blocks, (long long)sb.st_size, sb.st_atime, sb.st_mtime,
-        sb.st_ctime);
+      fprintf(stderr, "{st_dev=makedev(%#x, %#x), st_ino=%ld, st_mode=",
+          dev_major(sb.st_dev), dev_minor(sb.st_dev), sb.st_ino);
+      print_mode(sb.st_mode);
+      fprintf(stderr, ", st_nlink=%ld, st_uid=%d, st_gid=%d, "
+        "st_blksize=%ld, st_blocks=%ld, st_size=%lld, st_atime=%ld, "
+        "st_mtime=%ld, st_ctime=%ld}", (long) sb.st_nlink, sb.st_uid,
+	sb.st_gid, (long) sb.st_blksize, sb.st_blocks, (long long)sb.st_size,
+	sb.st_atime, sb.st_mtime, sb.st_ctime);
     } else {
-      fprintf(stderr, "{st_mode=%o, st_size=%lld, ...}", sb.st_mode,
-        (long long)sb.st_size);
+      fprintf(stderr, "{st_mode=");
+      print_mode(sb.st_mode);
+      fprintf(stderr, ", st_size=%lld, ...}", (long long)sb.st_size);
     }
   } else if (strstart(&TT.fmt, "termios}")) {
     struct termios to;
@@ -281,13 +322,13 @@ static void print_ptr(long addr)
   else fprintf(stderr, "0x%lx", addr);
 }
 
-static void print_string(long addr)
+static void print_string(long addr, long limit)
 {
   long offset = 0, total = 0;
-  int done = 0, i;
+  int i;
 
   fputc('"', stderr);
-  while (!done) {
+  for (;;) {
     errno = 0;
     long v = ptrace(PTRACE_PEEKDATA, TT.pid, addr + offset);
     if (errno) return;
@@ -296,8 +337,8 @@ static void print_string(long addr)
       if (!toybuf[i]) {
         // TODO: handle the case of dumping n bytes (e.g. read()/write()), not
         // just NUL-terminated strings.
-        done = 1;
-        break;
+        fputc('"', stderr);
+        return;
       }
       if (isprint(toybuf[i])) fputc(toybuf[i], stderr);
       else {
@@ -308,89 +349,65 @@ static void print_string(long addr)
         else if (toybuf[i] == '\t') fputc('t', stderr);
         else fprintf(stderr, "x%2.2x", toybuf[i]);
       }
-      if (++total >= TT.s) {
-        done = 1;
-        break;
+      if (++total >= limit) {
+        fprintf(stderr, "\"...");
+        return;
       }
     }
     offset += sizeof(v);
   }
-  fputc('"', stderr);
-}
-
-static void print_bitmask(int bitmask, long v, char *zero, ...)
-{
-  va_list ap;
-  int first = 1;
-
-  if (!v && zero) {
-    fprintf(stderr, "%s", zero);
-    return;
-  }
-
-  va_start(ap, zero);
-  for (;;) {
-    int this = va_arg(ap, int);
-    char *name;
-
-    if (!this) break;
-    name = va_arg(ap, char*);
-    if (bitmask) {
-      if (v & this) {
-        fprintf(stderr, "%s%s", first?"":"|", name);
-        first = 0;
-        v &= ~this;
-      }
-    } else {
-      if (v == this) {
-        fprintf(stderr, "%s", name);
-        v = 0;
-        break;
-      }
-    }
-  }
-  va_end(ap);
-  if (v) fprintf(stderr, "%s%#lx", first?"":"|", v);
 }
 
 static void print_flags(long v)
 {
-#define C(n) n, #n
   if (strstart(&TT.fmt, "access|")) {
-    print_bitmask(1, v, "F_OK", C(R_OK), C(W_OK), C(X_OK), 0);
+    print_bits(1, v, "F_OK", C(R_OK), C(W_OK), C(X_OK), 0);
   } else if (strstart(&TT.fmt, "mmap|")) {
-    print_bitmask(1, v, 0, C(MAP_SHARED), C(MAP_PRIVATE),
+    print_bits(1, v, 0, C(MAP_SHARED), C(MAP_PRIVATE),
 #if defined(MAP_32BIT)
         C(MAP_32BIT),
 #endif
         C(MAP_ANONYMOUS), C(MAP_FIXED), C(MAP_GROWSDOWN), C(MAP_HUGETLB),
         C(MAP_DENYWRITE), 0);
   } else if (strstart(&TT.fmt, "open|")) {
-    print_bitmask(1, v, "O_RDONLY", C(O_WRONLY), C(O_RDWR), C(O_CLOEXEC),
+    print_bits(1, v, "O_RDONLY", C(O_WRONLY), C(O_RDWR), C(O_CLOEXEC),
         C(O_CREAT), C(O_DIRECTORY), C(O_EXCL), C(O_NOCTTY), C(O_NOFOLLOW),
         C(O_TRUNC), C(O_ASYNC), C(O_APPEND), C(O_DSYNC), C(O_EXCL),
         C(O_NOATIME), C(O_NONBLOCK), C(O_PATH), C(O_SYNC),
         0x4000, "O_DIRECT", 0x8000, "O_LARGEFILE", 0x410000, "O_TMPFILE", 0);
   } else if (strstart(&TT.fmt, "prot|")) {
-    print_bitmask(1,v,"PROT_NONE",C(PROT_READ),C(PROT_WRITE),C(PROT_EXEC),0);
+    print_bits(1,v,"PROT_NONE",C(PROT_READ),C(PROT_WRITE),C(PROT_EXEC),
+#if defined(PROT_BTI)
+        C(PROT_BTI),
+#endif
+#if defined(PROT_MTE)
+        C(PROT_MTE),
+#endif
+        0);
   } else if (strstart(&TT.fmt, "grnd|")) {
-    print_bitmask(1,v,"0",C(GRND_RANDOM),C(GRND_NONBLOCK),0);
+    print_bits(1,v,"0",C(GRND_RANDOM),C(GRND_NONBLOCK),0);
   } else abort();
 }
 
 static void print_alternatives(long v)
 {
-  if (strstart(&TT.fmt, "rlimit^")) {
-    print_bitmask(0, v, "RLIMIT_CPU", C(RLIMIT_FSIZE), C(RLIMIT_DATA),
+  if (strstart(&TT.fmt, "clockid^")) {
+    print_bits(0, v, "CLOCK_REALTIME", C(CLOCK_MONOTONIC),
+        C(CLOCK_PROCESS_CPUTIME_ID), C(CLOCK_THREAD_CPUTIME_ID),
+        C(CLOCK_MONOTONIC_RAW), C(CLOCK_REALTIME_COARSE),
+        C(CLOCK_MONOTONIC_COARSE), C(CLOCK_BOOTTIME),
+        C(CLOCK_REALTIME_ALARM), C(CLOCK_BOOTTIME_ALARM), 0);
+  } else if (strstart(&TT.fmt, "rlimit^")) {
+    print_bits(0, v, "RLIMIT_CPU", C(RLIMIT_FSIZE), C(RLIMIT_DATA),
         C(RLIMIT_STACK), C(RLIMIT_CORE), C(RLIMIT_RSS), C(RLIMIT_NPROC),
         C(RLIMIT_NOFILE), C(RLIMIT_MEMLOCK), C(RLIMIT_AS), C(RLIMIT_LOCKS),
         C(RLIMIT_SIGPENDING), C(RLIMIT_MSGQUEUE), C(RLIMIT_NICE),
         C(RLIMIT_RTPRIO), C(RLIMIT_RTTIME), 0);
   } else if (strstart(&TT.fmt, "seek^")) {
-    print_bitmask(0, v, "SEEK_SET", C(SEEK_CUR), C(SEEK_END), C(SEEK_DATA),
+    print_bits(0, v, "SEEK_SET", C(SEEK_CUR), C(SEEK_END), C(SEEK_DATA),
         C(SEEK_HOLE), 0);
   } else if (strstart(&TT.fmt, "sig^")) {
-    print_bitmask(0, v, "SIG_BLOCK", C(SIG_UNBLOCK), C(SIG_SETMASK), 0);
+    print_bits(0, v, "SIG_BLOCK", C(SIG_UNBLOCK), C(SIG_SETMASK), 0);
   } else abort();
 }
 
@@ -406,21 +423,22 @@ static void print_args()
     if (i) fprintf(stderr, ", ");
     switch (ch = *TT.fmt++) {
       case 'd': fprintf(stderr, "%ld", v); break; // decimal
-      case 'f': if ((int) v == AT_FDCWD) fprintf(stderr, "AT_FDCWD");
+      case 'f': if ((int) v == AT_FDCWD) fprintf(stderr, "AT_FDCWD"); // fd
                 else fprintf(stderr, "%ld", v);
                 break;
-      case 'i': fprintf(stderr, "%s", strioctl(v)); break; // decimal
-      case 'm': fprintf(stderr, "%03o", (unsigned) v); break; // mode for open()
+      case 'F': print_string(v, LONG_MAX); break;
+      case 'i': fprintf(stderr, "%s", strioctl(v)); break; // ioctl name
+      case 'm': print_mode(v); break;
       case 'o': fprintf(stderr, "%ld", v); break; // off_t
       case 'p': print_ptr(v); break;
-      case 's': print_string(v); break;
+      case 's': print_string(v, TT.s); break;
       case 'S': // The libc-reserved signals aren't known to num_to_sig().
                 // TODO: use an strace-only routine for >= 32?
                 if (!(s = num_to_sig(v))) fprintf(stderr, "%ld", v);
                 else fprintf(stderr, "SIG%s", s);
                 break;
-      case 'z': fprintf(stderr, "%ld", (long) v); break; // size_t
-      case 'x': fprintf(stderr, "%lx", v); break; // hex
+      case 'z': fprintf(stderr, "%lu", (unsigned long) v); break; // size_t
+      case 'x': fprintf(stderr, "%#lx", v); break; // hex
 
       case '{': print_struct(v); break;
       case '|': print_flags(v); break;
@@ -428,16 +446,17 @@ static void print_args()
 
       case '/': return; // Separates "enter" and "exit" arguments.
 
-      default: fprintf(stderr, "?%c<0x%lx>", ch, v); break;
+      default: fprintf(stderr, "?%c<%#lx>", ch, v); break;
     }
   }
 }
 
 static void print_enter(void)
 {
+  struct iovec v = {.iov_base=&TT.regs, .iov_len=sizeof(TT.regs)};
   char *name;
 
-  get_regs();
+  xptrace(PTRACE_GETREGSET, TT.pid, (void *)1, &v); // NT_PRSTATUS
   TT.syscall = TT.regs[REG_ORDER[6]];
   if (TT.syscall == __NR_ioctl) {
     name = "ioctl";
@@ -478,12 +497,13 @@ static void print_enter(void)
   } else switch (TT.syscall) {
 #define SC(n,f) case __NR_ ## n: name = #n; TT.fmt = f; break
 #if defined(__NR_access)
-    SC(access, "s|access|");
+    SC(access, "F|access|");
 #endif
 #if defined(__NR_arch_prctl)
     SC(arch_prctl, "dp");
 #endif
     SC(brk, "p");
+    SC(clock_nanosleep, "^clockid^d{timespec}/{timespec}");
     SC(close, "d");
     SC(connect, "fpd"); // TODO: sockaddr
     SC(dup, "f");
@@ -491,19 +511,22 @@ static void print_enter(void)
     SC(dup2, "ff");
 #endif
     SC(dup3, "ff|open|");
-    SC(execve, "spp");
+    SC(execve, "Fpp");
     SC(exit_group, "d");
-    SC(faccessat, "fs|access|");
+    SC(faccessat, "fF|access|");
     SC(fcntl, "fdp"); // TODO: probably needs special case
     SC(fstat, "f/{stat}");
     SC(futex, "pdxppx");
+    SC(getcwd, "/Fz");
     SC(getdents64, "dpz");
+    SC(getegid, "");
     SC(geteuid, "");
     SC(getrandom, "pz|grnd|");
+    SC(getgid, "");
     SC(getuid, "");
 
-    SC(getxattr, "sspz");
-    SC(lgetxattr, "sspz");
+    SC(getxattr, "Fspz");
+    SC(lgetxattr, "Fspz");
     SC(fgetxattr, "fspz");
 
     SC(lseek, "fo^seek^");
@@ -516,27 +539,33 @@ static void print_enter(void)
     SC(munmap, "pz");
     SC(nanosleep, "{timespec}/{timespec}");
 #if defined(__NR_newfstatat)
-    SC(newfstatat, "fs/{stat}d");
+    SC(newfstatat, "fF/{stat}d");
 #endif
 #if defined(__NR_open)
-    SC(open, "sd|open|m");
+    SC(open, "Fd|open|m");
 #endif
-    SC(openat, "fs|open|m");
+    SC(openat, "fF|open|m");
 #if defined(__NR_poll)
     SC(poll, "pdd");
 #endif
     SC(prlimit64, "d^rlimit^{rlimit}/{rlimit}");
     SC(read, "d/sz");
-    SC(readlinkat, "s/sz");
+#if defined(__NR_readlink)
+    SC(readlink, "F/sz");
+#endif
+    SC(readlinkat, "fF/sz");
+#if defined(__NR_rseq)
+    SC(rseq, "pzxx");
+#endif
     SC(rt_sigaction, "Sppz");
     SC(rt_sigprocmask, "^sig^{sigset}/{sigset}z");
     SC(set_robust_list, "pd");
     SC(set_tid_address, "p");
     SC(socket, "ddd"); // TODO: flags
 #if defined(__NR_stat)
-    SC(stat, "s/{stat}");
+    SC(stat, "F/{stat}");
 #endif
-    SC(statfs, "sp");
+    SC(statfs, "Fp");
     SC(sysinfo, "p");
     SC(umask, "m");
     SC(uname, "p");
@@ -554,12 +583,19 @@ static void print_enter(void)
 
 static void print_exit(void)
 {
+  long regs[256/sizeof(long)];
+  struct iovec v = {.iov_base=&regs, .iov_len=sizeof(regs)};
   long result;
 
-  get_regs();
-  result = TT.regs[REG_ORDER[7]];
+  // We read the registers into a local because we only want the result,
+  // and don't want to clobber the argument that was in the same register
+  // earlier (the first argument of getcwd(2), for example, gets printed
+  // on exit rather than entry, and arm/riscv both reuse that register for
+  // the result).
+  xptrace(PTRACE_GETREGSET, TT.pid, (void *)1, &v); // NT_PRSTATUS
   if (*TT.fmt) print_args();
   fprintf(stderr, ") = ");
+  result = regs[REG_ORDER[7]];
   if (result >= -4095UL)
     fprintf(stderr, "-1 %s (%s)", strerrno(-result), strerror(-result));
   else if (TT.syscall==__NR_mmap || TT.syscall==__NR_brk) print_ptr(result);
