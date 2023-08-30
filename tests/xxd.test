@@ -42,8 +42,16 @@ testcmd "-s" "-s 13 file1" \
 testcmd "-r" "-r" "this is some text\n" "" \
   '    00000000: 7468 6973 2069 7320 736f 6d65 2074 6578  this is some tex\n00000010: 740a                                     t.\n'
 
+# This isn't documented, but "real" xxd supports this input format too.
+testcmd "-r no colon" "-r" "this is some text\n" "" \
+  '    00000000  7468 6973 2069 7320 736f 6d65 2074 6578  this is some tex\n00000010: 740a                                     t.\n'
+
 toyonly testcmd "-r -i" "-ri" "this is some text\n" "" \
   '0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x73, 0x6f, 0x6d, 0x65,\n  0x20, 0x74, 0x65, 0x78, 0x74, 0x0a\n'
+
+# This isn't documented, but "real" xxd supports this input format too.
+toyonly testcmd "-r -i no commas" "-ri" "this is some text\n" "" \
+  '0x74 0x68 0x69 0x73 0x20 0x69 0x73 0x20 0x73 0x6f 0x6d 0x65\n  0x20 0x74 0x65 0x78 0x74 0x0a\n'
 
 testcmd "-r garbage" '-r -' 'hello' '' '0000: 68 65 6c6c 6fxxxx\n'
 

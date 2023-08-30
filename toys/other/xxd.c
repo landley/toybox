@@ -123,13 +123,17 @@ static void do_xxd_reverse(int fd, char *name)
   if (FLAG(i)) while (fscanf(fp, " 0x%02x,", &tmp) == 1) xputc(tmp);
   else while (!feof(fp)) {
     int col = 0;
+    char ch;
 
     // Each line of a regular hexdump starts with an offset/address.
     // Each line of a plain hexdump just goes straight into the bytes.
-    if (!FLAG(p) && fscanf(fp, "%llx: ", &pos) == 1) {
+    if (!FLAG(p) && fscanf(fp, "%llx%c ", &pos, &ch) == 2) {
+      if (ch != ':' && ch != ' ')
+        error_exit("%s: no separator between offset/address and bytes "
+            "(missing -p?)", name);
       if (pos != current_pos && fseek(stdout, pos, SEEK_SET)) {
         // TODO: just write out zeros if non-seekable?
-        perror_exit("%s: seek failed", name);
+        perror_exit("%s: seek %llx failed", name, pos);
       }
     }
 
