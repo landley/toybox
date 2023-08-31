@@ -17,11 +17,20 @@ config DEVMEM
 #define FOR_devmem
 #include "toys.h"
 
+unsigned long long atollu(char *str)
+{
+  char *end = str;
+  unsigned long long llu = strtoul(str, &end, 0);
+
+  if (*end) error_exit("bad %s", str);
+
+  return llu;
+}
+
 void devmem_main(void)
 {
   int writing = toys.optc == 3, page_size = sysconf(_SC_PAGESIZE), bytes = 4,fd;
-  unsigned long long data = 0, map_off, map_len;
-  unsigned long addr = atolx(*toys.optargs);
+  unsigned long long data = 0, map_off, map_len, addr = atollu(*toys.optargs);
   void *map, *p;
 
   // WIDTH?
@@ -34,13 +43,14 @@ void devmem_main(void)
   }
 
   // DATA? Report out of range values as errors rather than truncating.
-  if (writing) data = atolx_range(toys.optargs[2], 0, (1ULL<<(8*bytes))-1);
+  if (writing && (data = atollu(toys.optargs[2]))>(~0ULL)>>(64-8*bytes))
+    error_exit("%llx>%d bytes", data, bytes);
 
   // Map in just enough.
   if (CFG_TOYBOX_FORK) {
     fd = xopen("/dev/mem", (writing ? O_RDWR : O_RDONLY) | O_SYNC);
 
-    map_off = addr & ~(page_size - 1);
+    map_off = addr & ~(page_size - 1ULL);
     map_len = (addr+bytes-map_off);
     map = xmmap(0, map_len, writing ? PROT_WRITE : PROT_READ, MAP_SHARED, fd,
         map_off);
