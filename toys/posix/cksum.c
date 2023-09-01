@@ -35,41 +35,28 @@ config CRC32
 #define FORCE_FLAGS
 #include "toys.h"
 
-GLOBALS(
-  unsigned crc_table[256];
-)
-
-static unsigned cksum_be(unsigned crc, char c)
-{
-  return (crc<<8) ^ TT.crc_table[(crc>>24)^c];
-}
-
-static unsigned cksum_le(unsigned crc, char c)
-{
-  return TT.crc_table[(crc^c)&0xff] ^ (crc>>8);
-}
-
 static void do_cksum(int fd, char *name)
 {
-  unsigned (*cksum)(unsigned crc, char c), crc = FLAG(P) ? ~0 : 0;
-  unsigned long long llen = 0, llen2;
-  int len, i;
+  unsigned crc_table[256], crc = FLAG(P) ? ~0 : 0;
+  unsigned long long llen = 0, llen2 = 0;
+  int len, i, done = 0;
 
-  cksum = FLAG(L) ? cksum_le : cksum_be;
-  // CRC the data
-
+  // Init table, loop through data
+  crc_init(crc_table, FLAG(L));
   for (;;) {
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) perror_msg_raw(name);
-    if (len<1) break;
-
-    llen += len;
-    for (i = 0; i<len; i++) crc = cksum(crc, toybuf[i]);
+    if (len<1) {
+      // CRC the length at end
+      if (FLAG(N)) break;
+      for (llen2 = llen, len = 0; llen2; llen2 >>= 8) toybuf[len++] = llen2;
+      done++;
+    } else llen += len;
+    for (i = 0; i<len; i++)
+      crc = FLAG(L) ? crc_table[(crc^toybuf[i])&0xff] ^ (crc>>8)
+                    : (crc<<8) ^ crc_table[(crc>>24)^toybuf[i]];
+    if (done) break;
   }
-
-  // CRC the length
-
-  if (!FLAG(N)) for (llen2 = llen; llen2; llen2 >>= 8) crc = cksum(crc, llen2);
 
   printf(FLAG(H) ? "%08x" : "%u", FLAG(I) ? crc : ~crc);
   if (!FLAG(N)) printf(" %llu", llen);
@@ -79,7 +66,6 @@ static void do_cksum(int fd, char *name)
 
 void cksum_main(void)
 {
-  crc_init(TT.crc_table, FLAG(L));
   loopfiles(toys.optargs, do_cksum);
 }
 
