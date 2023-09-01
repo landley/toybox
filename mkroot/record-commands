@@ -18,14 +18,11 @@ then
   [ -e "$(which logpath)" ] && cp -H "$(which logpath)" "$WRAPDIR/logpath" ||
     mkdir -p "$WRAPDIR" && PREFIX="$WRAPDIR/" scripts/single.sh logpath ||
     exit 1
-  echo "$PATH" | tr : '\n' | while read DIR
-  do
-    find "$DIR/" -type f,l -maxdepth 1 -executable -exec basename {} \; | \
-    while read FILE
+  find $(tr : '\n' <<< "$PATH") -type f,l -maxdepth 1 -executable \
+    -exec basename {} \; | while read FILE
     do
       ln -s logpath "$WRAPDIR/$FILE" 2>/dev/null
     done
-  done
 fi
 
 # Delete old log (if any)
