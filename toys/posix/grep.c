@@ -72,7 +72,7 @@ GLOBALS(
   char *purple, *cyan, *red, *green, *grey;
   struct double_list *reg;
   int found, tried, delim;
-  struct arg_list *fixed[256];
+  struct arg_list **fixed;
 )
 
 struct reg {
@@ -500,6 +500,8 @@ static int do_grep_r(struct dirtree *new)
 void grep_main(void)
 {
   char **ss = toys.optargs;
+
+  TT.fixed = xzalloc(256*sizeof(*TT.fixed));
 
   if (FLAG(color) && (!TT.color || !strcmp(TT.color, "auto")) && !isatty(1))
     toys.optflags &= ~FLAG_color;
