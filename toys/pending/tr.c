@@ -3,6 +3,7 @@
  * Copyright 2014 Sandeep Sharma <sandeep.jack2756@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tr.html
+ * TODO: -t (truncate) -a (ascii)
 
 USE_TR(NEWTOY(tr, "^>2<1Ccsd[+cC]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -23,7 +24,7 @@ config TR
 #include "toys.h"
 
 GLOBALS(
-  short map[256]; //map of chars
+  short *map;
   int len1, len2;
 )
 
@@ -37,17 +38,17 @@ static void map_translation(char *set1 , char *set2)
 {
   int i = TT.len1, k = 0;
 
-  if (toys.optflags & FLAG_d)
+  if (FLAG(d))
     for (; i; i--, k++) TT.map[set1[k]] = set1[k]|0x100; //set delete bit
 
-  if (toys.optflags & FLAG_s) {
+  if (FLAG(s)) {
     for (i = TT.len1, k = 0; i; i--, k++)
       TT.map[set1[k]] = TT.map[set1[k]]|0x200;
     for (i = TT.len2, k = 0; i; i--, k++)
       TT.map[set2[k]] = TT.map[set2[k]]|0x200;
   }
   i = k = 0;
-  while (!(toys.optflags & FLAG_d) && set2 && TT.len1--) { //ignore set2 if -d present
+  while (!FLAG(d) && set2 && TT.len1--) { //ignore set2 if -d present
     TT.map[set1[i]] = ((TT.map[set1[i]] & 0xFF00) | set2[k]);
     if (set2[k + 1]) k++;
     i++;
@@ -112,15 +113,13 @@ static int find_class(char *class_name)
 {
   int i;
   static char *class[] = {
-    "[:alpha:]","[:alnum:]","[:digit:]",
-    "[:lower:]","[:upper:]","[:space:]",
-    "[:blank:]","[:punct:]","[:cntrl:]",
-    "[:xdigit:]","NULL"
+    "[:alpha:]","[:alnum:]","[:digit:]", "[:lower:]","[:upper:]","[:space:]",
+    "[:blank:]","[:punct:]","[:cntrl:]", "[:xdigit:]"
   };
 
-  for (i = 0; i != class_invalid; i++) {
-    if (!memcmp(class_name, class[i], (class_name[0] == 'x')?10:9)) break;
-  }
+  for (i = 0; i != class_invalid; i++)
+    if (!memcmp(class_name, class[i], 9+(*class_name == 'x'))) break;
+
   return i;
 }
 
@@ -130,7 +129,6 @@ static char *expand_set(char *arg, int *len)
   char *set = xzalloc(size*sizeof(char));
 
   while (*arg) {
-
     if (i >= size) {
       size += 256;
       set = xrealloc(set, size);
@@ -142,7 +140,7 @@ static char *expand_set(char *arg, int *len)
       continue;
     }
     if (arg[1] == '-') {
-      if (arg[2] == '\0') goto save;
+      if (!arg[2]) goto save;
       j = arg[0];
       k = arg[2];
       if (j > k) perror_exit("reverse colating order");
@@ -154,15 +152,12 @@ static char *expand_set(char *arg, int *len)
 
       if ((j = find_class(arg)) == class_invalid) goto save;
 
-      if ((j == class_alpha) || (j == class_upper) || (j == class_alnum)) {
-      for (k = 'A'; k <= 'Z'; k++) set[i++] = k;
-      }
-      if ((j == class_alpha) || (j == class_lower) || (j == class_alnum)) {
+      if ((j == class_alpha) || (j == class_upper) || (j == class_alnum))
+        for (k = 'A'; k <= 'Z'; k++) set[i++] = k;
+      if ((j == class_alpha) || (j == class_lower) || (j == class_alnum))
         for (k = 'a'; k <= 'z'; k++) set[i++] = k;
-      }
-      if ((j == class_alnum) || (j == class_digit) || (j == class_xdigit)) {
+      if ((j == class_alnum) || (j == class_digit) || (j == class_xdigit))
         for (k = '0'; k <= '9'; k++) set[i++] = k;
-      }
       if (j == class_space || j == class_blank) {
         set[i++] = '\t';
         if (j == class_space) {
@@ -173,14 +168,10 @@ static char *expand_set(char *arg, int *len)
         }
         set[i++] = ' ';
       }
-      if (j == class_punct) {
-        for (k = 0; k <= 255; k++)
-          if (ispunct(k)) set[i++] = k;
-      }
-      if (j == class_cntrl) {
-        for (k = 0; k <= 255; k++)
-          if (iscntrl(k)) set[i++] = k;
-      }
+      if (j == class_punct)
+        for (k = 0; k <= 255; k++) if (ispunct(k)) set[i++] = k;
+      if (j == class_cntrl)
+        for (k = 0; k <= 255; k++) if (iscntrl(k)) set[i++] = k;
       if (j == class_xdigit) {
         for (k = 'A'; k <= 'F'; k++) {
           set[i + 6] = k | 0x20;
@@ -210,19 +201,16 @@ save:
 
 static void print_map(char *set1, char *set2)
 {
-  int n, src, dst, prev = -1;
+  int n, ch, src, dst, prev = -1;
 
   while ((n = read(0, toybuf, sizeof(toybuf)))) {
-    if (!FLAG(d) && !FLAG(s)) {
+    if (!FLAG(d) && !FLAG(s))
       for (dst = 0; dst < n; dst++) toybuf[dst] = TT.map[toybuf[dst]];
-    } else {
-      for (src = dst = 0; src < n; src++) {
-        int ch = TT.map[toybuf[src]];
-
-        if (FLAG(d) && (ch & 0x100)) continue;
-        if (FLAG(s) && ((ch & 0x200) && prev == ch)) continue;
-        toybuf[dst++] = prev = ch;
-      }
+    else for (src = dst = 0; src < n; src++) {
+      ch = TT.map[toybuf[src]];
+      if (FLAG(d) && (ch & 0x100)) continue;
+      if (FLAG(s) && ((ch & 0x200) && prev == ch)) continue;
+      toybuf[dst++] = prev = ch;
     }
     xwrite(1, toybuf, dst);
   }
@@ -247,10 +235,11 @@ void tr_main(void)
   char *set1, *set2 = NULL;
   int i;
 
+  TT.map = xmalloc(256*sizeof(*TT.map));
   for (i = 0; i < 256; i++) TT.map[i] = i; //init map
 
   set1 = expand_set(toys.optargs[0], &TT.len1);
-  if (toys.optflags & FLAG_c) do_complement(&set1);
+  if (FLAG(c)) do_complement(&set1);
   if (toys.optargs[1]) {
     if (toys.optargs[1][0] == '\0') error_exit("set2 can't be empty string");
     set2 = expand_set(toys.optargs[1], &TT.len2);
