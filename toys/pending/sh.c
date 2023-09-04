@@ -2297,7 +2297,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   // collect brace spans
   if ((TT.options&OPT_B) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
     // skip quoted/escaped text
-    while ((s = parse_word(old+i, 1)) != old+i) i += s-(old+i);
+    while ((s = parse_word(old+i, 1)) != old+i && s) i += s-(old+i);
 
     // start a new span
     if (old[i] == '{') {
