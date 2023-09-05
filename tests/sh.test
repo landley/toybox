@@ -45,6 +45,7 @@ testing "trailing \\ in ''" "$SH -c \$'echo \\'one\\\\\\ntwo\\''" \
 testing 'trailing \ in ""' "$SH -c \$'echo \"one\\\\\\ntwo\"'" 'onetwo\n' \
   '' ''
 testing 'vanishing \' "$SH -c \$'echo \\\\\\n a'" 'a\n' '' ''
+testing 'command\ arg' "$SH -c \$'echo\\\\\\n  abc'" 'abc\n' '' ''
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
 testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
@@ -237,7 +238,7 @@ testing 'hidden wildcards' \
 testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
 testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
-((++SKIP)); testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
+testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
 
 testing 'quote' "echo \"'\"" "'\n" "" ""
 
