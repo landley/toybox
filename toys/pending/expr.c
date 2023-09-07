@@ -146,9 +146,8 @@ static struct op_def {
 
 void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
 {
-  long long a, b, x = 0; // x = a OP b for ints.
+  long long cmp, a, b, x = 0; // x = a OP b for ints.
   char *s, *t; // string operands
-  int cmp;
 
   switch (o->sig) {
 
