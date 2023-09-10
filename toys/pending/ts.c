@@ -4,51 +4,41 @@
  *
  * See https://linux.die.net/man/1/ts
 
-USE_TS(NEWTOY(ts, "i", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_TS(NEWTOY(ts, "si", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config TS
   bool "ts"
   default n
   help
-    usage: ts [-i] [FORMAT]
+    usage: ts [-is] [FORMAT]
 
-	timestamp input using strftime(3) The default formatting being "%b %d %H:%M:%S"
-	-i Incremental timestamps (Changes Default Formatting to "%H:%M:S") 
+    Add timestamps to each line in pipeline. Default format without options
+    "%b %d %H:%M:%S", with "%H:%M:%S".
+
+    -i	Incremental (since previous line)
+    -s	Since start
 */
 
 #define FOR_ts
 #include "toys.h"
 
-static time_t starttime;
-static int len;
-static char *buffer, *format;
-
-static char *getftime(void)
-{
-  // A easy way to do incremental times is pretend it's 1970 
-  time_t curtime = time(NULL);
-  struct tm *submtime;
-  if (FLAG(i)) { 
-	curtime -= starttime;
-	submtime = gmtime(&curtime);
-  } else submtime = localtime(&curtime); 
-  strftime(buffer,len,format,submtime);
-  return buffer;
-}
-
 void ts_main(void)
 {
-  starttime = time(NULL);
-  format = "%b %d %T";
-  if (FLAG(i)) format = "%T";
-  if (toys.optargs[0]) format = toys.optargs[0];
-  // The arbitrary malloc size is because (On English locales), the maximum 
-  // length of a strftime sequence is 10 bytes (%F and %s). In the worst case every 
-  // 2 bytes translate to 10, A expansion ratio of 5. The 16 byte padding is to 
-  // account for locales with names that exceed 10 bytes. 
-  len = (strlen(format)*5)+16; 
-  buffer = xmalloc(len);
+  time_t starttime = time(0), curtime, tt;
+  char *format = toys.optflags ? "%T" : "%b %d %T", *line;
+  struct tm *submtime;
 
-  char *line;
-  while ((line = xgetline(stdin))) xprintf("%s %s\n",getftime(),line);
+  if (toys.optargs[0]) format = *toys.optargs;
+
+  while ((line = xgetline(stdin))) {
+    tt = curtime = time(0);
+
+    if (toys.optflags) {
+      curtime -= starttime;
+      submtime = gmtime(&curtime);
+    } else submtime = localtime(&curtime);
+    if (FLAG(i)) starttime = tt;
+    strftime(toybuf, sizeof(toybuf)-1, format, submtime);
+    xprintf("%s %s\n", toybuf, line);
+  }
 }
