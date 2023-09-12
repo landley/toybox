@@ -4,7 +4,7 @@
  *
  * See https://linux.die.net/man/1/ts
 
-USE_TS(NEWTOY(ts, "si", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_TS(NEWTOY(ts, "ims", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config TS
   bool "ts"
@@ -16,29 +16,39 @@ config TS
     "%b %d %H:%M:%S", with "%H:%M:%S".
 
     -i	Incremental (since previous line)
+    -m	Add milliseconds
     -s	Since start
 */
 
 #define FOR_ts
 #include "toys.h"
 
+// because millitime() is monotonic, which returns uptime.
+static long long millinow(void)
+{
+  struct timespec ts;
+
+  clock_gettime(CLOCK_REALTIME, &ts);
+
+  return ts.tv_sec*1000+ts.tv_nsec/1000000;
+}
+
 void ts_main(void)
 {
-  time_t starttime = time(0), curtime, tt;
-  char *format = toys.optflags ? "%T" : "%b %d %T", *line;
-  struct tm *submtime;
-
-  if (toys.optargs[0]) format = *toys.optargs;
+  char *line, *mm = toybuf+sizeof(toybuf)-8,
+       *format = toys.optflags ? "%T" : "%b %d %T";
+  long long start = millinow(), now, diff, rel = !!(toys.optflags&~FLAG_m);
+  struct tm *tm;
+  time_t tt;
 
   while ((line = xgetline(stdin))) {
-    tt = curtime = time(0);
-
-    if (toys.optflags) {
-      curtime -= starttime;
-      submtime = gmtime(&curtime);
-    } else submtime = localtime(&curtime);
-    if (FLAG(i)) starttime = tt;
-    strftime(toybuf, sizeof(toybuf)-1, format, submtime);
-    xprintf("%s %s\n", toybuf, line);
+    now = millinow();
+    diff = now - start*rel;
+    if (FLAG(m)) sprintf(mm, ".%03lld", diff%1000);
+    tt = diff/1000;
+    tm = localtime(&tt);
+    if (FLAG(i)) start = now;
+    strftime(toybuf, sizeof(toybuf)-16, *toys.optargs ? : format, tm);
+    xprintf("%s%s %s\n", toybuf, mm, line);
   }
 }
