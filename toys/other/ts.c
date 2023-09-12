@@ -2,18 +2,18 @@
  *
  * Copyright 2023 Oliver Webb <aquahobbyist@proton.me>
  *
- * See https://linux.die.net/man/1/ts
+ * No standard.
 
 USE_TS(NEWTOY(ts, "ims", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config TS
   bool "ts"
-  default n
+  default y
   help
     usage: ts [-is] [FORMAT]
 
     Add timestamps to each line in pipeline. Default format without options
-    "%b %d %H:%M:%S", with "%H:%M:%S".
+    "%b %d %H:%M:%S", with -i or -s "%H:%M:%S".
 
     -i	Incremental (since previous line)
     -m	Add milliseconds
