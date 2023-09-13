@@ -35,18 +35,18 @@ static long long millinow(void)
 
 void ts_main(void)
 {
-  char *mm = toybuf+sizeof(toybuf)-8,
+  char *line, *mm = toybuf+sizeof(toybuf)-8,
        *format = toys.optflags ? "%T" : "%b %d %T";
-  long long start = millinow(), now, diff, rel = !!(toys.optflags&~FLAG_m);
+  long long start = millinow(), now, diff, rel = FLAG(i) || FLAG(s);
   struct tm *tm;
   time_t tt;
 
-  for (char *line; (line = xgetline(stdin)); free(line)) {
+  for (; (line = xgetline(stdin)); free(line)) {
     now = millinow();
     diff = now - start*rel;
     if (FLAG(m)) sprintf(mm, ".%03lld", diff%1000);
     tt = diff/1000;
-    tm = (FLAG(i) || FLAG(s)) ? gmtime(&tt) : localtime(&tt);
+    tm = rel ? gmtime(&tt) : localtime(&tt);
     if (FLAG(i)) start = now;
     strftime(toybuf, sizeof(toybuf)-16, *toys.optargs ? : format, tm);
     xprintf("%s%s %s\n", toybuf, mm, line);
