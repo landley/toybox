@@ -2707,6 +2707,7 @@ static void sh_exec(char **argv)
 {
   char *pp = getvar("PATH" ? : _PATH_DEFPATH), *ss = TT.isexec ? : *argv,
     **sss = 0, **oldenv = environ, **argv2;
+  int norecurse = CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec;
   struct string_list *sl = 0;
   struct toy_list *tl = 0;
 
@@ -2714,7 +2715,7 @@ static void sh_exec(char **argv)
   errno = ENOENT;
   if (strchr(ss, '/')) {
     if (access(ss, X_OK)) ss = 0;
-  } else if (CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec || !(tl = toy_find(ss)))
+  } else if (norecurse || !(tl = toy_find(ss)))
     for (sl = find_in_path(pp, ss); sl || (ss = 0); free(llist_pop(&sl)))
       if (!access(ss = sl->str, X_OK)) break;
 
@@ -4599,7 +4600,6 @@ void exec_main(void)
   sh_exec(toys.optargs);
 
   // report error (usually ENOENT) and return
-  perror_msg("%s", TT.isexec);
   if (*toys.optargs != TT.isexec) free(*toys.optargs);
   TT.isexec = 0;
   toys.exitval = 127;
