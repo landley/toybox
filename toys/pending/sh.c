@@ -2714,7 +2714,7 @@ static void sh_exec(char **argv)
   errno = ENOENT;
   if (strchr(ss, '/')) {
     if (access(ss, X_OK)) ss = 0;
-  } else if (CFG_TOYBOX_NORECURSE || !toys.stacktop || !(tl = toy_find(ss)))
+  } else if (CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec || !(tl = toy_find(ss)))
     for (sl = find_in_path(pp, ss); sl || (ss = 0); free(llist_pop(&sl)))
       if (!access(ss = sl->str, X_OK)) break;
 
