@@ -9,7 +9,7 @@
  *	GNU Extension: "{*}"
  *
 
-USE_CSPLIT(NEWTOY(csplit, "<2skf:n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_CSPLIT(NEWTOY(csplit, "<2skf:n#", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CSPLIT
   bool "csplit"
@@ -26,7 +26,7 @@ config CSPLIT
 
 	Valid Rules:
 	/regexp/[INTEGER] Break file before line that regexp matches,
-	%regexp%[INTEGER] Break file after line that regexp matches,
+	%regexp%[INTEGER]
 	If a offset is specified for these rules, the break will happen [INTEGER]
 	lines after the regexp match
 	if a offset is specified, it will break at [INTEGER] lines after the offset
@@ -45,8 +45,8 @@ GLOBALS(
 )
 
 size_t indx = 1, findx = 0, lineno = 1, btc = 0;
+int eg = 0, offset = -1, withld = 0;
 char *filefmt, *flname, *prefix;
-int eg = 0, offset = -1;
 
 // This is only int so we can exit cleanly in ternary operators
 int abort_csplit(char *err) {
@@ -85,7 +85,7 @@ int cntxt(char *line, char *rule) {
 	  return rgmatch(rule, line, "/%[^/%]/%d");
 	  break;
 	case '%':
-	  offset++;
+	  withld = 1;
 	  return rgmatch(rule, line, "%%%[^/%]%%%d");
 	  break;
 
@@ -95,6 +95,9 @@ int cntxt(char *line, char *rule) {
 		btc = -1;
 	  else if (!sscanf(rule,"{%lu}",&btc))
 		abort_csplit("bad rule");
+
+	  // Reset the lineno so we can do things like "10 {*}"
+	  lineno = 1;
 
 	  if (cntxt(line, toys.optargs[indx-1])) {
 		// Manipulate the rule then return to it later so we create a
@@ -110,9 +113,13 @@ int cntxt(char *line, char *rule) {
 	  break;
 
 	default:
-	 offset = ((size_t)atoll(rule)) ? (atoll(rule)) : abort_csplit("bad rule");
-	 return (lineno > offset) ? abort_csplit("bad rule order") :
-	   (lineno == offset);
+	 if (lineno > ((size_t)atoll(rule))) {
+	   abort_csplit("bad rule order");
+	 } else if (!(atoll(rule))) {
+	   abort_csplit("bad rule");
+	 } else {
+	   return (lineno == (size_t)atoll(rule));
+	 }
 	 break;
   }
 
@@ -137,20 +144,22 @@ void csplit_main(void)
 	lineno++;
 	if (cntxt(line, toys.optargs[indx])) {
 
-	  fclose(actvfile);
-	  if (!FLAG(s)) {
-		stat(flname, &st);
-		printf("%ld\n", st.st_size);
+	  if (!withld) {
+		fclose(actvfile);
+		if (!FLAG(s)) {
+		  stat(flname, &st);
+		  printf("%ld\n", st.st_size);
+		}
+		findx++;
+		flname = xmprintf(filefmt, prefix, findx);
+		actvfile = xfopen(flname, "w+");
 	  }
 
 	  indx++;
-	  findx++;
-	  flname = xmprintf(filefmt, prefix, findx);
-	  actvfile = xfopen(flname, "w+");
-
+	  withld = 0;
 	  if (indx == toys.optc) eg = 1;
 	}
-	fprintf(actvfile, "%s\n", line);
+	if (!withld) fprintf(actvfile, "%s\n", line);
   }
 
   fclose(actvfile);
