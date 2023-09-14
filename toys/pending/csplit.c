@@ -44,31 +44,36 @@ GLOBALS(
   char *f;
 )
 
-size_t indx = 1, findx = 0, lineno = 1, btc = 0;
-int eg = 0, offset = -1, withld = 0;
+size_t indx = 1, findx = 0, lineno = 1;
 char *filefmt, *flname, *prefix;
+// Variables the context checker need to track between lines
+size_t btc = 0, tmp = -1;
+int offset = -1, withld = 0, inf = 0;
 
 // This is only int so we can exit cleanly in ternary operators
-int abort_csplit(char *err) {
+int abrt(char *err) {
   // Cycle down through index instead of keeping track of what files we made
   if (!FLAG(k)) for (; indx>=1; indx--)
 	remove(xmprintf(filefmt, prefix, findx));
+
   error_exit("%s\n", err);
   return 1;
 }
 
 int rgmatch(char *rxrl, char *line, char *fmt) {
   regex_t rxp;
+  int rr;
   sscanf(rxrl,fmt, toybuf, &offset);
   xregcomp(&rxp, toybuf, 0);
-  int rr = regexec(&rxp, line, 0, 0, 0);
+  rr = regexec(&rxp, line, 0, 0, 0);
   if (!rr) return 1;
   else if (rr == REG_NOMATCH) return 0;
-  return abort_csplit("bad regex");
+  return abrt("bad regex");
 }
 
 int cntxt(char *line, char *rule) {
-  if (eg) return 0;
+  size_t llv;
+  if (indx == toys.optc) return 0;
 
   if (offset < 0);
   else if (offset == 0) {
@@ -90,14 +95,23 @@ int cntxt(char *line, char *rule) {
 	  break;
 
 	case '{':
-	  // GNU extention: {*}
-	  if (!strcmp(rule,"{*}"))
-		btc = -1;
-	  else if (!sscanf(rule,"{%lu}",&btc))
-		abort_csplit("bad rule");
+	  if (indx < 2) abrt("bad rule order");
 
-	  // Reset the lineno so we can do things like "10 {*}"
-	  lineno = 1;
+	  // GNU extention: {*}
+	  if (!strcmp(rule,"{*}")){ 
+		btc = -1;
+		inf = 1;
+	  } else if (!sscanf(rule,"{%lu}",&btc))
+		abrt("bad rule");
+
+	  if (tmp == -1) tmp = lineno;
+	  if ((llv = atoll(toys.optargs[indx-1]))) {
+		if (((lineno-tmp) % llv+1) == llv) {
+		  tmp = -1;
+		  indx--;
+		  return 1;
+		} else return 0;
+	  }
 
 	  if (cntxt(line, toys.optargs[indx-1])) {
 		// Manipulate the rule then return to it later so we create a
@@ -113,12 +127,13 @@ int cntxt(char *line, char *rule) {
 	  break;
 
 	default:
-	 if (lineno > ((size_t)atoll(rule))) {
-	   abort_csplit("bad rule order");
+	 if (lineno > atoll(rule)) {
+	   abrt("bad rule order");
 	 } else if (!(atoll(rule))) {
-	   abort_csplit("bad rule");
+	   abrt("bad rule");
 	 } else {
-	   return (lineno == (size_t)atoll(rule));
+	   if (lineno == atoll(rule)) offset++;
+	   return 0;
 	 }
 	 break;
   }
@@ -130,44 +145,37 @@ int cntxt(char *line, char *rule) {
 
 void csplit_main(void)
 {
+  FILE *actvfile;
   FILE *fin = (*toys.optargs[0] != '-') ? xfopen(toys.optargs[0], "r") : stdin;
-
-  struct stat st;
+  char *line;
+  size_t filesize = 0;
 
   // -f and -n formatting
-  filefmt = xmprintf("%%s%%0%dd", TT.n ? (int)TT.n : 2);
+  filefmt = xmprintf("%%s%%0%lud", TT.n ? TT.n : 2);
   prefix = TT.f ? TT.f : "xx";
 
-  flname = xmprintf(filefmt, prefix, findx);
-  FILE *actvfile = xfopen(flname, "w+");
-  for (char *line; (line = xgetline(fin)); free(line)) {
+  actvfile = xfopen(xmprintf(filefmt, prefix, findx), "w+");
+  for (; (line = xgetline(fin)); free(line)) {
 	lineno++;
+	filesize += strlen(line)+1;
+
 	if (cntxt(line, toys.optargs[indx])) {
 
 	  if (!withld) {
 		fclose(actvfile);
-		if (!FLAG(s)) {
-		  stat(flname, &st);
-		  printf("%ld\n", st.st_size);
-		}
+		if (!FLAG(s)) printf("%ld\n", filesize);
+		filesize = 0;
 		findx++;
-		flname = xmprintf(filefmt, prefix, findx);
-		actvfile = xfopen(flname, "w+");
+		actvfile = xfopen(xmprintf(filefmt, prefix, findx), "w+");
 	  }
 
 	  indx++;
 	  withld = 0;
-	  if (indx == toys.optc) eg = 1;
 	}
 	if (!withld) fprintf(actvfile, "%s\n", line);
   }
-
-  fclose(actvfile);
-  if (!FLAG(s)) {
-	stat(flname, &st);
-	printf("%ld\n", st.st_size);
-  }
+  if (!FLAG(s)) printf("%ld\n", filesize);
 
   // Abort Case: Not All Rules Processed
-  if (indx < toys.optc-1) abort_csplit("Rules not processed");
+  if (!((indx == toys.optc) || inf)) abrt("Rules not processed");
 }
