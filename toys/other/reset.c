@@ -25,5 +25,7 @@ void reset_main(void)
 
   // man 4 console_codes: reset terminal is ESC (no left bracket) c
   // DEC private mode set enable wraparound sequence.
-  xwrite(fd<0 ? 1 : fd, "\ec\e[?7h", 2);
+  if (fd<0) fd = 1;
+  xwrite(fd, "\ec\e[?7h", 2);
+  set_terminal(fd, 0, 0, 0);
 }

@@ -89,58 +89,40 @@ void xsetspeed(struct termios *tio, int speed)
 // Reset terminal to known state, saving copy of old state if old != NULL.
 int set_terminal(int fd, int raw, int speed, struct termios *old)
 {
-  struct termios termio;
-  int i = tcgetattr(fd, &termio);
+  struct termios tio;
+  int i = tcgetattr(fd, &tio);
 
   // Fetch local copy of old terminfo, and copy struct contents to *old if set
   if (i) return i;
-  if (old) *old = termio;
+  if (old) *old = tio;
 
-  // the following are the bits set for an xterm. Linux text mode TTYs by
-  // default add two additional bits that only matter for serial processing
-  // (turn serial line break into an interrupt, and XON/XOFF flow control)
+  cfmakeraw(&tio);
+  if (speed) xsetspeed(&tio, speed);
+  if (!raw) {
+    // Put the "cooked" bits back.
 
-  // Any key unblocks output, swap CR and NL on input
-  termio.c_iflag = IXANY|ICRNL|INLCR;
-  if (toys.which->flags & TOYFLAG_LOCALE) termio.c_iflag |= IUTF8;
+    // Convert CR to NL on input, UTF8 aware backspace, Any key unblocks input.
+    tio.c_iflag |= ICRNL|IUTF8|IXANY;
 
-  // Output appends CR to NL, does magic undocumented postprocessing
-  termio.c_oflag = ONLCR|OPOST;
+    // Output appends CR to NL and does magic undocumented postprocessing.
+    tio.c_oflag |= OPOST|ONLCR;
 
-  // Leave serial port speed alone
-  // termio.c_cflag = C_READ|CS8|EXTB;
+    // 8 bit chars, enable receiver.
+    tio.c_cflag |= CS8|CREAD;
 
-  // Generate signals, input entire line at once, echo output
-  // erase, line kill, escape control characters with ^
-  // erase line char at a time
-  // "extended" behavior: ctrl-V quotes next char, ctrl-R reprints unread chars,
-  // ctrl-W erases word
-  termio.c_lflag = ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHOCTL|ECHOKE|IEXTEN;
-
-  if (raw) cfmakeraw(&termio);
-
-  if (speed) {
-    int i, speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400,
-                    4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
-                    500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
-                    2500000, 3000000, 3500000, 4000000};
-
-    // Find speed in table, adjust to constant
-    for (i = 0; i < ARRAY_LEN(speeds); i++) if (speeds[i] == speed) break;
-    if (i == ARRAY_LEN(speeds)) error_exit("unknown speed: %d", speed);
-    cfsetspeed(&termio, i+1+4081*(i>15));
+    // Generate signals, input entire line at once, echo output erase,
+    // line kill, escape control characters with ^, erase line char at a time
+    // "extended" behavior: ctrl-V quotes next char, ctrl-R reprints unread line
+    // ctrl-W erases word
+    tio.c_lflag |= ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHOCTL|ECHOKE|IEXTEN;
   }
 
-  return tcsetattr(fd, TCSAFLUSH, &termio);
+  return tcsetattr(fd, TCSAFLUSH, &tio);
 }
 
 void xset_terminal(int fd, int raw, int speed, struct termios *old)
 {
-  if (-1 != set_terminal(fd, raw, speed, old)) return;
-
-  sprintf(libbuf, "/proc/self/fd/%d", fd);
-  libbuf[readlink0(libbuf, libbuf, sizeof(libbuf))] = 0;
-  perror_exit("tcsetattr %s", libbuf);
+  if (-1 == set_terminal(fd, raw, speed, old)) perror_exit("tcsetattr");
 }
 
 struct scan_key_list {
