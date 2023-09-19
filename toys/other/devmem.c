@@ -20,9 +20,11 @@ config DEVMEM
 unsigned long long atollu(char *str)
 {
   char *end = str;
-  unsigned long long llu = strtoul(str, &end, 0);
+  unsigned long long llu;
 
-  if (*end) error_exit("bad %s", str);
+  errno = 0;
+  llu = strtoull(str, &end, 0);
+  if (*end || errno) perror_exit("bad %s", str);
 
   return llu;
 }
