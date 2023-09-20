@@ -22,7 +22,7 @@
  * print, l escapes \n
  * Added --tarxform mode to support tar --xform
 
-USE_SED(NEWTOY(sed, "(help)(version)(tarxform)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)(tarxform)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"

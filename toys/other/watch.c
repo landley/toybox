@@ -6,7 +6,7 @@
  * No standard. See http://man7.org/linux/man-pages/man1/watch.1.html
  *
  * TODO: trailing combining characters
-USE_WATCH(NEWTOY(watch, "^<1n%<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_WATCH(NEWTOY(watch, "^<1n%<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WATCH
   bool "watch"

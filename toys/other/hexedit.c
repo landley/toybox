@@ -4,7 +4,7 @@
  *
  * No standard.
 
-USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEXEDIT
   bool "hexedit"
