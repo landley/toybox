@@ -603,7 +603,7 @@ static int write_file(char *filename)
   linelist_unload();
 
   xclose(fd);
-  xrename(toybuf, filename);
+  if (!rename(toybuf, filename)) return 1;
   linelist_load(filename, 0);
   return 0;
 }
@@ -840,7 +840,7 @@ static int vi_yy(char reg, int count0, int count1)
 {
   size_t history = TT.cursor;
   size_t pos = text_sol(TT.cursor); //go left to first char on line
-  TT.vi_mov_flag |= 0x4;
+  TT.vi_mov_flag |= 4;
 
   for (;count0; count0--) TT.cursor = text_nsol(TT.cursor);
 
@@ -1306,22 +1306,35 @@ static int run_ex_cmd(char *cmd)
   else if (cmd[0] == '?') {
     // TODO: backwards search.
   } else if (cmd[0] == ':') {
-    if (!strcmp(&cmd[1], "q") || !strcmp(&cmd[1], "q!")) {
+    if (cmd[1] == 'q') {
       if (cmd[2] != '!' && modified())
         show_error("Unsaved changes (\"q!\" to ignore)");
       else return 1;
-    } else if (strstr(cmd+1, "w ")) write_file(&cmd[3]);
-    else if (strstr(cmd+1, "wq")) {
-      if (!write_file(0)) return 1;
+    } else if (!strncmp(cmd+1, "w ", 2)) write_file(&cmd[3]);
+    else if (!strncmp(cmd+1, "wq", 2)) {
+      if (write_file(0)) return 1;
       show_error("Unsaved changes (\"q!\" to ignore)");
-    } else if (strstr(cmd+1, "w")) write_file(0);
-    else if (strstr(cmd+1, "set list")) {
+    } else if (!strncmp(cmd+1, "w", 1)) write_file(0);
+
+    else if (!strncmp(cmd+1, "set list", sizeof("set list"))) {
       TT.list = 1;
       TT.vi_mov_flag |= 0x30000000;
-    } else if (strstr(cmd+1, "set nolist")) {
+    } else if (!strncmp(cmd+1, "set nolist", sizeof("set nolist"))) {
       TT.list = 0;
       TT.vi_mov_flag |= 0x30000000;
     }
+
+		else if (*(cmd+1) == 'd') {
+			run_vi_cmd("dd");
+		}
+		// Line Ranges
+		else if (*(cmd+1) >= '0' && *(cmd+1) <= '9') {
+			vi_go(atoi(cmd+1), 1, "");
+		} else if (*(cmd+1) == '$') {
+			vi_go(1, 1, "");
+		}
+
+		else show_error("unknown command '%s'",cmd+1);
   }
   return 0;
 }
@@ -1333,7 +1346,7 @@ static int vi_crunch(FILE *out, int cols, int wc)
     xputsn("\e[1m");
     ret = crunch_escape(out,cols,wc);
     xputsn("\e[m");
-  } else if (wc == 0x09) {
+  } else if (wc == '\t') {
     if (out) {
       int i = TT.tabstop;
       for (;i--;) fputs(" ", out);
@@ -1629,11 +1642,11 @@ void vi_main(void)
           vi_buf_pos = 0;
           break;
         case 0x7F: //FALLTHROUGH
-        case 0x08:
+        case '\b':
           backspace(TT.vi_reg, 1, 1);
           break;
         default:
-          if (key > 0x20 && key < 0x7B) {
+          if (key > ' ' && key < '{') {
             vi_buf[vi_buf_pos] = key;//TODO handle input better
             vi_buf_pos++;
             if (run_vi_cmd(vi_buf)) {
@@ -1651,8 +1664,8 @@ void vi_main(void)
       }
     } else if (TT.vi_mode == 0) { //EX MODE
       switch (key) {
-        case 0x7F:
-        case 0x08:
+        case '\x7f':
+        case '\b':
           if (TT.il->len > 1) {
             TT.il->data[--TT.il->len] = 0;
             break;
@@ -1663,15 +1676,15 @@ void vi_main(void)
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
           break;
-        case 0x0A:
-        case 0x0D:
+        case '\n':
+        case '\r':
           if (run_ex_cmd(TT.il->data)) goto cleanup_vi;
           TT.vi_mode = 1;
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
           break;
         default: //add chars to ex command until ENTER
-          if (key >= 0x20 && key < 0x7F) { //might be utf?
+          if (key >= ' ' && key < 0x7F) { //might be utf?
             if (TT.il->len == TT.il->alloc) {
               TT.il->data = realloc(TT.il->data, TT.il->alloc*2);
               TT.il->alloc *= 2;
@@ -1691,7 +1704,7 @@ void vi_main(void)
           memset(TT.il->data, 0, TT.il->alloc);
           break;
         case 0x7F:
-        case 0x08:
+        case '\b':
           if (TT.il->len) {
             char *last = utf8_last(TT.il->data, TT.il->len);
             int shrink = strlen(last);
@@ -1699,8 +1712,8 @@ void vi_main(void)
             TT.il->len -= shrink;
           } else backspace(TT.vi_reg, 1, 1);
           break;
-        case 0x0A:
-        case 0x0D:
+        case '\n':
+        case '\r':
           //insert newline
           TT.il->data[TT.il->len++] = '\n';
           i_insert(TT.il->data, TT.il->len);
@@ -1708,7 +1721,7 @@ void vi_main(void)
           memset(TT.il->data, 0, TT.il->alloc);
           break;
         default:
-          if ((key >= 0x20 || key == 0x09) &&
+          if ((key >= ' ' || key == '\t') &&
               utf8_dec(key, utf8_code, &utf8_dec_p))
           {
             if (TT.il->len+utf8_dec_p+1 >= TT.il->alloc) {
