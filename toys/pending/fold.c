@@ -1,97 +1,107 @@
-/* fold.c - fold text
+/* fold.c - filter for folding lines
  *
- * Copyright 2014 Samuel Holland <samuel@sholland.net>
+ * Copyright 2023 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/fold.html
 
-USE_FOLD(NEWTOY(fold, "bsuw#<1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FOLD(NEWTOY(fold, "bsw#<1=80", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FOLD
   bool "fold"
   default n
   help
-    usage: fold [-bsu] [-w WIDTH] [FILE...]
+    usage: fold [-bsSu] [-w WIDTH] [FILE...]
 
-    Folds (wraps) or unfolds ascii text by adding or removing newlines.
-    Default line width is 80 columns for folding and infinite for unfolding.
+    Break long lines by inserting newlines.
 
-    -b	Fold based on bytes instead of columns
-    -s	Fold/unfold at whitespace boundaries if possible
-    -u	Unfold text (and refold if -w is given)
-    -w	Set lines to WIDTH columns or bytes
+    -b	Count bytes instead of utf-8 unicode columns
+    -s	Wrap at whitespace when possible
+    -w	Break at WIDTH columns (default 80)
 */
 
 #define FOR_fold
 #include "toys.h"
 
 GLOBALS(
-  int width;
+  long w;
+
+  // Bitfield of variable width character positions, for backspace.
+  char *bs;
 )
 
-// wcwidth mbrtowc
+// wcwidth utf8towc
 void do_fold(int fd, char *name)
 {
-  int bufsz, len = 0, maxlen;
+  FILE *fp = fd ? fdopen(fd, "r") : stdin;
+  char *rr, *ss;
+  long ii, bb, ww, width, space;
+  unsigned cc;
 
-  if (toys.optflags & FLAG_w) maxlen = TT.width;
-  else if (toys.optflags & FLAG_u) maxlen = 0;
-  else maxlen = 80;
+  // Note: not bothering to handle embedded NUL bytes, they truncate the line.
 
-  while ((bufsz = read(fd, toybuf, sizeof(toybuf))) > 0) {
-    char *buf = toybuf;
-    int pos = 0, split = -1;
+  // Loop reading/printing lines
+  while ((ss = rr = xgetdelim(fp, '\n'))) for (ii = width = space = 0;;) {
+    if (!ii) memset(TT.bs, 0, (TT.w+7)/8);
 
-    while (pos < bufsz) {
-      switch (buf[pos]) {
-        case '\n':
-          // print everything but the \n, then move on to the next buffer
-          if ((toys.optflags & FLAG_u) && buf[pos-1] != '\n'
-                                       && buf[pos+1] != '\n') {
-              xwrite(1, buf, pos);
-              bufsz -= pos + 1;
-              buf += pos + 1;
-              pos = 0;
-              split = -1;
-          // reset len, FLAG_b or not; just print multiple lines at once
-          } else len = 0;
-          break;
-        case '\b':
-          // len cannot be negative; not allowed to wrap after backspace
-          if (toys.optflags & FLAG_b) len++;
-          else if (len > 0) len--;
-          break;
-        case '\r':
-          // not allowed to wrap after carriage return
-          if (toys.optflags & FLAG_b) len++;
-          else len = 0;
-          break;
-        case '\t':
-          // round to 8, but we add one after falling through
-          // (because of whitespace, but it also takes care of FLAG_b)
-          if (!(toys.optflags & FLAG_b)) len = (len & ~7) + 7;
-        case ' ':
-          split = pos;
-        default:
-          len++;
+    // Parse next character's byte length and column width
+    bb = ww = 1;
+    if (ss[ii]<32) ww = 0;
+    if (FLAG(b)) cc = ss[ii];
+    else if ((bb = utf8towc(&cc, ss+ii, 4))>0 && (ww = wcwidth(cc))<0) ww = 0;
+    if (cc=='\t') ww = 8-(width&7);
+
+    // Did line end?
+    if (!cc || cc=='\r' || cc=='\n') {
+      if (cc) ii++;
+      if (ii) {
+        xwrite(1, ss, ii);
+        ss += ii;
+        ii = width = space = 0;
+      } else {
+        free(rr);
+
+        break;
       }
 
-      // we don't want to double up \n; not allowed to wrap before \b
-      if (maxlen > 0 && len >= maxlen && buf[pos+1] != '\n' && buf[pos+1] != '\b') {
-        if (!(toys.optflags & FLAG_s) || split < 0) split = pos;
-        xwrite(1, buf, split + 1);
-        xputc('\n');
-        bufsz -= split + 1;
-        buf += split + 1;
-        len = pos = 0;
-        split = -1;
-      } else pos++;
+    // backspace?
+    } else if (cc=='\b') {
+      // Find last set bit, and clear it. This handles wide chars and tabs.
+      while (width) {
+        --width;
+        if (TT.bs[width/8]&(1<<(width&7))) break;
+      }
+      TT.bs[width/8] &= ~(1<<(width&7));
+
+    // Is it time to wrap?
+
+    } else if (width+ww>TT.w && ss[ii+bb]!='\b'
+               && (ii || !strchr("\r\n", ss[ii+bb])))
+    {
+      if (!ii) ii += bb;
+      if (!space) space = ii;
+
+      cc = ss[space];
+      ss[space] = '\n';
+      xwrite(1, ss, space+1);
+      ss += space;
+      *ss = cc;
+      ii = width = space = 0;
+
+    // move the cursor, recording starting position in bitfield for backspace
+    } else {
+      TT.bs[width/8] |= (1<<(width&7));
+      ii += bb;
+      width += ww;
+      if (iswspace(cc)) space = ii;
     }
-    xwrite(1, buf, bufsz);
   }
-  xputc('\n');
+  if (fp != stdin) fclose(fp);
 }
 
 void fold_main(void)
 {
+  TT.bs = xmalloc((TT.w+7)/8);
+
   loopfiles(toys.optargs, do_fold);
+  loopfiles_rw(toys.optargs, O_RDONLY|WARN_ONLY, 0, do_fold);
 }
