@@ -45,10 +45,12 @@ void do_fold(int fd, char *name)
 
     // Parse next character's byte length and column width
     bb = ww = 1;
-    if (ss[ii]<32) ww = 0;
+    if (ss[ii]<32) ww = FLAG(b);
     if (FLAG(b)) cc = ss[ii];
-    else if ((bb = utf8towc(&cc, ss+ii, 4))>0 && (ww = wcwidth(cc))<0) ww = 0;
-    if (cc=='\t') ww = 8-(width&7);
+    else {
+      if ((bb = utf8towc(&cc, ss+ii, 4))>0 && (ww = wcwidth(cc))<0) ww = 0;
+      if (cc=='\t') ww = 8-(width&7);
+    }
 
     // Did line end?
     if (!cc || cc=='\r' || cc=='\n') {
@@ -64,13 +66,14 @@ void do_fold(int fd, char *name)
       }
 
     // backspace?
-    } else if (cc=='\b') {
+    } else if (!FLAG(b) && cc=='\b') {
       // Find last set bit, and clear it. This handles wide chars and tabs.
       while (width) {
         --width;
         if (TT.bs[width/8]&(1<<(width&7))) break;
       }
       TT.bs[width/8] &= ~(1<<(width&7));
+      ii++;
 
     // Is it time to wrap?
 
@@ -92,7 +95,7 @@ void do_fold(int fd, char *name)
       TT.bs[width/8] |= (1<<(width&7));
       ii += bb;
       width += ww;
-      if (iswspace(cc)) space = ii;
+      if (FLAG(s) && iswspace(cc)) space = ii;
     }
   }
   if (fp != stdin) fclose(fp);
