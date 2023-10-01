@@ -284,7 +284,8 @@ static int add_to_tar(struct dirtree *node)
     if (S_ISDIR(st->st_mode) && !node->again) {
       free(name);
 
-      return DIRTREE_BREADTH;
+      return DIRTREE_BREADTH|DIRTREE_SYMFOLLOW*FLAG(h);
+
     } else if ((node->again&DIRTREE_BREADTH) && node->child) {
       struct dirtree *dt, **sort = xmalloc(sizeof(void *)*node->extra);
 
