@@ -1,4 +1,4 @@
-/* fold.c - filter for folding lines
+/* fold.c - Line wrap input.
  *
  * Copyright 2023 Rob Landley <rob@landley.net>
  *
@@ -8,7 +8,7 @@ USE_FOLD(NEWTOY(fold, "bsw#<1=80", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FOLD
   bool "fold"
-  default n
+  default y
   help
     usage: fold [-bsSu] [-w WIDTH] [FILE...]
 
