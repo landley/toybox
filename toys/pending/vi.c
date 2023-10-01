@@ -21,6 +21,7 @@ config VI
 
 #define FOR_vi
 #include "toys.h"
+#define CTL(a) a-'@'
 
 GLOBALS(
   char *s;
@@ -1037,6 +1038,15 @@ static void ctrl_b()
   }
 }
 
+static void ctrl_d()
+{
+  int i;
+
+  for (i=0; i<(TT.screen_height-2)/2; ++i) TT.screen = text_nsol(TT.screen);
+  // TODO: real vi keeps the x position.
+  if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+}
+
 static void ctrl_f()
 {
   int i;
@@ -1298,10 +1308,26 @@ static int run_vi_cmd(char *cmd)
   return 0;
 }
 
+// Page breaks while doing things like ":2,3d" unless we can call this
+static void draw_page();
+
+static int get_endline(void)
+{
+	int cln, rln;
+	draw_page();
+	cln = TT.cur_row+1;
+	run_vi_cmd("G");
+	draw_page();
+	rln =  TT.cur_row+1;
+	run_vi_cmd(xmprintf("%dG", cln));
+	return rln+1;
+}
 
 // Return non-zero to exit.
 static int run_ex_cmd(char *cmd)
 {
+	int startline = 1, ofst = 0, endline;
+
   if (cmd[0] == '/') search_str(cmd+1);
   else if (cmd[0] == '?') {
     // TODO: backwards search.
@@ -1326,15 +1352,42 @@ static int run_ex_cmd(char *cmd)
 
 		else if (*(cmd+1) == 'd') {
 			run_vi_cmd("dd");
-		}
-		// Line Ranges
-		else if (*(cmd+1) >= '0' && *(cmd+1) <= '9') {
-			vi_go(atoi(cmd+1), 1, "");
-		} else if (*(cmd+1) == '$') {
-			vi_go(1, 1, "");
+			run_vi_cmd("k");
 		}
 
-		else show_error("unknown command '%s'",cmd+1);
+		// Line Ranges
+		else if (*(cmd+1) >= '0' && *(cmd+1) <= '9') {
+			if (strstr(cmd, ",")) {
+				char *tcmd = xmalloc(strlen(cmd));
+				sscanf(cmd, ":%d,%d%[^\n]", &startline, &endline, tcmd+2);
+				cmd = tcmd;
+				ofst = 1;
+			} else run_vi_cmd(xmprintf("%dG", atoi(cmd+1)));
+		} else if (*(cmd+1) == '$') {
+			run_vi_cmd("G");
+		} else if (*(cmd+1) == '%') {
+      startline = 1;
+      endline = get_endline();
+      ofst = 1;
+    }
+
+    else show_error("unknown command '%s'",cmd+1);
+
+		if (ofst) {
+			draw_page();
+			int cline = TT.cur_row+1;
+			*(cmd+ofst) = ':';
+			run_vi_cmd(xmprintf("%dG", startline));
+			for (; startline <= endline; startline++) {
+				run_ex_cmd(cmd+ofst);
+				run_vi_cmd("j");
+			}
+			run_vi_cmd(xmprintf("%dG", cline));
+			// Screen Reset
+			ctrl_f();
+			draw_page();
+			ctrl_b();
+		}
   }
   return 0;
 }
@@ -1625,19 +1678,22 @@ void vi_main(void)
         case 'i':
           TT.vi_mode = 2;
           break;
-        case 'B'-'@':
+				case CTL('D'):
+					ctrl_d();
+					break;
+        case CTL('B'):
           ctrl_b();
           break;
-        case 'E'-'@':
+        case CTL('E'):
           ctrl_e();
           break;
-        case 'F'-'@':
+        case CTL('F'):
           ctrl_f();
           break;
-        case 'Y'-'@':
+        case CTL('Y'):
           ctrl_y();
           break;
-        case 27:
+        case '\e':
           vi_buf[0] = 0;
           vi_buf_pos = 0;
           break;
@@ -1671,7 +1727,7 @@ void vi_main(void)
             break;
           }
           // FALLTHROUGH
-        case 27:
+        case '\e':
           TT.vi_mode = 1;
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
@@ -1696,7 +1752,7 @@ void vi_main(void)
       }
     } else if (TT.vi_mode == 2) {//INSERT MODE
       switch (key) {
-        case 27:
+        case '\e':
           i_insert(TT.il->data, TT.il->len);
           cur_left(1, 1, 0);
           TT.vi_mode = 1;
