@@ -71,27 +71,11 @@ GLOBALS(
 )
 
 // Added more recently than the 7 year support horizon. TODO: remove
-#ifndef FS_INLINE_DATA_FL
-#define FS_INLINE_DATA_FL 0x10000000 // commit 68ce7bfcd995a 2016-01-08
-#endif
-#ifndef FS_PROJINHERIT_FL
-#define FS_PROJINHERIT_FL 0x20000000 // commit 8b4953e13f4c5 2015-10-17
-#endif
 #ifndef FS_CASEFOLD_FL
 #define FS_CASEFOLD_FL    0x40000000 // commit 71e90b4654a92 2019-07-23
 #endif
 #ifndef FS_VERITY_FL
 #define FS_VERITY_FL      0x00100000 // commit fe9918d3b228b 2019-07-22
-#endif
-
-#ifndef FS_IOC_FSGETXATTR
-// commit 334e580a6f97e 2016-01-04
-struct fsxattr {
-  unsigned fsx_xflags, fsx_extsize, fsx_nextents, fsx_projid, fsx_cowextsize;
-  char fsx_pad[8];
-};
-#define FS_IOC_FSGETXATTR _IOR('X', 31, struct fsxattr)
-#define FS_IOC_FSSETXATTR _IOW('X', 32, struct fsxattr)
 #endif
 
 static struct ext2_attr {
@@ -109,8 +93,7 @@ static struct ext2_attr {
   {"No_Dump",                       FS_NODUMP_FL,       'd'},
   {"No_Atime",                      FS_NOATIME_FL,      'A'},
   {"Compression_Requested",         FS_COMPR_FL,        'c'},
-  // FS_ENCRYPT_FL added to linux 4.5 march 2016, +y7 = 2023
-  {"Encrypted",                     0x800,              'E'},
+  {"Encrypted",                     FS_ENCRYPT_FL,      'E'},
   {"Journaled_Data",                FS_JOURNAL_DATA_FL, 'j'},
   {"Indexed_directory",             FS_INDEX_FL,        'I'},
   {"No_Tailmerging",                FS_NOTAIL_FL,       't'},
@@ -131,7 +114,7 @@ static int ext2_getflag(int fd, struct stat *sb, unsigned *flag)
     errno = EOPNOTSUPP;
     return -1;
   }
-  return (ioctl(fd, FS_IOC_GETFLAGS, (void*)flag));
+  return ioctl(fd, FS_IOC_GETFLAGS, flag);
 }
 
 static char *attrstr(unsigned attrs, int full)
@@ -173,10 +156,9 @@ static void print_file_attr(char *path)
   if (ext2_getflag(fd, &sb, &flag) < 0) perror_msg("reading flags '%s'", path);
   else {
     struct ext2_attr *ptr = e2attrs;
+    int name_found = 0;
 
     if (FLAG(l)) {
-      int name_found = 0;
-
       xprintf("%-50s ", path);
       for (; ptr->name; ptr++) {
         if (flag & ptr->flag) {
@@ -206,16 +188,15 @@ static int retell_dir(struct dirtree *root)
     return 0;
   }
   if (S_ISDIR(root->st.st_mode) && !root->parent)
-    return (DIRTREE_RECURSE | DIRTREE_COMEAGAIN);
+    return DIRTREE_RECURSE|DIRTREE_COMEAGAIN;
 
   fpath = dirtree_path(root, NULL);
-  //Special case: with '-a' option and '.'/'..' also included in printing list.
   if (*root->name != '.' || FLAG(a)) {
     print_file_attr(fpath);
     if (S_ISDIR(root->st.st_mode) && FLAG(R) && dirtree_notdotdot(root)) {
       xprintf("\n%s:\n", fpath);
       free(fpath);
-      return (DIRTREE_RECURSE | DIRTREE_COMEAGAIN);
+      return DIRTREE_RECURSE|DIRTREE_COMEAGAIN;
     }
   }
   free(fpath);
@@ -226,15 +207,14 @@ static int retell_dir(struct dirtree *root)
 void lsattr_main(void)
 {
   if (!*toys.optargs) dirtree_read(".", retell_dir);
-  else
-    for (; *toys.optargs; toys.optargs++) {
-      struct stat sb;
+  else for (; *toys.optargs; toys.optargs++) {
+    struct stat sb;
 
-      if (lstat(*toys.optargs, &sb)) perror_msg("stat '%s'", *toys.optargs);
-      else if (S_ISDIR(sb.st_mode) && !FLAG(d))
-        dirtree_read(*toys.optargs, retell_dir);
-      else print_file_attr(*toys.optargs);// to handle "./Filename" or "./Dir"
-    }
+    if (lstat(*toys.optargs, &sb)) perror_msg("stat '%s'", *toys.optargs);
+    else if (S_ISDIR(sb.st_mode) && !FLAG(d))
+      dirtree_read(*toys.optargs, retell_dir);
+    else print_file_attr(*toys.optargs);// to handle "./Filename" or "./Dir"
+  }
 }
 
 // Switch gears from lsattr to chattr.
@@ -248,7 +228,7 @@ static inline int ext2_setflag(int fd, struct stat *sb, unsigned flag)
     errno = EOPNOTSUPP;
     return -1;
   }
-  return (ioctl(fd, FS_IOC_SETFLAGS, (void*)&flag));
+  return ioctl(fd, FS_IOC_SETFLAGS, &flag);
 }
 
 static unsigned get_flag_val(char ch)
@@ -265,22 +245,13 @@ static void parse_cmdline_arg(char ***argv)
   char *arg = **argv, *ptr;
 
   while (arg) {
-    switch (arg[0]) {
-      case '-':
-        for (ptr = ++arg; *ptr; ptr++)
-          TT.rm |= get_flag_val(*ptr);
-        break;
-      case '+':
-        for (ptr = ++arg; *ptr; ptr++)
-          TT.add |= get_flag_val(*ptr);
-        break;
-      case '=':
-        TT.have_set = 1;
-        for (ptr = ++arg; *ptr; ptr++)
-          TT.set |= get_flag_val(*ptr);
-        break;
-      default: return;
-    }
+    if (*arg=='-') for (ptr = ++arg; *ptr; ptr++) TT.rm |= get_flag_val(*ptr);
+    else if (*arg=='+')
+      for (ptr = ++arg; *ptr; ptr++) TT.add |= get_flag_val(*ptr);
+    else if (*arg=='=') {
+      TT.have_set = 1;
+      for (ptr = ++arg; *ptr; ptr++) TT.set |= get_flag_val(*ptr);
+    } else return;
     arg = *(*argv += 1);
   }
 }
@@ -288,15 +259,13 @@ static void parse_cmdline_arg(char ***argv)
 // Update attribute of given file.
 static int update_attr(struct dirtree *root)
 {
-  char *fpath = NULL;
+  char *fpath = 0;
   int vv = TT.v, fd;
 
   if (!dirtree_notdotdot(root)) return 0;
 
-  /*
-   * if file is a link and recursive is set or file is not regular+link+dir
-   * (like fifo or dev file) then escape the file.
-   */
+  // if file is a link and recursive is set or file is not regular+link+dir
+  // (like fifo or dev file) then escape the file.
   if ((S_ISLNK(root->st.st_mode) && FLAG(R))
     || (!S_ISREG(root->st.st_mode) && !S_ISLNK(root->st.st_mode)
       && !S_ISDIR(root->st.st_mode)))
