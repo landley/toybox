@@ -215,8 +215,7 @@ static int do_find(struct dirtree *new)
   struct double_list *argdata = TT.argdata;
   char *s, **ss, *arg;
 
-  recurse = DIRTREE_STATLESS|DIRTREE_COMEAGAIN|
-    (DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
+  recurse = DIRTREE_STATLESS|DIRTREE_COMEAGAIN|DIRTREE_SYMFOLLOW*FLAG(L);
 
   // skip . and .. below topdir, handle -xdev and -depth
   if (new) {
@@ -235,7 +234,7 @@ static int do_find(struct dirtree *new)
 
     if (S_ISDIR(new->st.st_mode)) {
       // Descending into new directory
-      if (!new->again) {
+      if (!(new->again&DIRTREE_COMEAGAIN)) {
         struct dirtree *n;
 
         for (n = new->parent; n; n = n->parent) {

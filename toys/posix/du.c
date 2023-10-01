@@ -108,7 +108,7 @@ static int seen_inode(void **list, struct stat *st)
 // dirtree callback, compute/display size of node
 static int do_du(struct dirtree *node)
 {
-  unsigned long blocks;
+  unsigned long blocks, again = node->again&DIRTREE_COMEAGAIN;
 
   if (!node->parent) TT.st_dev = node->st.st_dev;
   else if (!dirtree_notdotdot(node)) return 0;
@@ -124,12 +124,12 @@ static int do_du(struct dirtree *node)
   }
 
   // Don't count hard links twice
-  if (!FLAG(l) && !node->again)
+  if (!FLAG(l) && !again)
     if (seen_inode(&TT.inodes, &node->st)) return 0;
 
   // Collect child info before printing directory size
   if (S_ISDIR(node->st.st_mode)) {
-    if (!node->again) {
+    if (!again) {
       TT.depth++;
       return DIRTREE_COMEAGAIN|DIRTREE_SYMFOLLOW*FLAG(L);
     } else TT.depth--;
