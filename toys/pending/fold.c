@@ -24,9 +24,6 @@ config FOLD
 
 GLOBALS(
   long w;
-
-  // Bitfield of variable width character positions, for backspace.
-  char *bs;
 )
 
 // wcwidth utf8towc
@@ -41,8 +38,6 @@ void do_fold(int fd, char *name)
 
   // Loop reading/printing lines
   while ((ss = rr = xgetdelim(fp, '\n'))) for (ii = width = space = 0;;) {
-    if (!ii) memset(TT.bs, 0, (TT.w+7)/8);
-
     // Parse next character's byte length and column width
     bb = ww = 1;
     if (ss[ii]<32) ww = FLAG(b);
@@ -67,12 +62,7 @@ void do_fold(int fd, char *name)
 
     // backspace?
     } else if (!FLAG(b) && cc=='\b') {
-      // Find last set bit, and clear it. This handles wide chars and tabs.
-      while (width) {
-        --width;
-        if (TT.bs[width/8]&(1<<(width&7))) break;
-      }
-      TT.bs[width/8] &= ~(1<<(width&7));
+      if (width) width--;
       ii++;
 
     // Is it time to wrap?
@@ -90,9 +80,8 @@ void do_fold(int fd, char *name)
       *ss = cc;
       ii = width = space = 0;
 
-    // move the cursor, recording starting position in bitfield for backspace
+    // move the cursor
     } else {
-      TT.bs[width/8] |= (1<<(width&7));
       ii += bb;
       width += ww;
       if (FLAG(s) && iswspace(cc)) space = ii;
@@ -103,8 +92,6 @@ void do_fold(int fd, char *name)
 
 void fold_main(void)
 {
-  TT.bs = xmalloc((TT.w+7)/8);
-
   loopfiles(toys.optargs, do_fold);
   loopfiles_rw(toys.optargs, O_RDONLY|WARN_ONLY, 0, do_fold);
 }
