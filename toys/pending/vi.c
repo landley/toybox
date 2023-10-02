@@ -17,8 +17,22 @@ config VI
     so the controls are weird and historical.
 
     -s script: run script file
-*/
 
+    vi mode commands:
+    [count][cmd][motion]
+    cmd: c d y
+    motion: 0 b e G H h j k L l M w $ f F
+
+    [count][cmd]
+    cmd: D I J O n o p x dd yy
+
+    [cmd]
+    cmd: / ? : A a i CTRL_D CTRL_B CTRL_E CTRL_F CTRL_Y \e \b
+
+    ex mode commands:
+    [cmd]
+    \b \e \n w wq q! 'set list' 'set nolist' d $ %
+*/
 #define FOR_vi
 #include "toys.h"
 #define CTL(a) a-'@'
