@@ -8,7 +8,7 @@ USE_TSORT(NEWTOY(tsort, ">1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TSORT
   bool "tsort"
-  default n
+  default y
   help
     usage: tsort [FILE]
 
@@ -16,7 +16,7 @@ config TSORT
 
     Read pairs of input strings indicating before/after dependency relationships
     and find an ordering that respects all dependencies. On success output each
-    string once to stdout, on failure output cycle to stderr.
+    string once to stdout, on failure print error and output cycle pairs.
 */
 
 #include "toys.h"
