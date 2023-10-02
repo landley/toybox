@@ -63,10 +63,10 @@ static void do_tsort(int fd, char *name)
 
   // Count input entries in data block read from fd
   if (!(ss = readfd(fd, 0, &plen))) return;
-  for (ii = len = 0;; len++) {
+  for (ii = len = 0; ii<plen; len++) {
     while (isspace(ss[ii])) ii++;
-    while (ii<plen && !isspace(ss[ii])) ii++;
     if (ii==plen) break;
+    while (ii<plen && !isspace(ss[ii])) ii++;
   }
   if (len&1) error_exit("bad input (not pairs)");
 
@@ -125,9 +125,10 @@ static void do_tsort(int fd, char *name)
   }
 
   // If we couldn't empty the list there's a cycle
-  if (count) error_msg("cycle from %s", *pair);
-
-  while (len>out) xprintf("%s\n", pair[--len]);
+  if (count) {
+    error_msg("cycle pairs");
+    while (count--) xprintf("%s %s\n", pair[count*2], pair[count*2+1]);
+  } else while (len>out) xprintf("%s\n", pair[--len]);
 }
 
 void tsort_main(void)
