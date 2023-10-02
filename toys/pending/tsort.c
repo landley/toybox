@@ -1,4 +1,4 @@
-/* tsort.c - topological sort
+/* tsort.c - topological sort dependency resolver
  *
  * Copyright 2023 Rob Landley <rob@landley.net>
  *
@@ -12,84 +12,114 @@ config TSORT
   help
     usage: tsort [FILE]
 
-    Topological sort: read pairs of input strings indicating before/after
-    relationships. Output sorted result if no cycles, or first cycle to stderr.
+    Topological sort dependency resolver.
+
+    Read pairs of input strings indicating before/after dependency relationships
+    and find an ordering that respects all dependencies. On success output each
+    string once to stdout, on failure output cycle to stderr.
 */
 
 #include "toys.h"
 
-// sort by second element
-static int klatch(char **a, char **b)
+// Comparison callback for qsort and bsearch: sort by second element
+static int sbse(char **a, char **b)
 {
   return strcmp(a[1], b[1]);
 }
 
+// Read pairs of "A must go before B" input strings into pair list. Sort pair
+// list by second element. Loop over list to find pairs where the first string
+// is not any pair's second string (I.E. nothing depends on this) and remove
+// each pair from list. For each removed pair, add first string to output
+// list, and also add second string to output if after removing it no other
+// pair has it as the second string. Suppress duplicates by checking each
+// string added to output against the strings added in the last 2 passes
+// through the pair list. (Because "a b c a" removes "c a" pair after checking
+// "a b" pair, so removing "a b" next pass would try to output "a" again.)
+// If a pass through the pair list finds no pairs to remove, what's left is
+// all circular dependencies.
+
 // TODO: this treats NUL in input as EOF
-static void do_hersheba(int fd, char *name)
+static void do_tsort(int fd, char *name)
 {
   off_t plen;
-  char *djel = readfd(fd, 0, &plen), *ss, **pair, *keep[2];
-  long ii, jj, kk, ll, len = 0, first = 1;
+  char *ss, **pair, *keep[2];
+  long count,    // remaining unprocessed pairs
+       len,      // total strings in pair list
+       out,      // most recently added output (counts down from len)
+       otop,     // out at start of this loop over pair[]
+       otop2,    // out at start of previous loop over pair[]
+       ii, jj, kk;
 
-  // Count input entries
-  if (!djel) return;
-  for (ss = djel;;) {
-    while (isspace(*ss)) ss++;
-    if (!*ss) break;
-    len++;
-    while (*ss && !isspace(*ss)) ss++;
+  // Count input entries in data block read from fd
+  if (!(ss = readfd(fd, 0, &plen))) return;
+  for (ii = len = 0;; len++) {
+    while (isspace(ss[ii])) ii++;
+    while (ii<plen && !isspace(ss[ii])) ii++;
+    if (ii==plen) break;
   }
   if (len&1) error_exit("bad input (not pairs)");
 
-  // collect entries and null terminate strings
+  // get dependency pair list, null terminate strings, mark depends-on-self
   pair = xmalloc(len*sizeof(char *));
-  for (ss = djel, len = 0;;) {
-    while (isspace(*ss)) *ss++ = 0;
-    if (!*ss) break;
-    pair[len++] = ss;
-    while (*ss && !isspace(*ss)) ss++;
+  for (ii = len = 0;;) {
+    while (isspace(ss[ii])) ii++;
+    if (ii>=plen) break;
+    pair[len] = ss+ii;
+    while (ii<plen && !isspace(ss[ii])) ii++;
+    if (ii<plen) ss[ii++] = 0;
+    if ((len&1) && !strcmp(pair[len], pair[len-1])) pair[len] = pair[len-1];
+    len++;
   }
 
-  // sort by second element
-  len /= 2;
-  qsort(pair, len, sizeof(keep), (void *)klatch);
+  // sort pair list by 2nd element to binary search "does anyone depend on this"
+  count = (out = otop = otop2 = len)/2;
+  qsort(pair, count, sizeof(keep), (void *)sbse);
 
-  // Pull out depends-on-self nodes, printing non-duplicate orpans
-  while (len) {
-    for (ii = 0, kk = ll = 2*len; ii<len; ii++) {
-      // First time through pull out depends-on-self nodes,
-      // else pull out nodes no other node depends on
-      if (first ? (long)strcmp(pair[2*ii], pair[2*ii+1])
-          : (long)bsearch(pair+2*ii-1, pair, len, sizeof(keep), (void *)klatch))
-        continue;
-
-      // Remove node from list, keeping at end for dupe killing
+  // repeat until pair list empty or nothing added to output list.
+  while (count) {
+    // find/remove/process pairs no other pair depends on
+    for (ii = 0; ii<count; ii++) {
+      // Find pair that depends on itself or no other pair depends on first str
       memcpy(keep, pair+2*ii, sizeof(keep));
-      memmove(pair+2*ii, pair+2*(ii+1), (--len-ii)*sizeof(keep));
+      if (keep[0]!=keep[1] && bsearch(keep-1, pair, count, sizeof(keep),
+          (void *)sbse)) continue;
+
+      // Remove from pair list
+      memmove(pair+2*ii, pair+2*(ii+1), (--count-ii)*sizeof(keep));
       ii--;
 
-      // depends-on-self nodes only count if nobody else depends on them
-      if (first && bsearch(keep, pair, len, sizeof(keep), (void *)klatch))
-        continue;
+      // Drop depends-on-self pairs that any other pair depends on
+      if (keep[0]==keep[1] &&
+          bsearch(keep, pair, count, sizeof(keep),(void *)sbse)) continue;
 
-      // Print non-duplicate nodes we removed
-      for (jj = kk; jj<ll; jj++) if (!strcmp(*keep, pair[jj])) break;
-      if (jj==ll) xprintf("1) %s\n", pair[--kk] = *keep);
-      if (bsearch(keep, pair, len, sizeof(keep), (void *)klatch)) continue;
-      for (jj = kk; jj<ll; jj++) if (!strcmp(keep[1], pair[jj])) break;
-      if (jj==ll) xprintf("2) %s\n", pair[--kk] = keep[1]);
+      // Process removed pair: add unique strings to output list in reverse
+      // order. Output is stored in space at end of list freed up by memmove(),
+      // defers output until we know there are no cycles, and zaps duplicates.
+      for (kk = 0;; kk++) {
+        // duplicate killer checks through previous TWO passes, because
+        // "a b c a" removes "c a" pair after checking "a b" pair, so removing
+        // "a b" next pass tries to output "a" again.
+
+        for (jj = out; jj<otop2; jj++) if (!strcmp(keep[kk], pair[jj])) break;
+        if (jj==otop2) pair[--out] = keep[kk];
+
+        // Print second string too if no other pair depends on it
+        if (kk || bsearch(keep, pair, count, sizeof(keep), (void *)sbse)) break;
+      }
     }
-
-    // If we removed nothing, break;
-    if (first) first = 0;
-    else if (ll == 2*len) break;
+    if (out == otop) break;
+    otop2 = otop;
+    otop = out;
   }
 
-  // If we couldn't empty list, there's a cycle
-  if (len) error_msg("cycle from %s", *pair);
+  // If we couldn't empty the list there's a cycle
+  if (count) error_msg("cycle from %s", *pair);
+
+  while (len>out) xprintf("%s\n", pair[--len]);
 }
 
 void tsort_main(void)
 {
-  loopfiles(toys.optargs, do_hersheba);
+  loopfiles(toys.optargs, do_tsort);
 }
