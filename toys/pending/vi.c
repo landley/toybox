@@ -11,27 +11,29 @@ config VI
   bool "vi"
   default n
   help
-    usage: vi [-s script] FILE
+    usage: vi [-s SCRIPT] FILE
 
-    Visual text editor. Predates the existence of standardized cursor keys,
-    so the controls are weird and historical.
+    Visual text editor. Predates keyboards with standardized cursor keys.
+    If you don't know how to use it, hit the ESC key, type :q! and press ENTER.
 
-    -s script: run script file
+    -s	run SCRIPT of commands on FILE
 
     vi mode commands:
-    [count][cmd][motion]
-    cmd: c d y
-    motion: 0 b e G H h j k L l M w $ f F
 
-    [count][cmd]
-    cmd: D I J O n o p x dd yy
+      [count][cmd][motion]
+      cmd: c d y
+      motion: 0 b e G H h j k L l M w $ f F
 
-    [cmd]
-    cmd: / ? : A a i CTRL_D CTRL_B CTRL_E CTRL_F CTRL_Y \e \b
+      [count][cmd]
+      cmd: D I J O n o p x dd yy
+
+      [cmd]
+      cmd: / ? : A a i CTRL_D CTRL_B CTRL_E CTRL_F CTRL_Y \e \b
 
     ex mode commands:
-    [cmd]
-    \b \e \n w wq q! 'set list' 'set nolist' d $ %
+
+      [cmd]
+      \b \e \n w wq q! 'set list' 'set nolist' d $ %
 */
 #define FOR_vi
 #include "toys.h"
