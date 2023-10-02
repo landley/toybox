@@ -50,6 +50,16 @@ static void do_tsort(int fd, char *name)
        otop,     // out at start of this loop over pair[]
        otop2,    // out at start of previous loop over pair[]
        ii, jj, kk;
+  unsigned long sigh;
+
+  // bsearch()'s first argument is the element to search for,
+  // and sbse() compares the second element of each pair, so to find
+  // which FIRST element matches a second element, we need to feed bsearch
+  // keep-1 but the compiler clutches its pearls about this even when
+  // typecast to (void *), so do the usual LP64 trick to MAKE IT SHUT UP.
+  // (The search function adds 1 to each argument so we never access
+  // memory outside the pair.)
+  sigh = ((unsigned long)keep)-sizeof(*keep);
 
   // Count input entries in data block read from fd
   if (!(ss = readfd(fd, 0, &plen))) return;
@@ -82,7 +92,8 @@ static void do_tsort(int fd, char *name)
     for (ii = 0; ii<count; ii++) {
       // Find pair that depends on itself or no other pair depends on first str
       memcpy(keep, pair+2*ii, sizeof(keep));
-      if (keep[0]!=keep[1] && bsearch(keep-1, pair, count, sizeof(keep),
+      // The compiler won't shut up about keep-1 no matter how we typecast it.
+      if (keep[0]!=keep[1] && bsearch((void *)sigh, pair, count, sizeof(keep),
           (void *)sbse)) continue;
 
       // Remove from pair list
