@@ -481,7 +481,7 @@ int xtempfile(char *name, char **tempname)
 {
   int fd;
 
-   *tempname = xmprintf("%s%s", name, "XXXXXX");
+  *tempname = xmprintf("%s%s", name, "XXXXXX");
   if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
 
   return fd;
@@ -1107,20 +1107,27 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   free(oldtz);
 }
 
-// Return line of text from file. Strips trailing newline (if any).
-char *xgetline(FILE *fp)
+// Return line of text from file.
+char *xgetdelim(FILE *fp, int delim)
 {
   char *new = 0;
   size_t len = 0;
   long ll;
 
   errno = 0;
-  if (1>(ll = getline(&new, &len, fp))) {
+  if (1>(ll = getdelim(&new, &len, delim, fp))) {
     if (errno && errno != EINTR) perror_msg("getline");
+    free(new);
     new = 0;
-  } else if (new[ll-1] == '\n') new[--ll] = 0;
+  }
 
   return new;
+}
+
+// Return line of text from file. Strips trailing newline (if any).
+char *xgetline(FILE *fp)
+{
+  return chomp(xgetdelim(fp, '\n'));
 }
 
 time_t xmktime(struct tm *tm, int utc)
