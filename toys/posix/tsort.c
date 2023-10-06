@@ -42,7 +42,7 @@ static int sbse(char **a, char **b)
 // TODO: this treats NUL in input as EOF
 static void do_tsort(int fd, char *name)
 {
-  off_t plen;
+  off_t plen = 0;
   char *ss, **pair, *keep[2];
   long count,    // remaining unprocessed pairs
        len,      // total strings in pair list
