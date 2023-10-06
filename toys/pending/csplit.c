@@ -23,7 +23,7 @@ config CSPLIT
 
     Valid Rules:
     /regexp/[INTEGER] Break file before line that regexp matches,
-    %regexp%[INTEGER]
+    %regexp%[INTEGER] Exclude untill line matches regexp
     If a offset is specified for these rules, the break will happen [INTEGER]
     lines after the regexp match
     if a offset is specified, it will break at [INTEGER] lines after the offset
@@ -60,7 +60,7 @@ static int rgmatch(char *rxrl, char *line, char *fmt)
   regex_t rxp;
   int rr;
 
-  sscanf(rxrl,fmt, toybuf, &TT.offset);
+  sscanf(rxrl, fmt, toybuf, &TT.offset);
   xregcomp(&rxp, toybuf, 0);
   rr = regexec(&rxp, line, 0, 0, 0);
   if (!rr) return 1;
@@ -150,7 +150,7 @@ void csplit_main(void)
   actvfile = xfopen(xmprintf(TT.filefmt, TT.prefix, TT.findx), "w+");
   for (; (line = xgetline(fin)); free(line)) {
     TT.lineno++;
-    filesize += strlen(line)+1;
+    if (!TT.withld) filesize += strlen(line)+1;
 
     if (cntxt(line, toys.optargs[TT.indx])) {
       if (!TT.withld) {
