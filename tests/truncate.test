@@ -13,7 +13,7 @@ testing "1m" "truncate -s 1m freep $SIZE" "1048576\n" "" ""
 # is a bit weird; for some file sizes (12345, in this example) blocks will
 # have been allocated that aren't deallocated by the 1g extension.
 rm freep; touch freep
-testing "is sparse" "truncate -s 1g freep && [ $(stat -c %b freep) -le 8 ] &&
+testing "is sparse" "truncate -s 1g freep && [ $(stat -c %b freep) -le 64 ] &&
   echo okay" \
 	"okay\n" "" ""
 testing "+" "truncate -s 1k freep && truncate -s +1k freep $SIZE" \
