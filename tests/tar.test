@@ -123,7 +123,7 @@ testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | SUM 3" \
   testing "create long symlink" "$TAR dir/lshort dir/llong | SUM 3" \
     "07eaf397634b5443dbf2d3ec38a4302150fcfe82\n" "" ""
 
-  ln -s $LONG dir/${LONG:5}
+  skipnot ln -s $LONG dir/${LONG:5} 2>/dev/null
   testing "create long->long" "$TAR dir/${LONG:5} | SUM 7" \
     "b9e24f53e27496c5125445230d201b4a36ff7398\n" "" ""
 
