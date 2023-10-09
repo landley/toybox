@@ -31,7 +31,7 @@ GLOBALS(
 
 static void safe_shutdown(int ignored)
 {
-  write(TT.fd, "V", 1);
+  (void)write(TT.fd, "V", 1);
   close(TT.fd);
   error_exit("safely exited watchdog.");
 }
@@ -45,7 +45,7 @@ void watchdog_main(void)
 
   // Now that we've got the watchdog device open, kick it periodically.
   for (;;) {
-    write(TT.fd, "", 1);
+    (void)write(TT.fd, "", 1);
     sleep(TT.t);
   }
 }

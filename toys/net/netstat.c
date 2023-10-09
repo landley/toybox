@@ -136,7 +136,7 @@ static void show_ip(char *fname)
   FILE *fp = xfopen(fname, "r");
 
   // Skip header.
-  fgets(toybuf, sizeof(toybuf), fp);
+  (void)fgets(toybuf, sizeof(toybuf), fp);
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
     char lip[256], rip[256];
@@ -206,7 +206,7 @@ static void show_unix_sockets(void)
   FILE *fp = xfopen("/proc/net/unix", "r");
 
   // Skip header.
-  fgets(toybuf, sizeof(toybuf), fp);
+  (void)fgets(toybuf, sizeof(toybuf), fp);
 
   while (fscanf(fp, "%*p: %lX %*X %lX %lX %lX %lu%m[^\n]", &refcount, &flags,
                 &type, &state, &inode, &filename) >= 5) {
@@ -287,7 +287,7 @@ static void display_routes(void)
   FILE *fp = xfopen("/proc/net/route", "r");
 
   // Skip header.
-  fgets(toybuf, sizeof(toybuf), fp);
+  (void)fgets(toybuf, sizeof(toybuf), fp);
 
   printf("Kernel IP routing table\n"
           "Destination\tGateway \tGenmask \tFlags %s Iface\n",

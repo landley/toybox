@@ -90,9 +90,9 @@ void oneit_main(void)
   close(0);
   xopen_stdio(TT.c ? : "/dev/tty0", O_RDWR|O_CLOEXEC);
   close(1);
-  dup(0);
+  (void)dup(0);
   close(2);
-  dup(0);
+  (void)dup(0);
 
   if (FLAG(3)) {
     // Ensure next available filehandles are #3 and #4
