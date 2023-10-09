@@ -981,7 +981,7 @@ static int get_ps(struct dirtree *new)
 
       // Store end of argv[0] so ARGS and CMDLINE can differ.
       // We do it for each file string slot but last is cmdline, which sticks.
-      slot[SLOT_argv0len] = temp ? temp : len;  // Position of _first_ NUL
+      slot[SLOT_argv0len] = temp ? : len;  // Position of _first_ NUL
     }
 
     // Each case above calculated/retained len, so we don't need to re-strlen.
@@ -1166,8 +1166,9 @@ static char *parse_rest(void *data, char *str, int len)
     if (pl==&TT.ss && ll[pl->len]==0) ll[pl->len] = getsid(0);
   }
 
+  // PID can't be zero but SID can be 0 before the init task calls setsid().
   if (pl==&TT.pp || pl==&TT.ss) {
-    if (num && ll[pl->len]>0) {
+    if (num && ll[pl->len]>-(pl==&TT.ss)) {
       pl->len++;
 
       return 0;
