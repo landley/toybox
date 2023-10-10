@@ -17,13 +17,16 @@ config DEVMEM
 #define FOR_devmem
 #include "toys.h"
 
-unsigned long atolu(char *str)
+unsigned long xatolu(char *str, int bytes)
 {
   char *end = str;
   unsigned long lu;
 
   errno = 0;
   lu = strtoul(str, &end, 0);
+  // Report out of range values as errors rather than truncating.
+  if (errno == ERANGE || lu > (~0UL)>>(sizeof(long)-bytes)*8)
+    error_exit("%s>%d bytes", str, bytes);
   if (*end || errno) perror_exit("bad %s", str);
 
   return lu;
@@ -32,7 +35,8 @@ unsigned long atolu(char *str)
 void devmem_main(void)
 {
   int writing = toys.optc == 3, page_size = sysconf(_SC_PAGESIZE), bytes = 4,fd;
-  unsigned long data = 0, map_off, map_len, addr = atolu(*toys.optargs);
+  unsigned long data = 0, map_off, map_len,
+    addr = xatolu(*toys.optargs, sizeof(long));
   char *sizes = sizeof(long)==8 ? "1248" : "124";
   void *map, *p;
 
@@ -45,9 +49,8 @@ void devmem_main(void)
     bytes = 1<<i;
   }
 
-  // DATA? Report out of range values as errors rather than truncating.
-  if (writing && (data = atolu(toys.optargs[2]))>(~0UL)>>(sizeof(long)-bytes)*8)
-    error_exit("%lx>%d bytes", data, bytes);
+  // DATA?
+  if (writing) data = xatolu(toys.optargs[2], bytes);
 
   // Map in just enough.
   if (CFG_TOYBOX_FORK) {
