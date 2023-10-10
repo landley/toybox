@@ -547,9 +547,9 @@ static void show_error(char *fmt, ...)
   printf("\e[0m");
   xflush(1);
 
-  // TODO: better integration with status line: remove sleep and keep
+  // TODO: better integration with status line: keep
   // message until next operation.
-  sleep(1);
+  (void)getchar();
 }
 
 static void linelist_unload()
@@ -1371,6 +1371,24 @@ static int run_ex_cmd(char *cmd)
     else if (*(cmd+1) == 'd') {
       run_vi_cmd("dd");
       run_vi_cmd("k");
+    } else if (*(cmd+1) == 'g') {
+      char *rgx = malloc(strlen(cmd));
+      int el = get_endline(), ln = 0;
+      regex_t rgxc;
+      if (!sscanf(cmd, ":g/%[^/]/%[^\ng]", rgx, cmd+1)) return 0;
+      if (regcomp(&rgxc, rgx, 0)) return 0;
+      cmd[0] = ':';
+      
+      for (; ln < el; ln++) {
+        run_vi_cmd("yy");
+        if (!regexec(&rgxc, TT.yank.data, 0, 0, 0)) run_ex_cmd(cmd);
+        run_vi_cmd("j");
+      }
+
+      // Reset Frame
+      ctrl_f();
+      draw_page();
+      ctrl_b();
     }
 
     // Line Ranges
