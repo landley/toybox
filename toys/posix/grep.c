@@ -15,22 +15,18 @@ config GREP
   bool "grep"
   default y
   help
-    usage: grep [-EFrivwcloqsHbhn] [-ABC NUM] [-m MAX] [-e REGEX]... [-MS PATTERN]... [-f REGFILE] [FILE]...
+    usage: grep [-EFrivwcloqsHbhn] [-ABC NUM] [-m MAX] [-e REGEX]... [-MS PATTERN]... [-f REGFILE]... [FILE]...
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
     Returns 0 if matched, 1 if no match found, 2 for command errors.
 
-    -e  Regex to match. (May be repeated.)
-    -f  File listing regular expressions to match.
+    -e  Regex(es) to match.       -f  File(s) of regexes to match (1 per line).
 
     file search:
-    -r  Recurse into subdirectories (defaults FILE to ".")
-    -R  Recurse into subdirectories and symlinks to directories
-    -M  Match filename pattern (--include)
-    -S  Skip filename pattern (--exclude)
-    --exclude-dir=PATTERN  Skip directory pattern
-    -I  Ignore binary files
+    -r  Recurse into subdirs     -R  Recurse following symlinks
+    -M  Match files (--include)  -S  Skip files (--exclude)
+    -I  Ignore binary files      --exclude-dir=PATTERN  Skip directories
 
     match type:
     -A  Show NUM lines after     -B  Show NUM lines before match
