@@ -33,7 +33,7 @@ config VI
     ex mode commands:
 
       [cmd]
-      \b \e \n w wq q! 'set list' 'set nolist' d $ %
+      \b \e \n w wq q! 'set list' 'set nolist' d $ % g v
 */
 #define FOR_vi
 #include "toys.h"
@@ -1368,31 +1368,33 @@ static int run_ex_cmd(char *cmd)
       TT.vi_mov_flag |= 0x30000000;
     }
 
-    else if (*(cmd+1) == 'd') {
+    else if (cmd[1] == 'd') {
       run_vi_cmd("dd");
       run_vi_cmd("k");
-    } else if (*(cmd+1) == 'g') {
-      char *rgx = malloc(strlen(cmd));
-      int el = get_endline(), ln = 0;
+    } else if (cmd[1] == 'g' || cmd[1] == 'v') {
+      char *rgx = xmalloc(strlen(cmd));
+      int el = get_endline(), ln = 0, vorg = ((cmd[1] == 'v') ? REG_NOMATCH : 0);
       regex_t rgxc;
-      if (!sscanf(cmd, ":g/%[^/]/%[^\ng]", rgx, cmd+1)) return 0;
-      if (regcomp(&rgxc, rgx, 0)) return 0;
+
+      if (!sscanf(cmd+2, "/%[^/]/%[^\ng]", rgx, cmd+1) ||
+          regcomp(&rgxc, rgx, 0)) goto gcleanup;
+
       cmd[0] = ':';
       
       for (; ln < el; ln++) {
         run_vi_cmd("yy");
-        if (!regexec(&rgxc, TT.yank.data, 0, 0, 0)) run_ex_cmd(cmd);
+        if (regexec(&rgxc, TT.yank.data, 0, 0, 0) == vorg) run_ex_cmd(cmd);
         run_vi_cmd("j");
       }
 
       // Reset Frame
-      ctrl_f();
-      draw_page();
-      ctrl_b();
-    }
+      ctrl_f(); draw_page(); ctrl_b();
+gcleanup:
+      regfree(&rgxc); free(rgx);
+    } 
 
     // Line Ranges
-    else if (*(cmd+1) >= '0' && *(cmd+1) <= '9') {
+    else if (cmd[1] >= '0' && cmd[1] <= '9') {
       if (strstr(cmd, ",")) {
         char *tcmd = xmalloc(strlen(cmd));
 
@@ -1400,8 +1402,8 @@ static int run_ex_cmd(char *cmd)
         cmd = tcmd;
         ofst = 1;
       } else run_vi_cmd(xmprintf("%dG", atoi(cmd+1)));
-    } else if (*(cmd+1) == '$') run_vi_cmd("G");
-    else if (*(cmd+1) == '%') {
+    } else if (cmd[1] == '$') run_vi_cmd("G");
+    else if (cmd[1] == '%') {
       startline = 1;
       endline = get_endline();
       ofst = 1;
