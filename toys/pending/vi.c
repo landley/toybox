@@ -1324,7 +1324,7 @@ static int run_vi_cmd(char *cmd)
   return 0;
 }
 
-// Page breaks while doing things like ":2,3d" unless we can call this
+
 static void draw_page();
 
 static int get_endline(void)
@@ -1370,43 +1370,39 @@ static int run_ex_cmd(char *cmd)
 
     else if (cmd[1] == 'd') {
       run_vi_cmd("dd");
-      run_vi_cmd("k");
+      cur_up(1, 1, 0);
     } else if (cmd[1] == 'g' || cmd[1] == 'v') {
       char *rgx = xmalloc(strlen(cmd));
-      int el = get_endline(), ln = 0, vorg = ((cmd[1] == 'v') ? REG_NOMATCH : 0);
+      int el = get_endline(), ln = 0, vorg = (cmd[1] == 'v' ? REG_NOMATCH : 0);
       regex_t rgxc;
 
       if (!sscanf(cmd+2, "/%[^/]/%[^\ng]", rgx, cmd+1) ||
           regcomp(&rgxc, rgx, 0)) goto gcleanup;
 
       cmd[0] = ':';
-      
+
       for (; ln < el; ln++) {
         run_vi_cmd("yy");
         if (regexec(&rgxc, TT.yank.data, 0, 0, 0) == vorg) run_ex_cmd(cmd);
-        run_vi_cmd("j");
+        cur_down(1, 1, 0);
       }
 
       // Reset Frame
-      ctrl_f(); draw_page(); ctrl_b();
+      TT.vi_mov_flag |= 0x30000000;
 gcleanup:
       regfree(&rgxc); free(rgx);
-    } 
+    }
 
     // Line Ranges
     else if (cmd[1] >= '0' && cmd[1] <= '9') {
       if (strstr(cmd, ",")) {
-        char *tcmd = xmalloc(strlen(cmd));
-
-        sscanf(cmd, ":%d,%d%[^\n]", &startline, &endline, tcmd+2);
-        cmd = tcmd;
+        sscanf(cmd, ":%d,%d%[^\n]", &startline, &endline, cmd+2);
         ofst = 1;
       } else run_vi_cmd(xmprintf("%dG", atoi(cmd+1)));
     } else if (cmd[1] == '$') run_vi_cmd("G");
     else if (cmd[1] == '%') {
-      startline = 1;
       endline = get_endline();
-      ofst = 1;
+      ofst = startline = 1;
     } else show_error("unknown command '%s'",cmd+1);
 
     if (ofst) {
@@ -1414,17 +1410,15 @@ gcleanup:
 
       draw_page();
       cline = TT.cur_row+1;
-      *(cmd+ofst) = ':';
+      cmd[ofst] = ':';
       run_vi_cmd(xmprintf("%dG", startline));
       for (; startline <= endline; startline++) {
         run_ex_cmd(cmd+ofst);
-        run_vi_cmd("j");
+        cur_down(1, 1, 0);
       }
       run_vi_cmd(xmprintf("%dG", cline));
       // Screen Reset
-      ctrl_f();
-      draw_page();
-      ctrl_b();
+      TT.vi_mov_flag |= 0x30000000;
     }
   }
   return 0;
