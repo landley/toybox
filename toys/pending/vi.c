@@ -510,17 +510,20 @@ static size_t text_getline(char *dest, size_t offset, size_t max_len)
 // check big slices directly and just copy edge cases.
 // Also this is only line based search multiline
 // and regexec should be done instead.
-static size_t text_strstr(size_t offset, char *str)
+static size_t text_strstr(size_t offset, char *str, int dir)
 {
   size_t bytes, pos = offset;
   char *s = 0;
 
   do {
     bytes = text_getline(toybuf, pos, ARRAY_LEN(toybuf));
-    if (!bytes) pos++; //empty line
+    if (!bytes) pos += (dir ? 1 : -1); //empty line
     else if ((s = strstr(toybuf, str))) return pos+(s-toybuf);
-    else pos += bytes;
-  } while (pos < TT.filesize);
+    else {
+      if (!dir) pos -= bytes;
+      else pos += bytes;
+    }
+  } while (pos < (dir ? 0 : TT.filesize));
 
   return SIZE_MAX;
 }
@@ -839,9 +842,9 @@ static int vi_M(int count0, int count1, char *unused)
   return 1;
 }
 
-static int search_str(char *s)
+static int search_str(char *s, int direction)
 {
-  size_t pos = text_strstr(TT.cursor+1, s);
+  size_t pos = text_strstr(TT.cursor+1, s, direction);
 
   if (TT.last_search != s) {
     free(TT.last_search);
@@ -1197,7 +1200,13 @@ static int vi_join(char reg, int count0, int count1)
 
 static int vi_find_next(char reg, int count0, int count1)
 {
-  if (TT.last_search) search_str(TT.last_search);
+  if (TT.last_search) search_str(TT.last_search, 1);
+  return 1;
+}
+
+static int vi_find_prev(char reg, int count0, int count1)
+{
+  if (TT.last_search) search_str(TT.last_search, 0);
   return 1;
 }
 
@@ -1225,6 +1234,7 @@ struct vi_special_param {
   {"I", &vi_I},
   {"J", &vi_join},
   {"O", &vi_O},
+  {"N", &vi_find_prev},
   {"n", &vi_find_next},
   {"o", &vi_o},
   {"p", &vi_push},
@@ -1346,10 +1356,8 @@ static int run_ex_cmd(char *cmd)
 {
   int startline = 1, ofst = 0, endline;
 
-  if (cmd[0] == '/') search_str(cmd+1);
-  else if (cmd[0] == '?') {
-    // TODO: backwards search.
-  } else if (cmd[0] == ':') {
+  if (*cmd == '/' || *cmd == '\?') search_str(cmd+1, *cmd == '/' ? 0 : 1);
+  else if (*cmd == ':') {
     if (cmd[1] == 'q') {
       if (cmd[2] != '!' && modified())
         show_error("Unsaved changes (\"q!\" to ignore)");
@@ -1371,7 +1379,8 @@ static int run_ex_cmd(char *cmd)
     else if (cmd[1] == 'd') {
       run_vi_cmd("dd");
       cur_up(1, 1, 0);
-    } else if (cmd[1] == 'g' || cmd[1] == 'v') {
+    } else if (cmd[1] == 'j') run_vi_cmd("J");
+    else if (cmd[1] == 'g' || cmd[1] == 'v') {
       char *rgx = xmalloc(strlen(cmd));
       int el = get_endline(), ln = 0, vorg = (cmd[1] == 'v' ? REG_NOMATCH : 0);
       regex_t rgxc;
@@ -1402,16 +1411,13 @@ gcleanup:
     } else if (cmd[1] == '$') run_vi_cmd("G");
     else if (cmd[1] == '%') {
       endline = get_endline();
-      ofst = startline = 1;
+      ofst = 1;
     } else show_error("unknown command '%s'",cmd+1);
 
     if (ofst) {
-      int cline;
+      int cline = TT.cur_row+1;
 
-      draw_page();
-      cline = TT.cur_row+1;
       cmd[ofst] = ':';
-      run_vi_cmd(xmprintf("%dG", startline));
       for (; startline <= endline; startline++) {
         run_ex_cmd(cmd+ofst);
         cur_down(1, 1, 0);
