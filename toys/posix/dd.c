@@ -40,7 +40,6 @@ config DD
 
 #define FOR_dd
 #include "toys.h"
-#include <sys/uio.h>
 
 GLOBALS(
   // Display fields
