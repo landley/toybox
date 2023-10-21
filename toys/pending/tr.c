@@ -3,21 +3,22 @@
  * Copyright 2014 Sandeep Sharma <sandeep.jack2756@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tr.html
- * TODO: -t (truncate) -a (ascii)
+ * TODO: -a (ascii)
 
-USE_TR(NEWTOY(tr, "^>2<1Ccsd[+cC]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TR(NEWTOY(tr, "^>2<1Ccstd[+cC]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TR
   bool "tr"
   default n
   help
-    usage: tr [-cds] SET1 [SET2]
+    usage: tr [-cdst] SET1 [SET2]
 
     Translate, squeeze, or delete characters from stdin, writing to stdout
 
     -c/-C  Take complement of SET1
     -d     Delete input characters coded SET1
     -s     Squeeze multiple output characters of SET2 into one character
+    -t     Truncate SET2 to length of SET1
 */
 
 #define FOR_tr
@@ -92,7 +93,7 @@ static int handle_escape_char(char **esc_val) //taken from printf
     switch (*ptr) {
       case 'n':  result = '\n'; break;
       case 't':  result = '\t'; break;
-      case 'e':  result = (char)27; break;
+      case 'e':  result = '\e'; break;
       case 'b':  result = '\b'; break;
       case 'a':  result = '\a'; break;
       case 'f':  result = '\f'; break;
@@ -123,32 +124,33 @@ static int find_class(char *class_name)
   return i;
 }
 
-static char *expand_set(char *arg, int *len)
+static char *expand_set(char *arg, int *len, size_t until)
 {
   int i = 0, j, k, size = 256;
-  char *set = xzalloc(size*sizeof(char));
+  char *set = xzalloc(size), *orig = arg;
 
   while (*arg) {
+    if (arg-orig >= until) break;
     if (i >= size) {
       size += 256;
       set = xrealloc(set, size);
     }
     if (*arg == '\\') {
       arg++;
-      set[i++] = (int)handle_escape_char(&arg);
+      set[i++] = handle_escape_char(&arg);
       arg++;
       continue;
     }
     if (arg[1] == '-') {
       if (!arg[2]) goto save;
-      j = arg[0];
+      j = *arg;
       k = arg[2];
       if (j > k) perror_exit("reverse colating order");
       while (j <= k) set[i++] = j++;
       arg += 3;
       continue;
     }
-    if (arg[0] == '[' && arg[1] == ':') {
+    if (*arg == '[' && arg[1] == ':') {
 
       if ((j = find_class(arg)) == class_invalid) goto save;
 
@@ -185,7 +187,7 @@ static char *expand_set(char *arg, int *len)
       arg += 9; //never here for class_xdigit.
       continue;
     }
-    if (arg[0] == '[' && arg[1] == '=') { //[=char=] only
+    if (*arg == '[' && arg[1] == '=') { //[=char=] only
       arg += 2;
       if (*arg) set[i++] = *arg;
       if (!arg[1] || arg[1] != '=' || arg[2] != ']')
@@ -218,10 +220,10 @@ static void print_map(char *set1, char *set2)
 
 static void do_complement(char **set)
 {
-  int i, j;
+  int i = 0, j = 0;
   char *comp = xmalloc(256);
 
-  for (i = 0, j = 0;i < 256; i++) {
+  for (; i < 256; i++) {
     if (memchr(*set, i, TT.len1)) continue;
     else comp[j++] = (char)i;
   }
@@ -233,16 +235,17 @@ static void do_complement(char **set)
 void tr_main(void)
 {
   char *set1, *set2 = NULL;
-  int i;
+  int i = 0;
 
   TT.map = xmalloc(256*sizeof(*TT.map));
-  for (i = 0; i < 256; i++) TT.map[i] = i; //init map
+  for (; i < 256; i++) TT.map[i] = i; //init map
 
-  set1 = expand_set(toys.optargs[0], &TT.len1);
+  set1 = expand_set(*toys.optargs, &TT.len1,
+      FLAG(t) ? strlen(toys.optargs[1]) : -1);
   if (FLAG(c)) do_complement(&set1);
   if (toys.optargs[1]) {
-    if (toys.optargs[1][0] == '\0') error_exit("set2 can't be empty string");
-    set2 = expand_set(toys.optargs[1], &TT.len2);
+    if (!*toys.optargs[1]) error_exit("set2 can't be empty string");
+    set2 = expand_set(toys.optargs[1], &TT.len2, -1);
   }
   map_translation(set1, set2);
 
