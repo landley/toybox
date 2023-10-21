@@ -5,7 +5,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tr.html
  * TODO: -a (ascii)
 
-USE_TR(NEWTOY(tr, "^>2<1Ccstd[+cC]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TR(NEWTOY(tr, "^<1>2Ccstd[+cC]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TR
   bool "tr"
@@ -82,32 +82,16 @@ static int handle_escape_char(char **esc_val) //taken from printf
       break;
     }
     esc_length++;
-    count = result = (count * base) + num;
+    result = (char)(count = (count * base) + num);
     ptr++;
   }
-  if (base) {
+  if (base) ptr--;
+  else if (!(result = unescape(*ptr))) {
+    result = '\\';
     ptr--;
-    *esc_val = ptr;
-    return (char)result;
-  } else {
-    switch (*ptr) {
-      case 'n':  result = '\n'; break;
-      case 't':  result = '\t'; break;
-      case 'e':  result = '\e'; break;
-      case 'b':  result = '\b'; break;
-      case 'a':  result = '\a'; break;
-      case 'f':  result = '\f'; break;
-      case 'v':  result = '\v'; break;
-      case 'r':  result = '\r'; break;
-      case '\\': result = '\\'; break;
-      default :
-        result = '\\';
-        ptr--; // Let pointer pointing to / we will increment after returning.
-        break;
-    }
   }
   *esc_val = ptr;
-  return (char)result;
+  return result;
 }
 
 static int find_class(char *class_name)
