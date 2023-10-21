@@ -26,14 +26,24 @@ GLOBALS(
 static void display(unsigned long long now)
 {
   unsigned long long bb;
-  unsigned seconds, ii, len = TT.tick ? : 1;
+  unsigned seconds, ii, len = TT.tick ? minof(TT.tick, 63): 1;
 
-  // raw number, human readable, time, and recent/total rate
+  // bytes, human readable size, elapsed time, rate over last 16 seconds
   if (FLAG(l)) {
     human_readable(toybuf+256, TT.size, 0);
     seconds = (now - TT.start)/1000;
-    for (bb = ii = 0, len = minof(len, 64); ii<len; ii++) bb += TT.slice[ii];
-    human_readable(toybuf+512, bb/len, 0);
+
+    // We zero new period and count it immediately, which lowers the average
+    // if we haven't had time to fill it yet. Compensate by keeping one extra
+    // old period and adding prorated fraction of it.
+    bb = (TT.slice[63&(TT.tick-len)]*(250-(now%250)))/250;
+
+    // Add up periods, convert to seconds via elapsed milliseconds
+    for (ii = 0; ii<len;) bb += TT.slice[63&(TT.tick-ii++)];
+    len *= 250;
+    if (now>TT.start && len>now-TT.start) len = now-TT.start;
+    human_readable(toybuf+512, (bb*1000)/len, 0);
+
     sprintf(toybuf+1024, ", %sb, %sb/s, %um%02us", toybuf+256, toybuf+512,
       seconds/60, seconds%60);
   }
