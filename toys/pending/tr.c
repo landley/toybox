@@ -18,7 +18,7 @@ config TR
     -c/-C  Take complement of SET1
     -d     Delete input characters coded SET1
     -s     Squeeze multiple output characters of SET2 into one character
-    -t     Truncate SET2 to length of SET1
+    -t     Truncate SET1 to length of SET2
 */
 
 #define FOR_tr
@@ -225,7 +225,7 @@ void tr_main(void)
   for (; i < 256; i++) TT.map[i] = i; //init map
 
   set1 = expand_set(*toys.optargs, &TT.len1,
-      FLAG(t) ? strlen(toys.optargs[1]) : -1);
+      (FLAG(t) && toys.optargs[1]) ? strlen(toys.optargs[1]) : -1);
   if (FLAG(c)) do_complement(&set1);
   if (toys.optargs[1]) {
     if (!*toys.optargs[1]) error_exit("set2 can't be empty string");
