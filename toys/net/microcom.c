@@ -13,7 +13,7 @@ config MICROCOM
     Simple serial console.
 
     -s	Set baud rate to SPEED (default 115200)
-    -X	Ignore ^@ (send break) and ^] (exit)
+    -X	Ignore ^] escape (default is ^] for menu)
 */
 
 #define FOR_microcom
@@ -31,6 +31,65 @@ static void restore_states(int i)
 {
   if (TT.stok) tcsetattr(0, TCSAFLUSH, &TT.old_stdin);
   tcsetattr(TT.fd, TCSAFLUSH, &TT.old_fd);
+}
+
+static void handle_esc(void)
+{
+  char input;
+
+  xputsn("\r\n"
+         "Commands are:\r\n"
+         " b  send Break\r\n"
+         " p  paste file\r\n"
+         " x  eXit microcom\r\n"
+         "\r\n"
+         "microcom> ");
+  if (read(0, &input, 1) <= 0 || input == CTRL('D') || input == 'x') {
+    xputs("Connection closed.\r");
+    xexit();
+  }
+  if (input == 'b') {
+    tcsendbreak(TT.fd, 0);
+  } else if (input == 'p') {
+    long long written = 0, size;
+    char* filename;
+    int len = 0, fd;
+
+    // TODO: share code with hexedit's prompt() and vi's ex mode.
+    // TODO: tab completion!
+    memset(toybuf, 0, sizeof(toybuf));
+    while (1) {
+      xprintf("\r\e[2K\e[1mFilename: \e[0m%s", toybuf);
+      if (read(0, &input, 1) <= 0 || input == CTRL('[')) {
+        return;
+      }
+      if (input == '\r') break;
+      if (input == 0x7f && len > 0) toybuf[--len] = 0;
+      else if (input == CTRL('U')) while (len > 0) toybuf[--len] = 0;
+      else if (input >= ' ' && input <= 0x7f && len < sizeof(toybuf))
+        toybuf[len++] = input;
+    }
+    toybuf[len] = 0;
+    if (!len) return;
+    filename = xstrdup(toybuf);
+    fd = xopen(filename, O_RDONLY);
+    size = fdlength(fd);
+    // The alternative would be to just feed this fd into the usual loop,
+    // so we're reading back these characters if they're being echoed, but
+    // for my specific use case of pasting into `base64 -d -i > foo`, this
+    // is a much more convenient UI.
+    while ((len = read(fd, toybuf, sizeof(toybuf))) > 0) {
+      written += len;
+      xprintf("\r\e[2KPasting '%s' %lld/%lld (%lld%%)...", filename, written,
+        size, written*100/size);
+      xwrite(TT.fd, toybuf, len);
+    }
+    free(filename);
+    close(fd);
+  } else {
+    xprintf("Ignoring unknown command.");
+  }
+  xprintf("\r\n");
 }
 
 void microcom_main(void)
@@ -58,6 +117,7 @@ void microcom_main(void)
   fds[1].fd = 0;
   fds[0].events = fds[1].events = POLLIN;
 
+  if (!FLAG(X)) xputs("Escape character is '^]'.\r");
   while (poll(fds, 2, -1) > 0) {
 
     // Read from connection, write to stdout.
@@ -69,13 +129,8 @@ void microcom_main(void)
     // Read from stdin, write to connection.
     if (fds[1].revents) {
       if (read(0, toybuf, 1) != 1) break;
-      if (!FLAG(X)) {
-        if (!*toybuf) {
-          tcsendbreak(TT.fd, 0);
-          continue;
-        } else if (*toybuf == (']'-'@')) break;
-      }
-      xwrite(TT.fd, toybuf, 1);
+      if (!FLAG(X) && *toybuf == CTRL(']')) handle_esc();
+      else xwrite(TT.fd, toybuf, 1);
     }
   }
 }
