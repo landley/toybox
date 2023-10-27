@@ -684,19 +684,16 @@ static int link_set(char **argv)
 {
   struct arglist cmd_objectlist[] = {{"up", 0}, {"down", 1}, {"arp", 2}, 
     {"multicast", 3}, {"dynamic", 4}, {"name", 5}, {"txqueuelen", 6}, 
-    {"mtu", 7},{"address", 8}, {"broadcast", 9}, {NULL,-1}};
+    {"mtu", 7},{"address", 8}, {"broadcast", 9}, {"dev", 10}, {NULL,-1}};
   int case_flags[] = {IFF_NOARP,IFF_MULTICAST,IFF_DYNAMIC};
   struct ifreq req;
   int idx, flags = 0, masks = 0xffff, fd;
+  char *dev = NULL, *newdev = NULL, *newaddr = NULL, *newbrd = NULL;
+  int mtu = -1, txqlen = -1;
 
-  memset(&req, 0, sizeof(req));
-  if (!*argv) error_exit("\"dev\" missing");
-  xstrncpy(req.ifr_name, *argv, IF_NAMESIZE);
-  fd = xsocket(AF_INET, SOCK_DGRAM, 0);
-  xioctl(fd, SIOCGIFINDEX, &req);
-  for (++argv; *argv;) {
-    if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1) help_exit(0);
-    switch(idx) {
+  int i = 0;
+  while (*argv) {
+    switch(idx = substring_to_idx(*argv, cmd_objectlist)) {
       case 0:
         flags |= IFF_UP; break;
       case 1:
@@ -704,6 +701,7 @@ static int link_set(char **argv)
       case 2:
       case 3:
       case 4:
+        ++argv;
         if (!*argv) help_exit(0);
         else if (!strcmp(*argv, "on")) {
           if (idx == 2) {
@@ -716,36 +714,82 @@ static int link_set(char **argv)
             flags |= case_flags[idx-2];
           } else masks &= ~case_flags[idx-2];
         } else help_exit(0);
-        ++argv;
         break;
       case 5:
-        xstrncpy(req.ifr_ifru.ifru_newname, *argv, IF_NAMESIZE);
-        xioctl(fd, SIOCSIFNAME, &req);
-        xstrncpy(req.ifr_name, *argv++, IF_NAMESIZE);
-        xioctl(fd, SIOCGIFINDEX, &req);
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+        newdev = *argv;
         break;
       case 6:
-        req.ifr_ifru.ifru_ivalue = atolx(*argv++);
-        xioctl(fd, SIOCSIFTXQLEN, &req);
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+        txqlen = atolx(*argv);
         break;
       case 7:
-        req.ifr_ifru.ifru_mtu = atolx(*argv++);
-        xioctl(fd, SIOCSIFMTU, &req);
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+        mtu = atolx(*argv);
         break;
       case 8:
-        xioctl(fd, SIOCGIFHWADDR, &req);
-        fill_hwaddr(*argv++, IF_NAMESIZE, 
-            (unsigned char *)(req.ifr_hwaddr.sa_data));
-        xioctl(fd, SIOCSIFHWADDR, &req);
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+        newaddr = *argv;
         break;
       case 9:
-        xioctl(fd, SIOCGIFHWADDR, &req);
-        fill_hwaddr(*argv++, IF_NAMESIZE,
-            (unsigned char *)(req.ifr_hwaddr.sa_data));
-        xioctl(fd, SIOCSIFHWBROADCAST, &req);
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+        newbrd = *argv;
+        break;
+      case 10:
+        ++argv;
+        if (!*argv) error_exit("Incomplete Command line");
+
+      default:
+        if (dev)
+          error_exit("Either \"dev\" is duplicate or %s is garbage",
+              *argv);
+        dev = *argv;
         break;
     }
+    ++argv;
   }
+
+  memset(&req, 0, sizeof(req));
+  if (!dev) error_exit("\"dev\" missing");
+  xstrncpy(req.ifr_name, dev, IF_NAMESIZE);
+  fd = xsocket(AF_INET, SOCK_DGRAM, 0);
+
+  if (newdev) {
+    xstrncpy(req.ifr_ifru.ifru_newname, newdev, IF_NAMESIZE);
+    xioctl(fd, SIOCSIFNAME, &req);
+    xstrncpy(req.ifr_name, newdev, IF_NAMESIZE);
+  }
+  xioctl(fd, SIOCGIFINDEX, &req);
+
+  if (txqlen != -1) {
+    req.ifr_ifru.ifru_ivalue = txqlen;
+    xioctl(fd, SIOCSIFTXQLEN, &req);
+  }
+
+  if (mtu != -1) {
+    req.ifr_ifru.ifru_mtu = mtu;
+    xioctl(fd, SIOCSIFMTU, &req);
+  }
+
+  if (newaddr) {
+    xioctl(fd, SIOCGIFHWADDR, &req);
+    fill_hwaddr(newaddr, IF_NAMESIZE,
+        (unsigned char *)(req.ifr_hwaddr.sa_data));
+    xioctl(fd, SIOCSIFHWADDR, &req);
+  }
+
+  if (newbrd) {
+    xioctl(fd, SIOCGIFHWADDR, &req);
+    fill_hwaddr(newbrd, IF_NAMESIZE,
+        (unsigned char *)(req.ifr_hwaddr.sa_data));
+    xioctl(fd, SIOCSIFHWBROADCAST, &req);
+  }
+
   xioctl(fd, SIOCGIFFLAGS, &req);
   req.ifr_ifru.ifru_flags |= flags;
   req.ifr_ifru.ifru_flags &= masks;
