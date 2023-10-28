@@ -10,10 +10,10 @@ config MICROCOM
   help
     usage: microcom [-s SPEED] [-X] DEVICE
 
-    Simple serial console.
+    Simple serial console. Hit CTRL-] for menu.
 
     -s	Set baud rate to SPEED (default 115200)
-    -X	Ignore ^] escape (default is ^] for menu)
+    -X	Ignore ^] menu escape
 */
 
 #define FOR_microcom
@@ -37,20 +37,13 @@ static void handle_esc(void)
 {
   char input;
 
-  xputsn("\r\n"
-         "Commands are:\r\n"
-         " b  send Break\r\n"
-         " p  paste file\r\n"
-         " x  eXit microcom\r\n"
-         "\r\n"
-         "microcom> ");
-  if (read(0, &input, 1) <= 0 || input == CTRL('D') || input == 'x') {
-    xputs("Connection closed.\r");
+  xputsn("\r\nb) break  p) paste file x) exit: ");
+  if (read(0, &input, 1)<1 || input == 'D'-64 || input == 'x') {
+    xputs("exit\r");
     xexit();
   }
-  if (input == 'b') {
-    tcsendbreak(TT.fd, 0);
-  } else if (input == 'p') {
+  if (input == 'b') tcsendbreak(TT.fd, 0);
+  else if (input == 'p') {
     long long written = 0, size;
     char* filename;
     int len = 0, fd;
@@ -60,12 +53,12 @@ static void handle_esc(void)
     memset(toybuf, 0, sizeof(toybuf));
     while (1) {
       xprintf("\r\e[2K\e[1mFilename: \e[0m%s", toybuf);
-      if (read(0, &input, 1) <= 0 || input == CTRL('[')) {
+      if (read(0, &input, 1) <= 0 || input == '['-64) {
         return;
       }
       if (input == '\r') break;
       if (input == 0x7f && len > 0) toybuf[--len] = 0;
-      else if (input == CTRL('U')) while (len > 0) toybuf[--len] = 0;
+      else if (input == 'U'-64) while (len > 0) toybuf[--len] = 0;
       else if (input >= ' ' && input <= 0x7f && len < sizeof(toybuf))
         toybuf[len++] = input;
     }
@@ -129,7 +122,7 @@ void microcom_main(void)
     // Read from stdin, write to connection.
     if (fds[1].revents) {
       if (read(0, toybuf, 1) != 1) break;
-      if (!FLAG(X) && *toybuf == CTRL(']')) handle_esc();
+      if (!FLAG(X) && *toybuf == ']'-64) handle_esc();
       else xwrite(TT.fd, toybuf, 1);
     }
   }
