@@ -424,7 +424,8 @@ static void scan_elf()
            TT.phoff);
     printf("  Start of section headers:          %llu (bytes into file)\n",
            TT.shoff);
-    printf("  Flags:                             0x%x\n", flags);
+    printf("  Flags:                             0x%x", flags);
+    elf_print_flags(machine, flags); putchar('\n');
     printf("  Size of this header:               %d (bytes)\n", ehsize);
     printf("  Size of program headers:           %d (bytes)\n", TT.phentsize);
     printf("  Number of program headers:         %d\n", phnum);

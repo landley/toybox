@@ -1528,6 +1528,19 @@ char *elf_arch_name(int type)
   return libbuf;
 }
 
+void elf_print_flags(int arch, int flags)
+{
+  if (arch == 243 /*EM_RISCV*/) {
+    if (flags & 1) printf(", C");
+    if (flags & 8) printf(", E");
+    if (flags & 0x10) printf(", TSO");
+    if ((flags & 0x6) == 0) printf(", soft float");
+    else if ((flags & 0x6) == 2) printf(", single float");
+    else if ((flags & 0x6) == 4) printf(", double float");
+    else if ((flags & 0x6) == 6) printf(", quad float");
+  }
+}
+
 // Remove octal escapes from string (common in kernel exports)
 void octal_deslash(char *s)
 {
