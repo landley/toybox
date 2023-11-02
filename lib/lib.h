@@ -271,10 +271,14 @@ char *format_iso_time(char *buf, size_t len, struct timespec *ts);
 void loggit(int priority, char *format, ...);
 unsigned tar_cksum(void *data);
 int is_tar_header(void *pkt);
-char *elf_arch_name(int type);
-void elf_print_flags(int arch, int flags);
 void octal_deslash(char *s);
 int smemcmp(char *one, char *two, unsigned long len);
+
+// elf.c
+
+char *elf_arch_name(int type);
+void elf_print_flags(int arch, int flags);
+
 
 #define HR_SPACE  1 // Space between number and units
 #define HR_B      2 // Use "B" for single byte units
