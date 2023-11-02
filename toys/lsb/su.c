@@ -37,13 +37,12 @@ config SU
 #include "toys.h"
 
 GLOBALS(
-  char *s;
-  char *c;
+  char *s, *c;
 )
 
 void su_main()
 {
-  char *name, *passhash = 0, **argu, **argv;
+  char *name, **shadow, *passhash = 0, **argu, **argv;
   struct passwd *up;
 
   if (*toys.optargs && !strcmp("-", *toys.optargs)) {
@@ -57,17 +56,17 @@ void su_main()
   loggit(LOG_NOTICE, "%s->%s", getusername(geteuid()), name);
 
   if (getuid()) {
-    struct spwd *shp;
-
-    if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
-    if (*shp->sp_pwdp != '$') goto deny;
+    if (!(shadow = get_userline("/etc/shadow", name)))
+      perror_exit("no '%s'", name);
+    if (*shadow[1] != '$') goto deny;
     if (read_password(toybuf, sizeof(toybuf), "Password: ")) goto deny;
-    passhash = crypt(toybuf, shp->sp_pwdp);
+    passhash = crypt(toybuf, shadow[1]);
+    if (!passhash || strcmp(passhash, shadow[1])) name = 0;
     memset(toybuf, 0, sizeof(toybuf));
-    if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
+    memset(shadow[1], 0, strlen(shadow[1]));
+    if (passhash) memset(passhash, 0, strlen(passhash));
+    if (!name) goto deny;
   }
-  closelog();
-
   xsetuser(up = xgetpwnam(name));
 
   if (FLAG(m)||FLAG(p)) {
@@ -76,15 +75,15 @@ void su_main()
   } else reset_env(up, FLAG(l));
 
   argv = argu = xmalloc(sizeof(char *)*(toys.optc + 4));
-  *(argv++) = TT.s ? TT.s : up->pw_shell;
+  *argv++ = TT.s ? : up->pw_shell;
   loggit(LOG_NOTICE, "run %s", *argu);
 
   if (FLAG(l)) *(argv++) = "-l";
   if (FLAG(c)) {
-    *(argv++) = "-c";
-    *(argv++) = TT.c;
+    *argv++ = "-c";
+    *argv++ = TT.c;
   }
-  while ((*(argv++) = *(toys.optargs++)));
+  while ((*argv++ = *toys.optargs++));
   xexec(argu);
 
 deny:

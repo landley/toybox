@@ -359,6 +359,7 @@ char *unescape_url(char *str, int do_cut);
 // password.c
 int get_salt(char *salt, char *algo, int rand);
 int read_password(char *buff, int buflen, char *mesg);
+char **get_userline(char *filename, char *username);
 int update_password(char *filename, char *username, char *entry, int pos);
 
 // commas.c

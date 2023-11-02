@@ -82,6 +82,33 @@ int read_password(char *buf, int buflen, char *mesg)
   return ret;
 }
 
+// Read array of colon separated strings from file with given first entry
+char **get_userline(char *filename, char *username)
+{
+  FILE *fp = xfopen(filename, "r");
+  int len = strlen(username);
+  char *line = 0, **data;
+  size_t n = 0;
+
+  while (getline(&line, &n, fp)) {
+    if (!strncmp(line, username, len) && line[len]==':') {
+      data = xzalloc(10*sizeof(char *));
+      for (len = 0; len<9; len++) {
+        data[len] = line;
+        if (!(line = strchr(line, ':'))) break;
+        *line++ = 0;
+      }
+      return data;
+    }
+    memset(line, 0, strlen(line));
+    free(line);
+    line = 0;
+    n = 0;
+  }
+
+  return 0;
+}
+
 // update colon-separated text files ala /etc/{passwd,shadow,group,gshadow}
 // returns 1 for success, 0 for failure
 
