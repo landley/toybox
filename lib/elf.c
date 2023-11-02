@@ -35,8 +35,11 @@ char *elf_arch_name(int type)
 
 void elf_print_flags(int arch, int flags)
 {
-  // riscv
-  if (arch == 243) {
+  if (arch == 40) { // arm32
+    printf(", EABI%u", (flags >> 24) & 0xf);
+    if (flags & 0x200) printf(", soft float");
+    else if (flags & 0x400) printf(", hard float");
+  } else if (arch == 243) { // riscv
     if (flags & 1) printf(", C");
     if (flags & 8) printf(", E");
     if (flags & 0x10) printf(", TSO");
