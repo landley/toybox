@@ -37,8 +37,8 @@ static void handle_esc(void)
 {
   char input;
 
-  xputsn("\r\nb) break  p) paste file x) exit: ");
-  if (read(0, &input, 1)<1 || input == 'D'-64 || input == 'x') {
+  xputsn("\r\n[b]reak, [p]aste file, [q]uit: ");
+  if (read(0, &input, 1)<1 || input == 'D'-64 || input == 'q') {
     xputs("exit\r");
     xexit();
   }
