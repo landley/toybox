@@ -149,9 +149,8 @@ static const unsigned sha1rconsts[] = {
 };
 
 // bit rotations
-#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
-#define ror(value, bits) (((value) >> (bits)) | ((value) << (32 - (bits))))
-#define ror64(value, bits) (((value) >> (bits)) | ((value) << (64 - (bits))))
+#define rol(value, bits) (((value)<<(bits))|((value)>>(sizeof(value)*8-(bits))))
+#define ror(value, bits) (((value)>>(bits))|((value)<<(sizeof(value)*8-(bits))))
 
 // Mix next 64 bytes of data into md5 hash
 
@@ -279,18 +278,18 @@ static void sha2_64_transform(void)
 
   // Extend the message schedule array beyond first 16 words
   for (i = 16; i<80; i++) {
-    s0 = ror64(block[i-15], 1) ^ ror64(block[i-15], 8) ^ (block[i-15] >> 7);
-    s1 = ror64(block[i-2], 19) ^ ror64(block[i-2], 61) ^ (block[i-2] >> 6);
+    s0 = ror(block[i-15], 1) ^ ror(block[i-15], 8) ^ (block[i-15] >> 7);
+    s1 = ror(block[i-2], 19) ^ ror(block[i-2], 61) ^ (block[i-2] >> 6);
     block[i] = block[i-16] + s0 + block[i-7] + s1;
   }
   // Copy context->state.i64[] to working vars
   for (i = 0; i<8; i++) rot[i] = TT.state.i64[i];
   // 80 rounds
   for (i = 0; i<80; i++) {
-    S1 = ror64(rot[4],14) ^ ror64(rot[4],18) ^ ror64(rot[4], 41);
+    S1 = ror(rot[4],14) ^ ror(rot[4],18) ^ ror(rot[4], 41);
     ch = (rot[4] & rot[5]) ^ ((~ rot[4]) & rot[6]);
     temp1 = rot[7] + S1 + ch + TT.rconsttable64[i] + block[i];
-    S0 = ror64(rot[0],28) ^ ror64(rot[0],34) ^ ror64(rot[0], 39);
+    S0 = ror(rot[0],28) ^ ror(rot[0],34) ^ ror(rot[0], 39);
     maj = (rot[0] & rot[1]) ^ (rot[0] & rot[2]) ^ (rot[1] & rot[2]);
     temp2 = S0 + maj;
     memmove(rot+1, rot, 56);
