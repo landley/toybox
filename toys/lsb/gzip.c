@@ -134,8 +134,9 @@ static void do_gzip(int ifd, char *in)
     // Add or remove .gz suffix as necessary
     if (!FLAG(d)) out = xmprintf("%s%s", in, ".gz");
     else if ((out = strend(in, ".gz"))>in) out = xstrndup(in, out-in);
+    else if ((out = strend(in, ".tgz"))>in)
+      out = xmprintf("%.*s.tar", (int)(out-in), in);
     else return error_msg("no .gz: %s", in);
-
     ofd = xcreate(out, O_CREAT|O_WRONLY|WARN_ONLY|O_EXCL*!FLAG(f), sb.st_mode);
     if (ofd == -1) return;
   }
