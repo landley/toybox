@@ -4,17 +4,18 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nm.html
 
-USE_READELF(NEWTOY(readelf, "<1(dyn-syms)adehlnp:SsWx:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_READELF(NEWTOY(readelf, "<1(dyn-syms)Aadehlnp:SsWx:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config READELF
   bool "readelf"
   default y
   help
-    usage: readelf [-adehlnSs] [-p SECTION] [-x SECTION] [file...]
+    usage: readelf [-AadehlnSs] [-p SECTION] [-x SECTION] [file...]
 
     Displays information about ELF files.
 
-    -a	Equivalent to -dhlnSs
+    -A	Show architecture-specific info
+    -a	Equivalent to -AdhlnSs
     -d	Show dynamic section
     -e	Headers (equivalent to -hlS)
     -h	Show ELF header
@@ -235,7 +236,7 @@ DECODER(sh_type, MAP({{0,"NULL"},{1,"PROGBITS"},{2,"SYMTAB"},{3,"STRTAB"},
   {0x6fffff00,"ANDROID_RELR"},{0x6ffffff6,"GNU_HASH"},
   {0x6ffffffd,"VERDEF"},{0x6ffffffe,"VERNEED"},
   {0x6fffffff,"VERSYM"},{0x70000001,"ARM_EXIDX"},
-  {0x70000003,"ARM_ATTRIBUTES"}}))
+  {0x70000003,"ATTRIBUTES"}}))
 
 DECODER(stb_type, MAP({{0,"LOCAL"},{1,"GLOBAL"},{2,"WEAK"}}))
 
@@ -244,6 +245,10 @@ DECODER(stt_type, MAP({{0,"NOTYPE"},{1,"OBJECT"},{2,"FUNC"},{3,"SECTION"},
 
 DECODER(stv_type, MAP({{0,"DEFAULT"},{1,"INTERNAL"},{2,"HIDDEN"},
   {3,"PROTECTED"}}))
+
+DECODER(riscv_attr_tag, MAP({{4,"stack_align"},{5,"arch"},
+  {6,"unaligned_access"},{8,"priv_spec"},{10,"priv_spec_minor"},
+  {12,"priv_spec_revision"},{14,"atomic_abi"},{16,"x3_reg_usage"}}))
 
 static void show_symbols(struct sh *table, struct sh *strtab)
 {
@@ -298,6 +303,69 @@ static int notematch(int namesz, char **p, char *expected)
   *p += namesz;
 
   return 1;
+}
+
+static unsigned long long uleb(char **ptr, char *end)
+{
+  unsigned long long result = 0;
+  int shift = 0;
+  unsigned char b;
+
+  do {
+    if (*ptr >= end) error_exit("EOF in uleb128");
+    b = **ptr;
+    *ptr = *ptr + 1;
+    result |= (b & 0x7f) << shift;
+    shift += 7;
+    if (shift > 56) error_exit("uleb128 too long");
+  } while ((b & 0x80));
+  return result;
+}
+
+static void show_attributes(unsigned long offset, unsigned long size)
+{
+  char *attr = TT.elf + offset, *end = TT.elf + offset + size;
+  unsigned long long tag;
+  unsigned len;
+
+  // Attributes sections start with an 'A'...
+  if (offset == size || *attr++ != 'A')
+    return error_msg("%s: bad attributes @%lu", TT.f, offset);
+
+  // ...followed by vendor-specific subsections.
+  // TODO: there's a loop implied there, but i've never seen >1 subsection.
+
+  // A subsection starts with a uint32 length and ASCII vendor name.
+  len = elf_int(&attr);
+  if (!memchr(attr, 0, 32)) return error_msg("%s: bad vendor name", TT.f);
+  printf("\nAttribute Section: %s\n", attr);
+  attr += strlen(attr) + 1;
+
+  // ...followed by one or more sub-subsections.
+  // TODO: there's a loop implied there, but i've never seen >1 sub-subsection.
+  // A sub-subsection starts with a uleb128 tag and uint32 length.
+  tag = uleb(&attr, end);
+  len = elf_int(&attr);
+  if (tag == 1) {
+    printf("File Attributes\n");
+
+    // ...followed by actual attribute tag/value pairs.
+    while (attr < end) {
+      tag = uleb(&attr, end);
+
+      // TODO: arm tags don't seem to follow any pattern?
+      printf("  Tag_RISCV_%s: ", riscv_attr_tag(tag));
+      // Even riscv tags have uleb128 values, odd ones strings.
+      if (!(tag & 1)) printf("%lld\n", uleb(&attr, end));
+      else {
+        printf("%s\n", attr);
+        attr += strlen(attr) + 1;
+      }
+    }
+  } else {
+    // Do other tags exist?
+    error_msg("%s: unknown attributes tag=%llx (size=%u)\n", TT.f, tag, len);
+  }
 }
 
 static void show_notes(unsigned long offset, unsigned long size)
@@ -601,6 +669,16 @@ static void scan_elf()
     }
   }
 
+  // TODO: ARC/ARM/CSKY have these too.
+  if (FLAG(A) && machine == 243) { // RISCV
+    for (i=0; i<TT.shnum; i++) {
+      if (!get_sh(i, &s)) continue;
+      if (s.type == 0x70000003 /*SHT_RISCV_ATTRIBUTES*/) {
+        show_attributes(s.offset, s.size);
+      }
+    }
+  }
+
   if (find_section(TT.x, &s)) {
     char *p = TT.elf+s.offset;
     long offset = 0;
@@ -640,7 +718,7 @@ static void scan_elf()
 void readelf_main(void)
 {
   char **arg;
-  int all = FLAG_d|FLAG_h|FLAG_l|FLAG_n|FLAG_S|FLAG_s|FLAG_dyn_syms;
+  int all = FLAG_A|FLAG_d|FLAG_h|FLAG_l|FLAG_n|FLAG_S|FLAG_s|FLAG_dyn_syms;
 
   if (FLAG(a)) toys.optflags |= all;
   if (FLAG(e)) toys.optflags |= FLAG_h|FLAG_l|FLAG_S;
