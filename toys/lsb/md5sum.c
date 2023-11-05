@@ -72,13 +72,6 @@ config SHA512SUM
 #define FOR_md5sum
 #include "toys.h"
 
-#if CFG_TOYBOX_LIBCRYPTO
-#include <openssl/md5.h>
-#include <openssl/sha.h>
-#else
-typedef int SHA512_CTX;
-#endif
-
 GLOBALS(
   int sawline;
   unsigned *rconsttable32;
@@ -92,6 +85,57 @@ GLOBALS(
     unsigned long long i64[16]; // 1024 bits for sha384,sha512
   } state, buffer;
 )
+
+// Use external library of hand-coded assembly implementations?
+#if CFG_TOYBOX_LIBCRYPTO
+#include <openssl/md5.h>
+#include <openssl/sha.h>
+
+// Initialize array tersely
+#define HASH_INIT(name, prefix) { name, (void *)prefix##_Init, \
+  (void *)prefix##_Update, (void *)prefix##_Final, \
+  prefix##_DIGEST_LENGTH, }
+#define SHA1_DIGEST_LENGTH SHA_DIGEST_LENGTH
+
+static void hash_by_name(int fd, char *name)
+{
+  // Largest context
+  SHA512_CTX ctx;
+  struct hash {
+    char *name;
+    int (*init)(void *);
+    int (*update)(void *, void *, size_t);
+    int (*final)(void *, void *);
+    int digest_length;
+  } algorithms[] = {
+    USE_MD5SUM(HASH_INIT("md5sum", MD5),)
+    USE_SHA1SUM(HASH_INIT("sha1sum", SHA1),)
+    USE_SHA224SUM(HASH_INIT("sha224sum", SHA224),)
+    USE_SHA256SUM(HASH_INIT("sha256sum", SHA256),)
+    USE_SHA384SUM(HASH_INIT("sha384sum", SHA384),)
+    USE_SHA512SUM(HASH_INIT("sha512sum", SHA512),)
+  }, * hash;
+  int i;
+
+  // This should never NOT match, so no need to check
+  for (i = 0; i<ARRAY_LEN(algorithms); i++)
+    if (!strcmp(name, algorithms[i].name)) break;
+  hash = algorithms+i;
+
+  hash->init(&ctx);
+  for (;;) {
+      i = read(fd, toybuf, sizeof(toybuf));
+      if (i<1) break;
+      hash->update(&ctx, toybuf, i);
+  }
+  hash->final(toybuf+128, &ctx);
+
+  for (i = 0; i<hash->digest_length; i++)
+    sprintf(toybuf+2*i, "%02x", toybuf[i+128]);
+}
+
+// Builtin implementations
+#else
 
 // Round constants. Static table for when we haven't got floating point support
 #if ! CFG_TOYBOX_FLOAT
@@ -260,7 +304,7 @@ static void sha2_32_transform(void)
     S0 = ror(rot[0],2) ^ ror(rot[0],13) ^ ror(rot[0], 22);
     maj = (rot[0] & rot[1]) ^ (rot[0] & rot[2]) ^ (rot[1] & rot[2]);
     temp2 = S0 + maj;
-    memmove(rot+1, rot, 28);
+    memmove(rot+1, rot, 7*sizeof(*rot));
     rot[4] += temp1;
     rot[0] = temp1 + temp2;
   }
@@ -292,7 +336,7 @@ static void sha2_64_transform(void)
     S0 = ror(rot[0],28) ^ ror(rot[0],34) ^ ror(rot[0], 39);
     maj = (rot[0] & rot[1]) ^ (rot[0] & rot[2]) ^ (rot[1] & rot[2]);
     temp2 = S0 + maj;
-    memmove(rot+1, rot, 56);
+    memmove(rot+1, rot, 7*sizeof(*rot));
     rot[4] += temp1;
     rot[0] = temp1 + temp2;
   }
@@ -301,7 +345,7 @@ static void sha2_64_transform(void)
   for (i=0; i<8; i++) TT.state.i64[i] += rot[i];
 }
 
-// Fill the 64/128-byte (512/1024-bit) working buffer and call transform() when full.
+// Fill 64/128-byte (512/1024-bit) working buffer, call transform() when full.
 
 static void hash_update(char *data, unsigned int len, void (*transform)(void),
   int chunksize)
@@ -327,53 +371,7 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void),
   }
 }
 
-// Initialize array tersely
-#define HASH_INIT(name, prefix) { name, (void *)prefix##_Init, \
-  (void *)prefix##_Update, (void *)prefix##_Final, \
-  prefix##_DIGEST_LENGTH, }
-#define SHA1_DIGEST_LENGTH SHA_DIGEST_LENGTH
-
-// Call the assembly optimized library code when CFG_TOYBOX_LIBCRYPTO
-static void do_lib_hash(int fd, char *name)
-{
-  // Largest context
-  SHA512_CTX ctx;
-  struct hash {
-    char *name;
-    int (*init)(void *);
-    int (*update)(void *, void *, size_t);
-    int (*final)(void *, void *);
-    int digest_length;
-  } algorithms[] = {
-    USE_TOYBOX_LIBCRYPTO(
-      USE_MD5SUM(HASH_INIT("md5sum", MD5),)
-      USE_SHA1SUM(HASH_INIT("sha1sum", SHA1),)
-      USE_SHA224SUM(HASH_INIT("sha224sum", SHA224),)
-      USE_SHA256SUM(HASH_INIT("sha256sum", SHA256),)
-      USE_SHA384SUM(HASH_INIT("sha384sum", SHA384),)
-      USE_SHA512SUM(HASH_INIT("sha512sum", SHA512),)
-    )
-  }, * hash;
-  int i;
-
-  // This should never NOT match, so no need to check
-  for (i = 0; i<ARRAY_LEN(algorithms); i++)
-    if (!strcmp(toys.which->name, algorithms[i].name)) break;
-  hash = algorithms+i;
-
-  hash->init(&ctx);
-  for (;;) {
-      i = read(fd, toybuf, sizeof(toybuf));
-      if (i<1) break;
-      hash->update(&ctx, toybuf, i);
-  }
-  hash->final(toybuf+128, &ctx);
-
-  for (i = 0; i<hash->digest_length; i++)
-    sprintf(toybuf+2*i, "%02x", toybuf[i+128]);
-}
-
-static void do_builtin_hash(int fd, char *name)
+void hash_by_name(int fd, char *name)
 {
   unsigned long long count[2];
   int i, chunksize, digestlen, method;
@@ -382,7 +380,7 @@ static void do_builtin_hash(int fd, char *name)
   char buf;
 
   // md5sum, sha1sum, sha224sum, sha256sum, sha384sum, sha512sum
-  method = stridx("us2581", toys.which->name[4]);
+  method = stridx("us2581", name[4]);
 
   // select hash type
   transform = (void *[]){md5_transform, sha1_transform, sha2_32_transform,
@@ -446,13 +444,13 @@ static void do_builtin_hash(int fd, char *name)
   pp = toybuf+strlen(toybuf)+1;
   for (i = sizeof(toybuf)-(pp-toybuf); i; i--) *pp++ = 0;
 }
+#endif
 
 // Callback for loopfiles()
 // Call builtin or lib hash function, then display output if necessary
 static void do_hash(int fd, char *name)
 {
-  if (CFG_TOYBOX_LIBCRYPTO) do_lib_hash(fd, name);
-  else do_builtin_hash(fd, name);
+  hash_by_name(fd, toys.which->name);
 
   if (name) printf("%s  %s\n"+4*FLAG(b), toybuf, name);
 }
