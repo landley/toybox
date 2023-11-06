@@ -274,12 +274,6 @@ int is_tar_header(void *pkt);
 void octal_deslash(char *s);
 int smemcmp(char *one, char *two, unsigned long len);
 
-// elf.c
-
-char *elf_arch_name(int type);
-void elf_print_flags(int arch, int flags);
-
-
 #define HR_SPACE  1 // Space between number and units
 #define HR_B      2 // Use "B" for single byte units
 #define HR_1000   4 // Use decimal instead of binary units
@@ -287,6 +281,15 @@ void elf_print_flags(int arch, int flags);
 int human_readable_long(char *buf, unsigned long long num, int dgt, int unit,
   int style);
 int human_readable(char *buf, unsigned long long num, int style);
+
+// elf.c
+
+char *elf_arch_name(int type);
+void elf_print_flags(int arch, int flags);
+
+// hash.c
+
+void hash_by_name(int fd, char *name, char *result);
 
 // env.c
 
