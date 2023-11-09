@@ -121,7 +121,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   flags = ifre.ifr_flags;
   if (!always && !(flags & IFF_UP)) return;
 
-  if (toys.optflags&FLAG_S) {
+  if (FLAG(S)) {
     unsigned uu = 0;
     int len;
 
@@ -138,7 +138,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   // Not xioctl because you don't have permission for this on Android.
   ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
 
-  if (toys.optflags&FLAG_S)
+  if (FLAG(S))
     for (i=0; i<6; i++) printf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
   else {
     for (i=0; i < ARRAY_LEN(types)-1; i++)
@@ -162,7 +162,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   pp = (char *)&ifre.ifr_addr;
   for (i = 0; i<sizeof(ifre.ifr_addr); i++) if (pp[i]) break;
 
-  if (!(toys.optflags&FLAG_S) && i != sizeof(ifre.ifr_addr)) {
+  if (!FLAG(S) && i != sizeof(ifre.ifr_addr)) {
     struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
     struct {
       char *name;
@@ -222,7 +222,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
 
             for (i=0; i<ARRAY_LEN(scopes); i++)
               if (iscope == (!!i)<<(i+3)) scope = scopes[i];
-            if (toys.optflags&FLAG_S) xprintf(" %s/%d@%c", toybuf, plen,*scope);
+            if (FLAG(S)) xprintf(" %s/%d@%c", toybuf, plen,*scope);
             else xprintf("%10cinet6 addr: %s/%d Scope: %s\n",
                          ' ', toybuf, plen, scope);
           }
@@ -232,7 +232,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     fclose(fp);
   }
 
-  if (toys.optflags&FLAG_S) {
+  if (FLAG(S)) {
     xputc('\n');
     return;
   }
@@ -332,7 +332,7 @@ static void show_iface(char *iface_name)
       sl->next = ifaces;
       ifaces = sl;
 
-      display_ifconfig(sl->str, toys.optflags & FLAG_a, val);
+      display_ifconfig(sl->str, FLAG(a), val);
     }
   }
   fclose(fp);
@@ -359,7 +359,7 @@ static void show_iface(char *iface_name)
       for(sl = ifaces; sl; sl = sl->next)
         if(!strcmp(sl->str, ifre->ifr_name)) break;
 
-      if(!sl) display_ifconfig(ifre->ifr_name, toys.optflags & FLAG_a, 0);
+      if(!sl) display_ifconfig(ifre->ifr_name, FLAG(a), 0);
     }
 
     free(ifcon.ifc_buf);
