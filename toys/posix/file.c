@@ -445,6 +445,10 @@ static void do_regular_file(int fd, char *name)
   } else if (len>4 && !smemcmp(s, "ABX", 3)) {
     xprintf("Android Binary XML v%d\n", s[3]);
 
+    // https://webassembly.github.io/spec/core/binary/modules.html#binary-module
+  } else if (len>8 && !smemcmp(s, "\0asm", 4)) {
+    xprintf("wasm binary module version %d\n", (int)peek_le(s+4, 4));
+
     // Text files, including shell scripts.
   } else {
     char *what = 0;
