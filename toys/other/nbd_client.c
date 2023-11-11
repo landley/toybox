@@ -21,16 +21,6 @@ config NBD_CLIENT
     -s	nbd swap support (lock server into memory)
 */
 
-/*  TODO:
-    usage: nbd-client [-Sp] [-t SECS] [-N name] HOST PORT DEVICE
-
-    -t	timeout in seconds
-    -S	sdp
-    -p	persist
-    -d	DEVICE
-    -c	DEVICE
-*/
-
 #define FOR_nbd_client
 #include "toys.h"
 #include <linux/nbd.h>
