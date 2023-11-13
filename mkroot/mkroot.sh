@@ -247,9 +247,10 @@ else
 
   # Write the qemu launch script
   if [ -n "$QEMU" ]; then
-    [ -z "$BUILTIN" ] && INITRD="-initrd initramfs.cpio.gz"
-    { echo qemu-system-"$QEMU" -m 256 '"$@"' $QEMU_MORE -nographic -no-reboot \
-        -kernel linux-kernel $INITRD ${DTB:+-dtb linux.dtb} \
+    [ -z "$BUILTIN" ] && INITRD='-initrd "$DIR"/initramfs.cpio.gz'
+    { echo DIR='"$(dirname $0)";' qemu-system-"$QEMU" -m 256 '"$@"' $QEMU_MORE \
+        -nographic -no-reboot -kernel '"$DIR"'/linux-kernel $INITRD \
+        ${DTB:+-dtb '"$DIR"'/linux.dtb} \
         "-append \"panic=1 HOST=$CROSS console=$KARGS \$KARGS\"" &&
       echo "echo -e '\\e[?7h'"
     } > "$OUTPUT"/run-qemu.sh &&
@@ -261,7 +262,7 @@ else
   cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
 
   # Write linux-miniconfig
-  mkdir "$OUTDOC" &&
+  mkdir -p "$OUTDOC" &&
   { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=linux-miniconfig"
     echo -e "# make ARCH=$KARCH -j \$(nproc)\n# boot $VMLINUX\n\n"
 
