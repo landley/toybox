@@ -39,7 +39,7 @@ baseline: generated/unstripped/toybox
 	@cp generated/unstripped/toybox generated/unstripped/toybox_old
 
 bloatcheck: generated/unstripped/toybox_old generated/unstripped/toybox
-	@scripts/bloatcheck generated/unstripped/toybox_old generated/unstripped/toybox
+	@scripts/probes/bloatcheck generated/unstripped/toybox_old generated/unstripped/toybox
 
 install_flat: toybox
 	scripts/install.sh --symlink --force
