@@ -1087,7 +1087,7 @@ void sed_main(void)
   }
 
   // Handling our own --version means we handle our own --help too.
-  if (FLAG(help)) help_exit(0);
+  if (FLAG(help)) return show_help(stdout, 0);
 
   // Parse pattern into commands.
 
