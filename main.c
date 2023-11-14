@@ -72,7 +72,7 @@ static const int NEED_OPTIONS =
 #endif
 
 #include "generated/help.h"
-static char *help_data =
+static const char help_data[] =
 #include "generated/newtoys.h"
 ;
 
@@ -88,7 +88,7 @@ void show_help(FILE *out, int flags)
         : " (see https://landley.net/toybox)");
 
     for (;;) {
-      s = help_data;
+      s = (void *)help_data;
       while (i--) s += strlen(s) + 1;
       // If it's an alias, restart search for real name
       if (*s != 255) break;
