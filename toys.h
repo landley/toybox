@@ -66,6 +66,7 @@
 // Non-posix headers
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <sys/ttydefaults.h>
 
 #include "lib/lib.h"
 #include "lib/lsm.h"

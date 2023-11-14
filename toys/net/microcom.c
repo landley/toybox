@@ -38,7 +38,7 @@ static void handle_esc(void)
   char input;
 
   xputsn("\r\n[b]reak, [p]aste file, [q]uit: ");
-  if (read(0, &input, 1)<1 || input == 'D'-64 || input == 'q') {
+  if (read(0, &input, 1)<1 || input == CTRL('D') || input == 'q') {
     xputs("exit\r");
     xexit();
   }
@@ -53,12 +53,12 @@ static void handle_esc(void)
     memset(toybuf, 0, sizeof(toybuf));
     while (1) {
       xprintf("\r\e[2K\e[1mFilename: \e[0m%s", toybuf);
-      if (read(0, &input, 1) <= 0 || input == '['-64) {
+      if (read(0, &input, 1) <= 0 || input == CTRL('[')) {
         return;
       }
       if (input == '\r') break;
       if (input == 0x7f && len > 0) toybuf[--len] = 0;
-      else if (input == 'U'-64) while (len > 0) toybuf[--len] = 0;
+      else if (input == CTRL('U')) while (len > 0) toybuf[--len] = 0;
       else if (input >= ' ' && input <= 0x7f && len < sizeof(toybuf))
         toybuf[len++] = input;
     }
@@ -122,7 +122,7 @@ void microcom_main(void)
     // Read from stdin, write to connection.
     if (fds[1].revents) {
       if (read(0, toybuf, 1) != 1) break;
-      if (!FLAG(X) && *toybuf == ']'-64) handle_esc();
+      if (!FLAG(X) && *toybuf == CTRL(']')) handle_esc();
       else xwrite(TT.fd, toybuf, 1);
     }
   }
