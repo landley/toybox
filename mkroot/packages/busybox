@@ -1,28 +1,33 @@
 #!/bin/echo Try "scripts/mkroot.sh dropbear"
 
-echo === download source
-
-download d5514f5cf8eb89a3b20ac3b965f4463f14a5709a \
-  http://www.busybox.net/downloads/busybox-1.31.1.tar.bz2
-
-echo === $HOST Native build static dropbear
+download a5d40ca0201b20909f7a8a561adf57adccc8a877 \
+  http://www.busybox.net/downloads/busybox-1.36.1.tar.bz2
 
 # 4 commands: ash, route, udhcpc, stty
 
 setupfor busybox
 make defconfig &&
-sed -Ei 's/# CONFIG_NOMMU is not set/CONFIG_NOMMU=y/;s/CONFIG_(RUNSV|MONOTONIC_SYSCALL)=y/# CONFIG_\1 is not set/' .config &&
-make silentoldconfig &&
-LDFLAGS=--static make SKIP_STRIP=y &&
+# Busybox checks for host bzip2, which toybox does not provide.
+sed -i 's/^bzip2/true bzip2/' scripts/{mkconfigs,embedded_scripts} &&
+# zap script that wants diff
+ln -sf /bin/true scripts/generate_BUFSIZ.sh &&
+echo '#define COMMON_BUFSIZE (4096)
+extern char bb_common_bufsiz1[];
+#define setup_common_bufsiz()' > include/common_bufsiz.h &&
+LDFLAGS=--static make SKIP_STRIP=y -j $(nproc) &&
 cp busybox "$ROOT/bin" &&
-ln -sf busybox "$ROOT/bin/sh" &&
+make busybox.links &&
+mkdir -p "$ROOT/busybox" || exit 1
+while read i; do ln -sf /bin/busybox "$ROOT/busybox/$(basename "$i")" || exit 1
+done < busybox.links
 cp .config "$ROOT/../busybox-config"
 cleanup
 
-# busybox doesn't support $(<file)
-mkdir -p "$ROOT/etc/rc" &&
-echo '[ -z "$CONSOLE" ] && CONSOLE="$(cat /sys/class/tty/console/active)"' > \
-  "$ROOT/etc/rc/busybox.sh" &&
+# busybox ash doesn't support $(<file)
+#ln -sf busybox "$ROOT/bin/sh" &&
+#mkdir -p "$ROOT/etc/rc" &&
+#echo '[ -z "$CONSOLE" ] && CONSOLE="$(cat /sys/class/tty/console/active)"' > \
+#  "$ROOT/etc/rc/busybox.sh" &&
 
 cat > "$ROOT"/etc/dhcp.sh << 'EOF' &&
 #!/bin/sh
