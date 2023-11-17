@@ -15,25 +15,55 @@ then
   exit 1
 fi
 
+# List of known targets. The format is TARGET[@RENAME]:EXTRA:CONFIG resulting
+# in a gcc tuple TARGET-linux-muslEXTRA with CONFIG appended to $GCC_CONFIG
+# (and thus the gcc ./configure command line). So i686:: builds i686-linux-musl
+# and sh2eb::fdpic:--with-cpu=mj2 builds sh2eb-linux-muslfdpic adding
+# --with-cpu=mj2 to the gcc ./configure command line. @RENAME (if present)
+# changes the TARGET part of the toolchain prefix names afterwards.
+
+TARGETS=(i686:: aarch64:eabi:
+  armv4l:eabihf:"--with-arch=armv5t --with-float=soft"
+  "armv5l:eabihf:--with-arch=armv5t --with-fpu=vfpv2 --with-float=hard"
+  "armv7l:eabihf:--with-arch=armv7-a --with-fpu=vfpv3-d16 --with-float=hard"
+  "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie"
+  armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie"
+  i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: powerpc::
+  powerpc64:: powerpc64le:: s390x:: sh2eb:fdpic:--with-cpu=mj2
+  sh4::--enable-incomplete-targets x86_64::--with-mtune=nocona
+  x86_64@x32:x32:
+)
+
 # All toolchains after the first are themselves cross compiled (so they
 # can be statically linked against musl on the host, for binary portability.)
-# static i686 binaries are basically "poor man's x32".
-BOOTSTRAP=i686-linux-musl
+: ${BOOTSTRAP:=$(uname -m)} ${OUTPUT:="$PWD/ccc"}
 
-[ -z "$OUTPUT" ] && OUTPUT="$PWD/ccc"
+# Move the corresponding target to the front so rest of targets get built
+# with full instead of partial -host compiler (missing threads and NLS and such)
+unset TEMP
+for i in $(seq 0 $((${#TARGETS[@]}-1)));
+do
+  [ "${TARGETS[$i]}" == "${TARGETS[$i]#"$BOOTSTRAP:"}" ] && continue
+  TEMP="${TARGETS[$i]}"
+  TARGETS[$i]="$TARGETS[0]"
+  TARGETS[0]="$TEMP"
+  break;
+done
+[ -z "$TEMP" ] && { echo unknown target "$BOOTSTRAP"; exit 1; }
 
 if [ "$1" == clean ]
 then
-  rm -rf "$OUTPUT" host-* *.log
+  rm -rf ccc host-* *.log # Not gonna rm -rf "$OUTPUT" blindly, could be $HOME
   make clean
   exit
 fi
 
 make_toolchain()
 {
+
   # Set cross compiler path
   LP="$PATH"
-  if [ -z "$TYPE" ]
+  if [ "$TYPE" == host ]
   then
     OUTPUT="$PWD/host-$TARGET"
     EXTRASUB=y
@@ -57,6 +87,7 @@ make_toolchain()
     OUTPUT="$OUTPUT/${RENAME:-$TARGET}-$TYPE"
   fi
 
+  # Skip outputs that already exist
   if [ -e "$OUTPUT.sqf" ] || [ -e "$OUTPUT/bin/$TARGET-cc" ] ||
      [ -e "$OUTPUT/bin/cc" ]
   then
@@ -69,12 +100,11 @@ make_toolchain()
   echo -en "\033]2;$TARGET-$TYPE\007"
 
   rm -rf build/"$TARGET" "$OUTPUT" &&
-  [ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
   set -x &&
   PATH="$LP" make OUTPUT="$OUTPUT" TARGET="$TARGET" \
     GCC_CONFIG="--disable-nls --disable-libquadmath --disable-decimal-float --disable-multilib --enable-languages=c,c++ $GCC_CONFIG" \
-    COMMON_CONFIG="CFLAGS=\"$CFLAGS -g0 -Os\" CXXFLAGS=\"$CXXFLAGS -g0 -Os\" LDFLAGS=\"$LDFLAGS -s\" $COMMON_CONFIG" \
-    install -j$CPUS || exit 1
+    COMMON_CONFIG="CFLAGS=\"$CFLAGS -g0 -O2\" CXXFLAGS=\"$CXXFLAGS -g0 -O2\" \
+    LDFLAGS=\"$LDFLAGS -s\" $COMMON_CONFIG" install -j$(nproc) || exit 1
   set +x
   echo -e '#ifndef __MUSL__\n#define __MUSL__ 1\n#endif' \
     >> "$OUTPUT/${EXTRASUB:+$TARGET/}include/features.h"
@@ -109,8 +139,7 @@ make_toolchain()
   fi
 }
 
-# Expand compressed target into binutils/gcc "tuple" and call make_toolchain
-make_tuple()
+split_tuple()
 {
   PART1=${1/:*/}
   PART3=${1/*:/}
@@ -121,27 +150,50 @@ make_tuple()
   [ "$RENAME" == "$PART1" ] && RENAME=
   PART1=${PART1/@*/}
   TARGET=${PART1}-linux-musl${PART2} 
+}
+
+# Expand compressed target into binutils/gcc "tuple" and call make_toolchain
+make_tuple()
+{
+  split_tuple "$@"
 
   [ -z "$NOCLEAN" ] && rm -rf build
 
-  for TYPE in static native
+  for TYPE in "${@:2}"
   do
     TYPE=$TYPE TARGET=$TARGET GCC_CONFIG="$PART3" RENAME="$RENAME" \
       make_toolchain 2>&1 | tee "$OUTPUT"/log/${RENAME:-$PART1}-${TYPE}.log
   done
 }
 
-# Packages detect nommu via the absence of fork(). Musl provides a broken fork()
-# on nommu builds that always returns -ENOSYS at runtime. Rip it out.
-# (Currently only for superh/jcore.)
-fix_nommu()
+patch_mcm()
 {
-  # Rich won't merge this
-  sed -i 's/--enable-fdpic$/& --enable-twoprocess/' litecross/Makefile
+  # musl-cross-make commit fe915821b652 has been current for a year and a half,
+  # and doesn't even use the latest musl release by default, so fix it up.
 
-  PP=patches/musl-"$(sed -n 's/MUSL_VER[ \t]*=[ \t]*//p' Makefile)"
+  # Select newer package versions and don't use dodgy mirrors
+  sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.6/;s/\(GCC_VER =\).*/\1 11.2.0/;s/\(MUSL_VER =\).*/\1 1.2.4/' \
+    Makefile &&
+  echo 'c8dbfa8285f1a90596a227690653d84b9eb2debe  linux-6.6.tar.xz' > \
+    hashes/linux-6.6.tar.xz.sha1 &&
+  echo '78eb982244b857dbacb2ead25cc0f631ce44204d  musl-1.2.4.tar.gz' > \
+    hashes/musl-1.2.4.tar.gz.sha1 &&
+  # mcm redundantly downloads tarball if hash file has newer timestamp,
+  # and it whack-a-moles how to download kernels by version for some reason.
+  touch -d @1 hashes/linux-6.6.tar.xz.sha1 &&
+  touch -d @1 hashes/musl-1.2.4.tar.xz.sha1 &&
+  sed -i 's/\(.*linux-\)3\(.*\)v3.x/\16\2v6.x/' Makefile &&
+
+  # Rich won't merge this: nommu toolchains need to vfork() and pipe.
+  sed -i 's/--enable-fdpic$/& --enable-twoprocess/' litecross/Makefile &&
+
+  # Packages detect nommu via the absence of fork(). Musl provides a broken
+  # fork() on nommu builds that always returns -ENOSYS at runtime. Rip it out.
+  # (Currently only for superh/jcore since no generic #ifdef __FDPIC__ symbol.)
+
+  PP=patches/musl-"$(sed -n 's/MUSL_VER[ \t]*=[ \t]*//p' Makefile)" &&
   mkdir -p "$PP" &&
-  cat > "$PP"/0001-nommu.patch << 'EOF'
+  cat > "$PP"/0001-nommu.patch << 'EOF' &&
 --- a/src/legacy/daemon.c
 +++ b/src/legacy/daemon.c
 @@ -17,3 +17,3 @@
@@ -209,39 +261,67 @@ EOF
 +  ch_id = vfork ();
    switch (ch_id)
 EOF
+
+  # Fix a gcc bug that breaks x86-64 build in gcc 11.2.0,
+  # from https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100017#c20
+
+  PP=patches/gcc-"$(sed -n 's/GCC_VER[ \t]*=[ \t]*//p' Makefile)" &&
+  mkdir -p "$PP" &&
+  cat > "$PP"/0006-fixinc.patch << 'EOF' &&
+diff -ruN gcc-11.2.0.orig/configure gcc-11.2.0/configure
+--- gcc-11.2.0.orig/configure	2021-07-28 01:55:06.628278148 -0500
++++ gcc-11.2.0/configure	2023-11-17 03:07:53.819283027 -0600
+@@ -16478,7 +16478,7 @@
+ fi
+ 
+ 
+-RAW_CXX_FOR_TARGET="$CXX_FOR_TARGET"
++RAW_CXX_FOR_TARGET="$CXX_FOR_TARGET -nostdinc++"
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking where to find the target ar" >&5
+ $as_echo_n "checking where to find the target ar... " >&6; }
+diff -ruN gcc-11.2.0.orig/configure.ac gcc-11.2.0/configure.ac
+--- gcc-11.2.0.orig/configure.ac	2021-07-28 01:55:06.628278148 -0500
++++ gcc-11.2.0/configure.ac	2023-11-17 03:08:05.975282593 -0600
+@@ -3520,7 +3520,7 @@
+ ACX_CHECK_INSTALLED_TARGET_TOOL(WINDRES_FOR_TARGET, windres)
+ ACX_CHECK_INSTALLED_TARGET_TOOL(WINDMC_FOR_TARGET, windmc)
+ 
+-RAW_CXX_FOR_TARGET="$CXX_FOR_TARGET"
++RAW_CXX_FOR_TARGET="$CXX_FOR_TARGET -nostdinc++"
+ 
+ GCC_TARGET_TOOL(ar, AR_FOR_TARGET, AR, [binutils/ar])
+ GCC_TARGET_TOOL(as, AS_FOR_TARGET, AS, [gas/as-new])
+EOF
+
+  # So the && chain above is easier to extend
+  true
 }
 
-fix_nommu || exit 1
+patch_mcm || exit 1
 mkdir -p "$OUTPUT"/log
 
 # Make bootstrap compiler (no $TYPE, dynamically linked against host libc)
 # We build the rest of the cross compilers with this so they're linked against
 # musl-libc, because glibc doesn't fully support static linking and dynamic
 # binaries aren't really portable between distributions
-TARGET=$BOOTSTRAP make_toolchain 2>&1 | tee -a "$OUTPUT/log/$BOOTSTRAP"-host.log
+make_tuple "${TARGETS[0]}" host 2>&1 | tee -a "$OUTPUT/log/$BOOTSTRAP"-host.log
+split_tuple "${TARGETS[0]}"
+BOOTSTRAP="$TARGET"
 
 if [ $# -gt 0 ]
 then
   for i in "$@"
   do
-    make_tuple "$i"
+    make_tuple "$i" static native
   done
 else
   # Here's the list of cross compilers supported by this build script.
 
   # First target builds a proper version of the $BOOTSTRAP compiler above,
   # which is used to build the rest (in alphabetical order)
-  for i in i686:: \
-         aarch64:eabi: armv4l:eabihf:"--with-arch=armv5t --with-float=soft" \
-         "armv5l:eabihf:--with-arch=armv5t --with-fpu=vfpv2 --with-float=hard" \
-         "armv7l:eabihf:--with-arch=armv7-a --with-fpu=vfpv3-d16 --with-float=hard" \
-         "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie" \
-         armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie" \
-         i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: powerpc:: \
-         powerpc64:: powerpc64le:: s390x:: sh2eb:fdpic:--with-cpu=mj2 \
-         sh4::--enable-incomplete-targets x86_64::--with-mtune=nocona \
-         x86_64@x32:x32:
+  for i in $(seq 0 $((${#TARGETS[@]}-1)))
   do
-    make_tuple "$i"
+    make_tuple "${TARGETS[$i]}" static native
   done
 fi
