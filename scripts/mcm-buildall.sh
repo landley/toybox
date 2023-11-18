@@ -181,7 +181,7 @@ patch_mcm()
   # mcm redundantly downloads tarball if hash file has newer timestamp,
   # and it whack-a-moles how to download kernels by version for some reason.
   touch -d @1 hashes/linux-6.6.tar.xz.sha1 &&
-  touch -d @1 hashes/musl-1.2.4.tar.xz.sha1 &&
+  touch -d @1 hashes/musl-1.2.4.tar.gz.sha1 &&
   sed -i 's/\(.*linux-\)3\(.*\)v3.x/\16\2v6.x/' Makefile &&
 
   # Rich won't merge this: nommu toolchains need to vfork() and pipe.
