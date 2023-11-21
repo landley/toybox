@@ -4394,7 +4394,8 @@ void cd_main(void)
 
 void exit_main(void)
 {
-  exit(*toys.optargs ? atoi(*toys.optargs) : 0);
+  toys.exitval = *toys.optargs ? atoi(*toys.optargs) : 0;
+  xexit();
 }
 
 // lib/args.c can't +prefix & "+o history" needs space so parse cmdline here
