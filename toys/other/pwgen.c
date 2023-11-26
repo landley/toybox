@@ -8,23 +8,21 @@ config PWGEN
   bool "pwgen"
   default y
   help
-    usage: pwgen [-cAn0yrsBhC1v] [LENGTH] [COUNT]
+    usage: pwgen [-cAn0yrsBC1v] [-r CHARS] [LENGTH] [COUNT]
 
-    Generate human-readable random passwords. When output is to tty produces
-    a screenfull to defeat shoulder surfing (pick one and clear the screen).
+    Generate human-readable random passwords. Default output to tty fills screen
+    with passwords to defeat shoulder surfing (pick one and clear the screen).
 
-    -c  --capitalize                  Permit capital letters.
-    -A  --no-capitalize               Don't include capital letters.
-    -n  --numerals                    Permit numbers.
-    -0  --no-numerals                 Don't include numbers.
-    -y  --symbols                     Permit special characters ($#%...).
-    -r <chars>  --remove=<chars>      Don't include the given characters.
-    -s  --secure                      Generate more random passwords.
-    -B  --ambiguous                   Avoid ambiguous characters (e.g. 0, O).
-    -h  --help                        Print this help message.
-    -C                                Print the output in columns.
-    -1                                Print the output one line each.
-    -v                                Don't include vowels.
+    -0	No numbers (--no-numerals)
+    -1	Output one per line
+    -A	No capital letters (--no-capitalize)
+    -B	Avoid ambiguous characters like 0O and 1lI (--ambiguous)
+    -C	Output in columns
+    -c	Add capital letters (--capitalize)
+    -n	Add numbers (--numerals)
+    -r	Don't include the given CHARS (--remove)
+    -v	No vowels.
+    -y	Add punctuation (--symbols)
 */
 
 #define FOR_pwgen
@@ -52,8 +50,8 @@ void pwgen_main(void)
     for (ii = 0; ii<length;) {
       // Don't fetch more random than necessary, give each byte 2 tries to fit
       if (!rand) xgetrandom(randbuf, rand = sizeof(randbuf));
-      c = 33+randbuf[--rand]%93; // remainder 69 makes >102 less likely
-      if (FLAG(s)) randbuf[rand] = 0;
+      c = 33+randbuf[--rand]%94; // remainder 67 makes >102 less likely
+      randbuf[rand] = 0;
 
       if (c>='A' && c<='Z') {
         if (FLAG(A)) continue;
