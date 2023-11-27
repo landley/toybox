@@ -35,9 +35,9 @@ GLOBALS(
 
 // Syscall args from https://man7.org/linux/man-pages/man2/syscall.2.html
 // REG_ORDER is args 0-6, SYSCALL, RESULT
-#if defined(__ARM_EABI__)
+#if defined(__arm__)
 static const char REG_ORDER[] = {0,1,2,3,4,5,7,0};
-#elif defined(__ARM_ARCH) && __ARM_ARCH == 8
+#elif defined(__aarch64__)
 static const char REG_ORDER[] = {0,1,2,3,4,5,8,0};
 #elif defined(__i386__)
 // ebx,ecx,edx,esi,edi,ebp,orig_eax,eax
