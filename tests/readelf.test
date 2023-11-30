@@ -70,6 +70,42 @@ Section Headers:
   [31] .strtab              STRTAB         0000000000000000 001b18 0001f4 00      0  0  1
 " "" ""
 
+# Verify many section header flags display properly.
+NOSPACE=1 testing "-S flags" "readelf -SW $elf-shflags | head -32" \
+"There are 28 section headers, starting at offset 0xc74:
+
+Section Headers:
+  [Nr] Name              Type            Address  Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        000001b4 0001b4 000013 00   A  0   0  1
+  [ 2] .note.android.ident NOTE            000001c8 0001c8 000018 00   A  0   0  4
+  [ 3] .note.gnu.build-id NOTE            000001e0 0001e0 000020 00   A  0   0  4
+  [ 4] .dynsym           DYNSYM          00000200 000200 000060 10   A  8   1  4
+  [ 5] .gnu.version      VERSYM          00000260 000260 00000c 02   A  4   0  2
+  [ 6] .gnu.version_r    VERNEED         0000026c 00026c 000020 00   A  8   1  4
+  [ 7] .gnu.hash         GNU_HASH        0000028c 00028c 000018 00   A  4   0  4
+  [ 8] .dynstr           STRTAB          000002a4 0002a4 000064 00   A  0   0  1
+  [ 9] .rel.dyn          ANDROID_REL     00000308 000308 00000d 01   A  4   0  4
+  [10] .relr.dyn         RELR            00000318 000318 00000c 04   A  0   0  4
+  [11] .ARM.exidx        ARM_EXIDX       00000324 000324 000028 00  AL 14   0  4
+  [12] .rel.plt          REL             0000034c 00034c 000020 08  AI  4  19  4
+  [13] .rodata           PROGBITS        0000036c 00036c 000015 01 AMS  0   0  1
+  [14] .text             PROGBITS        00001384 000384 0001c4 00  AX  0   0  4
+  [15] .plt              PROGBITS        00001550 000550 000060 00  AX  0   0 16
+  [16] .tdata            PROGBITS        000025c0 0005c0 000000 00 WAT  0   0 32
+  [17] .dynamic          DYNAMIC         000025c0 0005c0 0000d0 08  WA  8   0  4
+  [18] .got              PROGBITS        00002690 000690 000010 00  WA  0   0  4
+  [19] .got.plt          PROGBITS        000026a0 0006a0 00001c 00  WA  0   0  4
+  [20] .data             PROGBITS        000036bc 0006bc 00000c 00  WA  0   0  4
+  [21] .comment          PROGBITS        00000000 0006c8 0000cc 01  MS  0   0  1
+  [22] .ARM.attributes   ATTRIBUTES      00000000 000794 000042 00      0   0  1
+  [23] .debug_frame      PROGBITS        00000000 0007d8 00007a 00   C  0   0  4
+  [24] .symtab           SYMTAB          00000000 000854 000220 10     26  27  4
+  [25] .shstrtab         STRTAB          00000000 000a74 00010e 00      0   0  1
+  [26] .strtab           STRTAB          00000000 000b82 0000de 00      0   0  1
+  [27] .gnu_debuglink    PROGBITS        00000000 000c60 000014 00      0   0  4
+" "" ""
+
 testing "-l" "readelf -lW $elf-short" "
 Elf file type is DYN (Shared object file)
 Entry point 0x1001
