@@ -14,19 +14,20 @@ config BLKDISCARD
   bool "blkdiscard"
   default y
   help
-    usage: blkdiscard [-olszf] DEVICE
+    usage: blkdiscard [-szf] [-o OFFSET] [-l LENGTH] DEVICE
 
-    Discard device sectors.
+    Discard device sectors (permanetly deleting data). Free space can improve
+    flash performance and lifetime by wear leveling and collating data.
+    (Some filesystem/driver combinations can do this automatically.)
 
-    -o, --offset OFF	Byte offset to start discarding at (default 0)
-    -l, --length LEN	Bytes to discard (default all)
-    -s, --secure		Perform secure discard
-    -z, --zeroout		Zero-fill rather than discard
-    -f, --force		Disable check for mounted filesystem
+    -o	Start at OFFSET (--offset, default 0)
+    -l	LENGTH to discard (--length, default all)
+    -s	Overwrite discarded data (--secure)
+    -z	Zero-fill rather than discard (--zeroout)
+    -f	Disable check for mounted filesystem (--force)
 
-    OFF and LEN must be aligned to the device sector size.
-    By default entire device is discarded.
-    WARNING: All discarded data is permanently lost!
+    OFFSET and LENGTH must be aligned to the device sector size. Default
+    without -o/-l discards the entire device. (You have been warned.)
 */
 
 #define FOR_blkdiscard
@@ -41,12 +42,10 @@ GLOBALS(
 void blkdiscard_main(void)
 {
   int fd = xopen(*toys.optargs, O_WRONLY|O_EXCL*!FLAG(f));
-  unsigned long long ol[2];
+  unsigned long long ol[2] = {TT.o, TT.l};
 
-  // TODO: if numeric arg was long long array could live in TT.
-  ol[0] = TT.o;
-  if (FLAG(l)) ol[1] = TT.l;
-  else {
+  // TODO: argument size capped to 2 gigs on 32-bit, even with "-l 8g"
+  if (!FLAG(l)) {
     xioctl(fd, BLKGETSIZE64, ol+1);
     ol[1] -= ol[0];
   }
