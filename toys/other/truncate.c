@@ -26,7 +26,7 @@ config TRUNCATE
 GLOBALS(
   char *s;
 
-  long size;
+  long long size;
   int type;
 )
 
