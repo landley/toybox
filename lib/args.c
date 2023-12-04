@@ -207,7 +207,8 @@ static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
     *list = xzalloc(sizeof(struct arg_list));
     (*list)->arg = arg;
   } else if (type == '#' || type == '-') {
-    long l = atolx(arg);
+    long long l = atolx(arg);
+
     if (type == '-' && !ispunct(*arg)) l*=-1;
     if (l < opt->val[0].l) help_exit("-%c < %ld", opt->c, opt->val[0].l);
     if (l > opt->val[1].l) help_exit("-%c > %ld", opt->c, opt->val[1].l);
