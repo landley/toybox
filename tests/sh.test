@@ -100,6 +100,7 @@ export EVAL="timeout 10 $SH -c"
 testing 'return code' 'if false; then echo true; fi; echo $?' '0\n' '' ''
 testing 'return code 2' 'if true; then false; fi; echo $?' '1\n' '' ''
 testing 'return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $?' '1\n2\n0\n' '' ''
+testing 'return code 4' 'false; A=B; echo $?' '0\n' '' ''
 testing 'local var +whiteout' \
   'l=X;x(){ local l=47; echo $l;unset l; echo l=$l;};x;echo $l' '47\nl=\nX\n' \
   '' ''
@@ -107,18 +108,34 @@ testing 'escape passthrough' 'echo -e "a\nb\nc\td"' 'a\nb\nc\td\n' '' ''
 
 testing 'trailing $ is literal' 'echo $' '$\n' '' ''
 testing 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n' '' ''
+testing '<<\EOF' $'(cat<<EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' \
+  '1\n' '' ''
+testing "<<EOF''" $'(cat<<EOF\'\'\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l'\
+  '2\n' '' ''
+testing '<<\EOF' $'(cat<<\\EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' \
+  '2\n' '' ''
+testing '<< \' $'cat<<EOF\nabc\\\ndef\nEOF\n' 'abcdef\n' '' ''
+testing '<< "\"' $'cat<<\\EOF\nabc\\\ndef\nEOF\n' 'abc\\\ndef\n' '' ''
 testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
   '' ''
 testing '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
   'abcde\nnextEOF\n' '' ''
 testing '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' \
   'abcde\nhello\n' '' ''
+testing '<< $(a)' $'cat<<$(a)\nx\n$(a)' 'x\n' '' ''
+testing 'HERE straddle' $'cat<<EOF;if true\nhello\nEOF\nthen echo also; fi' \
+  'hello\nalso\n' '' ''
+testing '\\n in <<EOF' $'cat<<EO\\\nF\n$PATH\nEOF\n' "$PATH\n" "" ""
+testing '\\n in <<EOF with ""' $'cat<<EO\\\nF""\n$PATH\nEOF\n' '$PATH\n' '' ''
+testing '\\n in HERE terminator' $'cat<<EOF\nabc\nE\\\nOF\necho hello\n' \
+  'abc\nhello\n' '' ''
 ln -s "$(which echo)" echo2
 testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
   'hello\n' '' ''
 rm -f echo2
 testing 'prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
   '10\n\n' '' ''
+testing 'double quotes' 'echo \x "\x" "\\" "\$" "\`"' 'x \x \ $ `\n' '' ''
 testing 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n' '' ''
 testing 'escape makes argument' 'echo \  | wc -c' '2\n' '' ''
 
@@ -160,6 +177,10 @@ testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
 testing "eval4" 'eval printf '=%s=' \" hello \"' "= hello =" "" ""
 NOSPACE=1 testing "eval5" 'eval echo \" hello \" | wc' ' 1 1 8' "" ""
+testing 'eval6' $'false; eval \'echo $?\'' '1\n' '' ''
+testing 'eval7' $'eval \'false\'; echo $?' '1\n' '' ''
+testing 'eval8' $'false; eval ''; echo $?' '0\n' '' ''
+testing 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n' '' ''
 testing "exec" "exec echo hello" "hello\n" "" ""
 testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
 
@@ -219,6 +240,7 @@ testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
 toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
 testing '${x%y}' 'x=potato; echo ${x%t*o} ${x%%t*o}' 'pota po\n' '' ''
 testing 'x=${x%y}' 'x=potato; x=${x%t*o}; echo $x' 'pota\n' '' ''
+testing '${x%glob}' 'x=abc-def; echo ${x%-*f} ${x-*c}' 'abc abc-def\n' '' ''
 testing 'x=${x//y}' 'x=potato; x=${x//ta}; echo $x' 'poto\n' '' ''
 testing '${x^y}' 'x=aaaaa; echo ${x^a}' 'Aaaaa\n' '' ''
 testing '${x^^y}' 'x=abccdec; echo ${x^^c}; x=abcdec; echo ${x^^c}' \
@@ -548,6 +570,7 @@ shxpect 'line continuation' I$'echo "hello" \\\n' E'> ' I$'> blah\n' E"$P" \
 shxpect 'line continuation2' I$'echo ABC\\\n' E'> ' I$'DEF\n' O$'ABCDEF\n'
 testing "line continuation3" $'ec\\\nho hello' 'hello\n' '' ''
 testing "line continuation4" $'if true | \\\n(true);then echo true;fi' 'true\n' '' ''
+testing "line continuation5" $'XYZ=xyz; echo "abc$\\\nXYZ"' 'abcxyz\n' '' ''
 
 # Race condition (in bash, but not in toysh) can say 43.
 testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
@@ -695,6 +718,9 @@ testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
 testing 'quoting contexts nest' \
         $'echo -n "$(echo "hello $(eval $\'echo -\\\\\\ne \\\'world\\n \\\'\')")"' \
   'hello world\n ' '' ''
+
+testing 'if; is a syntax error but if $EMPTY; is not' \
+  'if $NONE; then echo hello; fi' 'hello\n' '' ''
 
 # TODO finish variable list from shell init
 
