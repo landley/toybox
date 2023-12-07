@@ -48,10 +48,10 @@ testing "-T null" "$TAR --null -T input | LST" \
 # inherited from Bell Labs Unix v7
 
 # Note: testing both "tar c" and "tar -c" here.
-testing "specify UID, fetch GID" "tar -c --owner nobody:65534 --group sys --mtime @0 file | LST" \
-  "-rw-rw-r-- nobody/sys 0 1970-01-01 00:00 file\n" "" ""
-testing "fetch UID, specify GID" "tar c --owner root --group nobody:65534 --mtime @0 file | LST" \
-  "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
+testing "specify UID, fetch GID" "tar -c --owner nobody:65534 --mtime @0 file | LST" \
+  "-rw-rw-r-- nobody/$(stat -c %G file) 0 1970-01-01 00:00 file\n" "" ""
+testing "fetch UID, specify GID" "tar c --group nobody:65534 --mtime @0 file | LST" \
+  "-rw-rw-r-- $(stat -c %U file)/nobody 0 1970-01-01 00:00 file\n" "" ""
 
 # Large values switch from ascii numbers to a binary format.
 testing "huge values" "tar c --owner 9999999 --group 8888888 --mtime @0 file | SUM 3" \
@@ -154,11 +154,13 @@ nulldev=1,3 # devtmpfs values
 [ "$(uname)" == "Darwin" ] && nulldev=3,2
 
 testing "pass /dev/null" \
-  "tar c --mtime @0 --group sys /dev/null 2>/dev/null | LST" \
-  "crw-rw-rw- root/sys $nulldev 1970-01-01 00:00 dev/null\n" "" ""
+  "tar c --mtime @0 /dev/null 2>/dev/null | LST" \
+  "crw-rw-rw- $(stat -c %U/%G /dev/null) $nulldev 1970-01-01 00:00 dev/null\n" \
+  "" ""
 testing "--absolute-names" \
-  "tar c --mtime @0 --group sys --absolute-names /dev/null 2>/dev/null | LST" \
-  "crw-rw-rw- root/sys $nulldev 1970-01-01 00:00 /dev/null\n" "" ""
+  "tar c --mtime @0 --absolute-names /dev/null 2>/dev/null | LST" \
+  "crw-rw-rw- $(stat -c %U/%G /dev/null) $nulldev 1970-01-01 00:00 /dev/null\n"\
+  "" ""
 
 # compression types
 testing "autodetect gzip" 'LST -f "$FILES"/tar/tar.tgz' \
@@ -231,6 +233,7 @@ toyonly testing "autodetect falls back to gzip -d when no zcat" \
   "PATH=path; tar tf $FILES/tar/tar.tgz" "dir/\ndir/file\n" "" ""
 rm -rf path
 
+# TODO: run sparse tests on tmpfs mount? (Request filesystem type?)
 # Only run sparse tests if filesystem can handle sparse files @4k granularity
 dd if=/dev/zero bs=4k count=1 seek=1 of=blah.img 2>/dev/null
 [ $(du blah.img | sed 's/[ \t].*//') -ne 4 ] && SKIP=999
