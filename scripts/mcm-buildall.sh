@@ -28,7 +28,7 @@ TARGETS=(i686:: aarch64:eabi:
   "armv7l:eabihf:--with-arch=armv7-a --with-fpu=vfpv3-d16 --with-float=hard"
   "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie"
   armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie"
-  i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: powerpc::
+  i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: or1k:: powerpc::
   powerpc64:: powerpc64le:: s390x:: sh2eb:fdpic:--with-cpu=mj2
   sh4::--enable-incomplete-targets x86_64::--with-mtune=nocona
   x86_64@x32:x32:
@@ -184,8 +184,10 @@ patch_mcm()
   touch -d @1 hashes/musl-1.2.4.tar.gz.sha1 &&
   sed -i 's/\(.*linux-\)3\(.*\)v3.x/\16\2v6.x/' Makefile &&
 
-  # Rich won't merge this: nommu toolchains need to vfork() and pipe.
-  sed -i 's/--enable-fdpic$/& --enable-twoprocess/' litecross/Makefile &&
+  # nommu toolchains need to vfork()+pipe, and or1k has different kernel arch
+  sed -i -e 's/--enable-fdpic$/& --enable-twoprocess/' \
+      -e '/or1k/!s/^\(TARGET_ARCH_MANGLED = \)\(.*\)/\1$(patsubst or1k,openrisc,\2)/' \
+      litecross/Makefile &&
 
   # Packages detect nommu via the absence of fork(). Musl provides a broken
   # fork() on nommu builds that always returns -ENOSYS at runtime. Rip it out.
