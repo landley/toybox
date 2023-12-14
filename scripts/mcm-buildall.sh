@@ -313,7 +313,7 @@ BOOTSTRAP="$TARGET"
 
 if [ $# -gt 0 ]
 then
-  for i in "$@"
+  for i in "${TARGETS[0]}" "$@"
   do
     make_tuple "$i" static native
   done
