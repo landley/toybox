@@ -10,7 +10,7 @@ config HEXEDIT
   bool "hexedit"
   default y
   help
-    usage: hexedit FILE
+    usage: hexedit [-r] FILE
 
     Hexadecimal file editor/viewer. All changes are written to disk immediately.
 

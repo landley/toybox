@@ -9,7 +9,7 @@ config READLINK
   bool "readlink"
   default y
   help
-    usage: readlink FILE...
+    usage: readlink [-efmnqz] FILE...
 
     With no options, show what symlink points to, return error if not symlink.
 

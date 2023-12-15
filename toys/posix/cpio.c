@@ -25,7 +25,7 @@ config CPIO
   bool "cpio"
   default y
   help
-    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [-R [USER][:GROUP] [--no-preserve-owner]
+    usage: cpio -{o|t|i|p DEST} [-dLtuv] [--verbose] [-F FILE] [-R [USER][:GROUP] [--no-preserve-owner]
 
     Copy files into and out of a "newc" format cpio archive.
 

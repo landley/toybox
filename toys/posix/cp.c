@@ -23,7 +23,7 @@ config CP
   bool "cp"
   default y
   help
-    usage: cp [-adfHiLlnPpRrsTv] [--preserve=motcxa] [-t TARGET] SOURCE... [DEST]
+    usage: cp [-aDdFfHiLlnPpRrsTuv] [--preserve=motcxa] [-t TARGET] SOURCE... [DEST]
 
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
@@ -38,14 +38,14 @@ config CP
     -L	Follow all symlinks
     -l	Hard link instead of copy
     -n	No clobber (don't overwrite DEST)
-    -u	Update (keep newest mtime)
     -P	Do not follow symlinks
     -p	Preserve timestamps, ownership, and mode
     -R	Recurse into subdirectories (DEST must be a directory)
     -r	Synonym for -R
     -s	Symlink instead of copy
-    -t	Copy to TARGET dir (no DEST)
     -T	DEST always treated as file, max 2 arguments
+    -t	Copy to TARGET dir (no DEST)
+    -u	Update (keep newest mtime)
     -v	Verbose
 
     Arguments to --preserve are the first letter(s) of:

@@ -10,15 +10,15 @@ config LN
   bool "ln"
   default y
   help
-    usage: ln [-sfnv] [-t DIR] [FROM...] TO
+    usage: ln [-fnrsTv] [-t DIR] [FROM...] TO
 
     Create a link between FROM and TO.
     One/two/many arguments work like "mv" or "cp".
 
-    -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at TO treated as file
     -r	Create relative symlink from -> to
+    -s	Create a symbolic link
     -t	Create links in DIR
     -T	TO always treated as file, max 2 arguments
     -v	Verbose

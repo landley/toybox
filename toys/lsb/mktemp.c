@@ -10,7 +10,7 @@ config MKTEMP
   bool "mktemp"
   default y
   help
-    usage: mktemp [-dqu] [-p DIR] [TEMPLATE]
+    usage: mktemp [-dqtu] [-p DIR] [TEMPLATE]
 
     Safely create a new file "DIR/TEMPLATE" and print its name.
 

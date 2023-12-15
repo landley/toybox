@@ -15,7 +15,7 @@ config XARGS
   bool "xargs"
   default y
   help
-    usage: xargs [-0prt] [-snE STR] COMMAND...
+    usage: xargs [-0Pprt] [-snE STR] COMMAND...
 
     Run command line one or more times, appending arguments from stdin.
 
@@ -25,8 +25,8 @@ config XARGS
     -E	Stop at line matching string
     -n	Max number of arguments per command
     -o	Open tty for COMMAND's stdin (default /dev/null)
-    -p	Prompt for y/n from tty before running each command
     -P	Parallel processes (default 1)
+    -p	Prompt for y/n from tty before running each command
     -r	Don't run with empty input (otherwise always run command once)
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr

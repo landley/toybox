@@ -13,27 +13,28 @@ config SORT
   bool "sort"
   default y
   help
-    usage: sort [-runbcdfiMsz] [FILE...] [-k#[,#[x]] [-t X]] [-o FILE]
+    usage: sort [-runbCcdfiMsxVz] [FILE...] [-k#[,#[x]] [-t X]] [-o FILE]
 
     Sort all lines of text from input files (or stdin) to stdout.
 
     -r	Reverse
     -u	Unique lines only
     -n	Numeric order (instead of alphabetical)
+
     -b	Ignore leading blanks (or trailing blanks in second part of key)
     -C	Check whether input is sorted
     -c	Warn if input is unsorted
     -d	Dictionary order (use alphanumeric and whitespace chars only)
     -f	Force uppercase (case insensitive sort)
     -i	Ignore nonprinting characters
-    -M	Month sort (jan, feb, etc)
-    -x	Hexadecimal numerical sort
-    -s	Skip fallback sort (only sort with keys)
-    -z	Zero (null) terminated lines
     -k	Sort by "key" (see below)
-    -t	Use a key separator other than whitespace
+    -M	Month sort (jan, feb, etc)
     -o	Output to FILE instead of stdout
+    -s	Skip fallback sort (only sort with keys)
+    -t	Use a key separator other than whitespace
+    -x	Hexadecimal numerical sort
     -V	Version numbers (name-1.234-rc6.5b.tgz)
+    -z	Zero (null) terminated lines
 
     Sorting by key looks at a subset of the words on each line. -k2 uses the
     second word to the end of the line, -k2,2 looks at only the second word,

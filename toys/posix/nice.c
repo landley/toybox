@@ -18,6 +18,8 @@ config NICE
     priority) to 19 (lowest).  By default processes inherit their parent's
     niceness (usually 0).  By default this command adds 10 to the parent's
     priority.  Only root can set a negative niceness level.
+
+    -n	Add given adjustment to priority (default 10)
 */
 
 #define FOR_nice

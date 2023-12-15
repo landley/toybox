@@ -15,17 +15,17 @@ config ECHO
   bool "echo"
   default y
   help
-    usage: echo [-neE] [ARG...]
+    usage: echo [-Een] [ARG...]
 
     Write each argument to stdout, one space between each, followed by a newline.
 
-    -n	No trailing newline
     -E	Print escape sequences literally (default)
     -e	Process the following escape sequences:
     	\\  Backslash		\0NNN Octal (1-3 digit)	\xHH Hex (1-2 digit)
     	\a  Alert (beep/flash)	\b  Backspace		\c  Stop here (no \n)
     	\f  Form feed		\n  Newline		\r  Carriage return
     	\t  Horizontal tab	\v  Vertical tab
+    -n	No trailing newline
 */
 
 #define FOR_echo

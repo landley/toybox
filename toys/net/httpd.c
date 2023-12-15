@@ -18,7 +18,7 @@ config HTTPD
   bool "httpd"
   default y
   help
-    usage: httpd [-e STR] [DIR]
+    usage: httpd [-de STR] [-v] [DIR]
 
     Serve contents of directory as static web pages.
 

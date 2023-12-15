@@ -10,9 +10,12 @@ config FALLOCATE
   bool "fallocate"
   default y
   help
-    usage: fallocate [-l size] [-o offset] file
+    usage: fallocate [-o OFFSET] -l SIZE FILE
 
-    Tell the filesystem to allocate space for a file.
+    Tell the filesystem to allocate space for a range in a file.
+
+    -l	Number of bytes in range
+    -o	Start offset of range (default 0)
 */
 
 #define FOR_fallocate

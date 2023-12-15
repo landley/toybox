@@ -19,7 +19,7 @@ config UNAME
   bool "uname"
   default y
   help
-    usage: uname [-asnrvm]
+    usage: uname [-asnrvmo]
 
     Print system information.
 
@@ -28,8 +28,9 @@ config UNAME
     -r	Kernel Release number
     -v	Kernel Version 
     -m	Machine (hardware) name
-    -o	Userspace type
     -a	All of the above (in order)
+
+    -o	Userspace type
 */
 
 #define FOR_uname

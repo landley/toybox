@@ -11,7 +11,7 @@ config NETCAT
   bool "netcat"
   default y
   help
-    usage: netcat [-46ElLtUu] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME|COMMAND...}
+    usage: netcat [-46ELlntUu] [-pqWw #] [-s addr] {IPADDR PORTNUM|-f FILENAME|COMMAND...}
 
     Forward stdin/stdout to a file or network connection.
 
@@ -19,8 +19,8 @@ config NETCAT
     -6	Force IPv6
     -E	Forward stderr
     -f	Use FILENAME (ala /dev/ttyS0) instead of network
-    -l	Listen for one incoming connection, then exit
     -L	Listen and background each incoming connection (server mode)
+    -l	Listen for one incoming connection, then exit
     -n	No DNS lookup
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
@@ -28,8 +28,8 @@ config NETCAT
     -t	Allocate tty
     -u	Use UDP
     -U	Use a UNIX domain socket
-    -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for more data on an idle connection
+    -w	SECONDS timeout to establish connection
 
     When listening the COMMAND line is executed as a child process to handle
     an incoming connection. With no COMMAND -l forwards the connection

@@ -14,7 +14,7 @@ config TEST
   bool "test"
   default y
   help
-    usage: test [-bcdefghLPrSsuwx PATH] [-nz STRING] [-t FD] [X ?? Y]
+    usage: test [-bcdefghkLprSsuwx PATH] [-nz STRING] [-t FD] [X ?? Y]
 
     Return true or false by performing tests. No arguments is false, one argument
     is true if not empty string.

@@ -10,7 +10,7 @@ config FOLD
   bool "fold"
   default y
   help
-    usage: fold [-bsSu] [-w WIDTH] [FILE...]
+    usage: fold [-bs] [-w WIDTH] [FILE...]
 
     Break long lines by inserting newlines.
 

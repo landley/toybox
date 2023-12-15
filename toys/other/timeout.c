@@ -10,7 +10,7 @@ config TIMEOUT
   bool "timeout"
   default y
   help
-    usage: timeout [-i] [-k DURATION] [-s SIGNAL] DURATION COMMAND...
+    usage: timeout [-iv] [-k DURATION] [-s SIGNAL] DURATION COMMAND...
 
     Run command line as a child process, sending child a signal if the
     command doesn't exit soon enough.

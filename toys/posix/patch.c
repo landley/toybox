@@ -20,7 +20,7 @@ config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-Rlsu] [-d DIR] [-i PATCH] [-p DEPTH] [-F FUZZ] [--dry-run] [FILE [PATCH]]
+    usage: patch [-Rlsuv] [-d DIR] [-i PATCH] [-p DEPTH] [-F FUZZ] [--dry-run] [FILE [PATCH]]
 
     Apply a unified diff to one or more files.
 

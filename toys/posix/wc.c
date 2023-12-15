@@ -10,7 +10,7 @@ config WC
   bool "wc"
   default y
   help
-    usage: wc -lwcm [FILE...]
+    usage: wc [-lwcm] [FILE...]
 
     Count lines, words, and characters in input.
 

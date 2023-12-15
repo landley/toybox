@@ -12,7 +12,7 @@ config HEAD
   bool "head"
   default y
   help
-    usage: head [-n NUM] [FILE...]
+    usage: head [-cn NUM] [-qv] [FILE...]
 
     Copy first lines from files to stdout. If no files listed, copy from
     stdin. Filename "-" is a synonym for stdin.

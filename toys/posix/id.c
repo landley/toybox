@@ -15,7 +15,7 @@ config ID
   bool "id"
   default y
   help
-    usage: id [-nGgru] [USER...]
+    usage: id [-Ggnru] [USER...]
 
     Print user and group ID.
 

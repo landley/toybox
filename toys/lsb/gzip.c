@@ -48,7 +48,7 @@ config ZCAT
   bool "zcat"
   default y
   help
-    usage: zcat [FILE...]
+    usage: zcat [-f] [FILE...]
 
     Decompress files to stdout. Like `gzip -dc`.
 

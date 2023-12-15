@@ -14,26 +14,26 @@ config DU
   bool "du"
   default y
   help
-    usage: du [-d N] [-askxHLlmc] [FILE...]
+    usage: du [-d N] [-abcHKkLlmsx] [FILE...]
 
     Show disk usage, space consumed by files and directories.
 
     Size in:
     -b	Apparent bytes (directory listing size, not space used)
+    -h	Human readable (e.g., 1K 243M 2G)
     -k	1024 byte blocks (default)
     -K	512 byte blocks (posix)
     -m	Megabytes
-    -h	Human readable (e.g., 1K 243M 2G)
 
     What to show:
     -a	All files, not just directories
-    -H	Follow symlinks on cmdline
-    -L	Follow all symlinks
-    -s	Only total size of each argument
-    -x	Don't leave this filesystem
     -c	Cumulative total
     -d N	Only depth < N
+    -H	Follow symlinks on cmdline
+    -L	Follow all symlinks
     -l	Disable hardlink filter
+    -s	Only total size of each argument
+    -x	Don't leave this filesystem
 */
 
 #define FOR_du

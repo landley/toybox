@@ -11,6 +11,10 @@ config RENICE
   default y
   help
     usage: renice [-gpu] -n INCREMENT ID...
+
+    -g	Group ids
+    -p	Process ids (default)
+    -u	User ids
 */
 
 #define FOR_renice
@@ -21,15 +25,14 @@ GLOBALS(
 )
 
 void renice_main(void) {
-  int which = (toys.optflags & FLAG_g) ? PRIO_PGRP :
-              ((toys.optflags & FLAG_u) ? PRIO_USER : PRIO_PROCESS);
+  int which = FLAG(g) ? PRIO_PGRP : (FLAG(u) ? PRIO_USER : PRIO_PROCESS);
   char **arg;
 
   for (arg = toys.optargs; *arg; arg++) {
     char *s = *arg;
     int id = -1;
 
-    if (toys.optflags & FLAG_u) {
+    if (FLAG(u)) {
       struct passwd *p = getpwnam(s);
       if (p) id = p->pw_uid;
     } else {

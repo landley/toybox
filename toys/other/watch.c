@@ -12,7 +12,7 @@ config WATCH
   bool "watch"
   default y
   help
-    usage: watch [-teb] [-n SEC] PROG ARGS
+    usage: watch [-tebx] [-n SEC] PROG ARGS
 
     Run PROG every -n seconds, showing output. Hit q to quit.
 

@@ -12,7 +12,7 @@ config FACTOR
   bool "factor"
   default y
   help
-    usage: factor NUMBER...
+    usage: factor [-hx] NUMBER...
 
     Factor integers.
 

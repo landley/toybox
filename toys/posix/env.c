@@ -14,7 +14,7 @@ config ENV
   bool "env"
   default y
   help
-    usage: env [-i] [-u NAME] [NAME=VALUE...] [COMMAND...]
+    usage: env [-0i] [-u NAME] [NAME=VALUE...] [COMMAND...]
 
     Set the environment for command invocation, or list environment variables.
 
