@@ -156,14 +156,16 @@ for i in ${PKG:+plumbing $PKG}; do
 done
 
 # Build static toybox with existing .config if there is one, else defconfig+sh
-announce toybox
-[ -n "$PENDING" ] && rm -f .config
-grep -q CONFIG_SH=y .config 2>/dev/null && CONF=silentoldconfig || unset CONF
-for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
-[ -e "$ROOT"/lib/libc.so ] || export LDFLAGS=--static
-PREFIX="$ROOT" make clean \
-  ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} toybox install || exit 1
-unset LDFLAGS
+if [ -z "$NOTOYBOX" ]; then
+  announce toybox
+  [ -n "$PENDING" ] && rm -f .config
+  grep -q CONFIG_SH=y .config 2>/dev/null && CONF=silentoldconfig || unset CONF
+  for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
+  [ -e "$ROOT"/lib/libc.so ] || export LDFLAGS=--static
+  PREFIX="$ROOT" make clean \
+    ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} toybox install || exit 1
+  unset LDFLAGS
+fi
 
 # ------------------ Part 3: Build + package bootable system ------------------
 
