@@ -14,9 +14,9 @@ testing "-P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i .) ] && echo yes" \
 
 ln -s . sym
 cd sym
-testing "pwd" "[ $(stat -c %i "$(pwd)") = $(stat -c %i "$PWD") ] && echo yes" \
+testing "pwd2" "[ $(stat -c %i "$(pwd)") = $(stat -c %i "$PWD") ] && echo yes" \
 	"yes\n" "" ""
-testing "-P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i "$PWD") ] || echo yes" \
+testing "-P2" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i "$PWD") ] || echo yes" \
 	"yes\n" "" ""
 cd ..
 rm sym
