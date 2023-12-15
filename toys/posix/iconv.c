@@ -51,8 +51,11 @@ static void do_iconv(int fd, char *name)
     iconv(TT.ic, &in, &inlen, &out, &outlen);
     if (in == toybuf) {
       // Skip first byte of illegal sequence to avoid endless loops
-      if (toys.optflags & FLAG_c) in++;
-      else *(out++) = *(in++);
+      if (FLAG(c)) in++;
+      else {
+        *(out++) = *(in++);
+        toys.exitval = 1;
+      }
       inlen--;
     }
     if (out != outstart) xwrite(1, outstart, out-outstart);
