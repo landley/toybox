@@ -380,18 +380,19 @@ int mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
 }
 
 // As of 10.15, macOS offers an fcntl F_PREALLOCATE rather than fallocate()
-// or posix_fallocate() calls.
+// or posix_fallocate() calls. The fcntl only (as the name implies)
+// pre-allocates, so we also need to ftruncate() afterwards.
 int posix_fallocate(int fd, off_t offset, off_t length)
 {
-  int e = errno, result;
+  int e = errno, result = 0;
   fstore_t f;
 
   f.fst_flags = F_ALLOCATEALL;
   f.fst_posmode = F_PEOFPOSMODE;
-  f.fst_offset = offset;
-  f.fst_length = length;
+  f.fst_offset = 0;
+  f.fst_length = offset + length;
   if (fcntl(fd, F_PREALLOCATE, &f) == -1) result = errno;
-  else result = ftruncate(fd, length);
+  else if (ftruncate(fd, maxof(offset+length, fdlength(fd)))) result = errno;
   errno = e;
   return result;
 }
