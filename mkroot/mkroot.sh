@@ -298,7 +298,7 @@ else
   if [ -n "$MODULES" ]; then
     make ARCH=$KARCH INSTALL_MOD_PATH=modz modules_install &&
       (cd modz && find lib/modules | cpio -o -H newc -R +0:+0 ) | gzip \
-       > "$OUTPUT/modules.cpio.gz" || exit 1
+       > "$OUTDOC/modules.cpio.gz" || exit 1
   fi
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
@@ -307,7 +307,7 @@ fi
 if [ -z "$BUILTIN" ]; then
   announce initramfs
   { (cd "$ROOT" && find . -printf '%P\n' | cpio -o -H newc -R +0:+0 ) || exit 1
-    ! test -e "$OUTPUT/modules.cpio.gz" || zcat $_;} | gzip \
+    ! test -e "$OUTDOC/modules.cpio.gz" || zcat $_;} | gzip \
     > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
 
