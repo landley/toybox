@@ -244,10 +244,24 @@ static void do_regular_file(int fd, char *name)
     xprintf("GIF image data, version %3.3s, %d x %d\n",
       s-3, (int)peek_le(s, 2), (int)peek_le(s+2, 2));
 
-  // TODO: parsing JPEG for width/height is harder than GIF or PNG.
-  else if (len>32 && !smemcmp(s, "\xff\xd8", 2)) xputs("JPEG image data");
+  // https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
+  else if (len>32 && !smemcmp(s, "\xff\xd8", 2)) {
+    char *types[] = {"baseline", "extended sequential", "progressive"};
+    int marker;
 
-  else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe")) {
+    printf("JPEG image data");
+    while (s < toybuf+len-8) { // TODO: refill for files with lots of EXIF data?
+      marker = peek_be(s, 2);
+      if (marker >= 0xffd0 && marker <= 0xffd9) s += 2; // No data.
+      else if (marker >= 0xffc0 && marker <= 0xffc2) {
+        xprintf(", %s, %dx%d", types[marker-0xffc0], (int) peek_be(s+7, 2),
+                (int) peek_be(s+5, 2));
+        break;
+      } else s += peek_be(s + 2, 2) + 2;
+    }
+    xputc('\n');
+
+  } else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe")) {
     unsigned count = peek_be(s, 4), i, arch;
 
     // 0xcafebabe can be a Java class file or a Mach-O universal binary.
