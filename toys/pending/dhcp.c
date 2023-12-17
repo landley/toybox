@@ -3,7 +3,8 @@
  * Copyright 2012 Madhur Verma <mad.flexi@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
- * Not in SUSv4.
+ * See RFC 2132, and 3442 (option 121)
+
 USE_DHCP(NEWTOY(dhcp, "V:H:F:x*r:O*A#<0=20T#<0=3t#<0=3s:p:i:SBRCaovqnbf", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
 
 config DHCP
@@ -1057,9 +1058,7 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
 {
   uint8_t type = 0, *options, overloaded = 0;;
   uint16_t flag = 0;
-  uint32_t convtmp = 0;
   char *dest, *pfx;
-  struct in_addr addr;
   int count, optlen, size = ARRAY_LEN(options_list);
 
   if (toys.optflags & FLAG_x) {
@@ -1102,53 +1101,35 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
         break;
       }
     }
+    msgopt_list[count].val = 0;
+    msgopt_list[count].len = 0;
     switch (flag) {
     case DHCP_NUM32:
-      memcpy(&convtmp, &optptr[2], sizeof(uint32_t));
-      convtmp = htonl(convtmp);
-      sprintf(toybuf, "%u", convtmp);
-      msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
+      msgopt_list[count].val = xmprintf("%llu", peek_be(optptr+2, 4));
       break;
     case DHCP_NUM16:
-      memcpy(&convtmp, &optptr[2], sizeof(uint16_t));
-      convtmp = htons(convtmp);
-      sprintf(toybuf, "%u", convtmp);
-      msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
+      msgopt_list[count].val = xmprintf("%llu", peek_be(optptr+2, 2));
       break;
     case DHCP_NUM8:
-      memcpy(&convtmp, &optptr[2], sizeof(uint8_t));
-      sprintf(toybuf, "%u", convtmp);
-      msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
+      msgopt_list[count].val = xmprintf("%llu", peek_be(optptr+2, 1));
       break;
     case DHCP_IP:
-      memcpy(&convtmp, &optptr[2], sizeof(uint32_t));
-      addr.s_addr = convtmp;
-      sprintf(toybuf, "%s", inet_ntoa(addr));
-      msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
+      msgopt_list[count].val = xstrdup(inet_ntoa((struct in_addr){peek(optptr+2, 4)}));
       break;
     case DHCP_STRING:
-      sprintf(toybuf, "%.*s", optptr[1], &optptr[2]);
-      msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
+      msgopt_list[count].val = xmprintf("%.*s", optptr[1], optptr+2);
       break;
     case DHCP_IPLIST:
       options = &optptr[2];
       optlen = optptr[1];
       dest = toybuf;
       while (optlen) {
-        memcpy(&convtmp, options, sizeof(uint32_t));
-        addr.s_addr = convtmp;
-        dest += sprintf(dest, "%s ", inet_ntoa(addr));
+        dest += sprintf(dest, "%s ", inet_ntoa((struct in_addr){peek(options, 4)}));
         options += 4;
         optlen -= 4;
       }
       *(dest - 1) = '\0';
       msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
       break;
     case DHCP_STRLST: //FIXME: do smthing.
     case DHCP_IPPLST:
@@ -1183,10 +1164,12 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
         optlen -= 4;
       }
       msgopt_list[count].val = strdup(toybuf);
-      msgopt_list[count].len = strlen(toybuf);
       break;
     default: break;
     }
+    if (msgopt_list[count].val)
+      msgopt_list[count].len = strlen(msgopt_list[count].val);
+
     optptr += optptr[1] + 2;
   }
   if ((overloaded == 1) || (overloaded == 3)) dhcpc_parseoptions(presult, optptr);
