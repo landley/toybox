@@ -106,7 +106,8 @@ void perror_exit_raw(char *msg)
   perror_exit("%s", msg);
 }
 
-// Keep reading until full or EOF
+// Keep reading until full or EOF. Note: assumes sigaction(SA_RESTART),
+// otherwise SIGSTOP/SIGCONT can return 0 from read/write without EOF.
 ssize_t readall(int fd, void *buf, size_t len)
 {
   size_t count = 0;
@@ -665,19 +666,19 @@ int highest_bit(unsigned long l)
 }
 
 // Inefficient, but deals with unaligned access
-int64_t peek_le(void *ptr, unsigned size)
+long long peek_le(void *ptr, unsigned size)
 {
-  int64_t ret = 0;
+  long long ret = 0;
   char *c = ptr;
   int i;
 
-  for (i=0; i<size; i++) ret |= ((int64_t)c[i])<<(i*8);
+  for (i=0; i<size; i++) ret |= ((long long)c[i])<<(i*8);
   return ret;
 }
 
-int64_t peek_be(void *ptr, unsigned size)
+long long peek_be(void *ptr, unsigned size)
 {
-  int64_t ret = 0;
+  long long ret = 0;
   char *c = ptr;
   int i;
 
@@ -685,7 +686,7 @@ int64_t peek_be(void *ptr, unsigned size)
   return ret;
 }
 
-int64_t peek(void *ptr, unsigned size)
+long long peek(void *ptr, unsigned size)
 {
   return (IS_BIG_ENDIAN ? peek_be : peek_le)(ptr, size);
 }
