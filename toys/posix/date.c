@@ -68,7 +68,7 @@ GLOBALS(
 // Handles any leading `TZ="blah" ` in the input string.
 static void parse_date(char *str, time_t *t)
 {
-  char *new_tz = NULL, *old_tz, *s = str;
+  char *new_tz = NULL, *old_tz QUIET, *s = str;
 
   if (!strncmp(str, "TZ=\"", 4)) {
     // Extract the time zone and skip any whitespace.
