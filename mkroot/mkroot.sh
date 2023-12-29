@@ -117,8 +117,10 @@ mountpoint -q proc || mount -t proc proc proc
 mountpoint -q sys || mount -t sysfs sys sys
 echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
 
-if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
+if [ $$ -eq 1 ]; then
   mountpoint -q mnt || [ -e /dev/?da ] && mount /dev/?da /mnt
+
+  # Setup networking for QEMU (needs /proc)
   ifconfig lo 127.0.0.1
   ifconfig eth0 10.0.2.15
   route add default gw 10.0.2.2
@@ -127,11 +129,15 @@ if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
 
   # Run package scripts (if any)
   for i in $(ls -1 /etc/rc 2>/dev/null | sort); do . /etc/rc/"$i"; done
+  echo 3 > /proc/sys/kernel/printk
 
   [ -z "$HANDOFF" ] && [ -e /mnt/init ] && HANDOFF=/mnt/init
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo -e '\e[?7hType exit when done.'
-  echo 3 > /proc/sys/kernel/printk
-  exec oneit $HANDOFF
+
+  exec <>/dev/$(sed '$s@.*/@@' /sys/class/tty/console/active) 2>&1 &&
+  $HANDOFF &&
+  reboot -f &
+  sleep 5
 else # for chroot
   /bin/sh
   umount /dev/pts /dev /sys /proc
