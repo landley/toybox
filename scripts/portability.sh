@@ -22,9 +22,11 @@ else
   : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
 fi
 
-# Disable a pointless warning only clang produces
+# Disable pointless warnings only clang produces
 [ -n "$("$CROSS_COMPILE$CC" --version | grep -w clang)" ] &&
-  CFLAGS+=" -Wno-string-plus-int -Wno-invalid-source-encoding"
+  CFLAGS+=" -Wno-string-plus-int -Wno-invalid-source-encoding" ||
+# And ones only gcc produces
+  CFLAGS+=" -Wno-restrict -Wno-format-overflow"
 
 # Address Sanitizer
 if [ -n "$ASAN" ]; then
