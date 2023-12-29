@@ -178,15 +178,16 @@ fi
 # Convert comma separated values in $1 to CONFIG=$2 lines
 csv2cfg() { sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1\n/g' <<< "$1" | sed '/^$/!{/=/!s/.*/&='"$2/}";}
 
-# ----- Build kernel for target
-
-if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
-  echo 'No $LINUX directory, kernel build skipped.'
-else
-  # Which architecture are we building a kernel for?
-  LINUX="$(realpath "$LINUX")"
-  [ "$CROSS" == host ] && CROSS="$(uname -m)"
-
+# Set variables from $CROSS, die on unrecognized target:
+# BUILTIN - if set, statically link initramfs into kernel image
+# DTB     - device tree binary file in build dir (qemu -dtb $DTB)
+# KARCH   - linux ARCH= build argument (selects arch/$ARCH directory in source)
+# KARGS   - linux kernel command line arguments (qemu -append "console=$KARGS")
+# KCONF   - kernel config options for target (expanded by csv2cfg above)
+# VMLINUX - linux bootable kernel file in build dir (qemu -kernel $VMLINUX)
+# QEMU    - emulator name (qemu-system-$QEMU) and arguments
+get_target_config()
+{
   # Target-specific info in an (alphabetical order) if/else staircase
   # Each target needs board config, serial console, RTC, ethernet, block device.
 
@@ -255,6 +256,17 @@ else
 #see also SPI SPI_SH_SCI MFD_SM501 RTC_CLASS RTC_DRV_R9701 RTC_DRV_SH RTC_HCTOSYS
   else die "Unknown \$CROSS=$CROSS"
   fi
+}
+
+# ----- Build kernel for target
+
+if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
+  echo 'No $LINUX directory, kernel build skipped.'
+else
+  # Which architecture are we building a kernel for?
+  LINUX="$(realpath "$LINUX")"
+  [ "$CROSS" == host ] && CROSS="$(uname -m)"
+  get_target_config
 
   # Write the qemu launch script
   if [ -n "$QEMU" ]; then
