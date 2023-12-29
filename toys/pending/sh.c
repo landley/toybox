@@ -4395,6 +4395,8 @@ void cd_main(void)
 void exit_main(void)
 {
   toys.exitval = *toys.optargs ? atoi(*toys.optargs) : 0;
+  toys.rebound = 0;
+  // TODO trap EXIT, sigatexit
   xexit();
 }
 
