@@ -17,7 +17,6 @@
 <li><h2><a href="#opensource">What is the relationship between toybox and android?</a></h2></li>
 <li><h2><a href="#backporting">Will you backport fixes to old versions?</a></h2></li>
 <li><h2><a href="#dotslash">What's this ./ on the front of commands in your examples?</a></h2></li>
-
 </ul>
 
 <h2>Using toybox</h2>
@@ -765,7 +764,7 @@ root/host/fs /init</b>". Type "exit" to get back out.</p>
 
 <p>Prebuilt binary versions of these system images, suitable for running
 under the emulator <a href=https://qemu.org>qemu</a>, are uploaded to
-<a href=https://landley.net/toybox/downloads/binaries/mkroot/>the website</a>
+<a href=https://landley.net/bin/mkroot/latest>the website</a>
 each release if you'd like to try before building from source.</p>
 
 <p>You can cross compile simple three package (toybox+libc+linux) systems
@@ -776,12 +775,13 @@ and also pointing the build at a Linux kernel source directory, ala:</p>
 
 <blockquote><p><b>make root CROSS=sh4 LINUX=~/linux</b></p></blockquote>
 
-<p>Then you can <b>cd root/sh4; ./qemu-sh4.sh</b> to launch the emulator.
-(You'll need the appropriate qemu-system-* emulator binary installed.)
-Type "exit" when done and it should shut down the emulator on the way out,
-similar to exiting the chroot version. (Except this is more like you ssh'd
-to a remote machine: the emulator created its own CPU with its own memory
-and I/O devices, and booted a kernel in it.)</p>
+<p>Then you can <b>root/sh4/run-qemu.sh</b> to launch the emulator,
+which boots the new Linux system (kernel and root filesystem) on a simulated
+CPU with its own memory and I/O devices, connecting the
+virtual serial console to the emulator's stdin and stdout.
+You'll need the appropriate qemu-system-* emulator binary for the selected
+architecture in your $PATH. Type "exit" when done to shut down the emulator,
+similar to exiting the chroot version.</p>
 
 <p>The build finds the <a href=#system>three packages</a> needed to produce
 this system because 1) you're in a toybox source directory, 2) your cross
@@ -812,7 +812,7 @@ cd musl-cross-make
 ln -s $(realpath ccc) ../toybox/ccc
 </pre></b></blockquote>
 
-<p>If you don't want to do that, you can download <a href=http://landley.net/toybox/downloads/binaries/toolchains/latest>prebuilt binary versions</a>
+<p>If you don't want to do that, you can download <a href=http://landley.net/bin/toolchains/latest>prebuilt binary versions</a>
 and extract them into a "ccc" subdirectory under the toybox source.</p>
 
 <p>Once you've installed the cross compilers, "<b>make root CROSS=help</b>"
@@ -820,7 +820,7 @@ should list all the available cross compilers it recognizes under ccc,
 something like:</p>
 
 <blockquote><b><p>
-aarch64 armv4l armv5l armv7l armv7m armv7r i486 i686 m68k microblaze mips mips64 mipsel powerpc powerpc64 powerpc64le s390x sh2eb sh4 x32 x86_64
+aarch64 armv4l armv5l armv7l armv7m armv7r i486 i686 m68k microblaze mips mips64 mipsel or1k powerpc powerpc64 powerpc64le s390x sh2eb sh4 x32 x86_64
 </p></b></blockquote>
 
 <p>(A long time ago I
@@ -838,7 +838,7 @@ the command line:</p>
 <p>An example package build script (building the dropbear ssh server, adding a
 port forward from 127.0.0.1:2222 to the qemu command line, and providing a
 ssh2dropbear.sh convenience script to the output directory) is provided
-in the scripts/root directory. If you add your own scripts elsewhere, just
+in the mkroot/packages directory. If you add your own scripts elsewhere, just
 give a path to them on the command line. (No, I'm not merging more package build
 scripts, I <a href=https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu?slide=78>learned that lesson</a> long ago. But if you
 want to write your own, feel free.)</p>
