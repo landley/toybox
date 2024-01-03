@@ -244,7 +244,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     char **s, *str[] = {
       "UP", "BROADCAST", "DEBUG", "LOOPBACK", "POINTOPOINT", "NOTRAILERS",
       "RUNNING", "NOARP", "PROMISC", "ALLMULTI", "MASTER", "SLAVE", "MULTICAST",
-      "PORTSEL", "AUTOMEDIA", "DYNAMIC", NULL
+      "PORTSEL", "AUTOMEDIA", "DYNAMIC", "LOWER_UP", "DORMANT", "ECHO", NULL
     };
 
     for (s = str; *s; s++) {
