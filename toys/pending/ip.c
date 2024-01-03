@@ -838,7 +838,9 @@ static int print_link_output(struct linkdata *link)
     {"NOARP", IFF_NOARP}, {"PROMISC",IFF_PROMISC},
     {"ALLMULTI", IFF_ALLMULTI}, {"MASTER", IFF_MASTER}, {"SLAVE", IFF_SLAVE},
     {"MULTICAST", IFF_MULTICAST}, {"PORTSEL", IFF_PORTSEL},
-    {"AUTOMEDIA", IFF_AUTOMEDIA}, {"DYNAMIC", IFF_DYNAMIC}, {NULL,-1}};
+    {"AUTOMEDIA", IFF_AUTOMEDIA}, {"DYNAMIC", IFF_DYNAMIC},
+    {"LOWER_UP", IFF_LOWER_UP}, {"DORMANT", IFF_DORMANT},
+    {"ECHO", IFF_ECHO}, {NULL,-1}};
 
   if (link->parent != -1) {
     int fd = 0;
