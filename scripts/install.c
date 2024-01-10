@@ -4,6 +4,9 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "generated/config.h"
 #include "lib/toyflags.h"
 
@@ -16,10 +19,27 @@ struct {char *name; int flags;} toy_list[] = {
 #include "generated/newtoys.h"
 };
 
+#undef NEWTOY
+#undef OLDTOY
+#define NEWTOY(name,opt,flags) HELP_##name "\0"
+#if CFG_TOYBOX
+#define OLDTOY(name,oldname,flags) "\xff" #oldname "\0"
+#else
+#define OLDTOY(name, oldname, flags) HELP_##oldname "\0"
+#endif
+
+#include "generated/help.h"
+static char help_data[] =
+#include "generated/newtoys.h"
+;
+
 int main(int argc, char *argv[])
 {
   static char *toy_paths[]={"usr/","bin/","sbin/",0};
   int i, len = 0;
+
+  if (argc>1 && !strcmp(argv[1], "--help"))
+    exit(sizeof(help_data)!=write(1, help_data, sizeof(help_data)));
 
   // Output list of applets.
   for (i=1; i<sizeof(toy_list)/sizeof(*toy_list); i++) {

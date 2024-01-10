@@ -383,8 +383,7 @@ int comma_remove(char *optlist, char *opt);
 
 long long gzip_fd(int infd, int outfd);
 long long gunzip_fd(int infd, int outfd);
-long long gunzip_fd_preload(int infd, int outfd, char *buf, unsigned len);
-
+long long gunzip_mem(char *inbuf, int inlen, char *outbuf, int outlen);
 
 // getmountlist.c
 struct mtab_list {

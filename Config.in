@@ -106,6 +106,14 @@ config TOYBOX_HELP_DASHDASH
 	  optstring. (Use TOYFLAG_NOHELP to disable.) Produces the same output
 	  as "help command". --version shows toybox version.
 
+config TOYBOX_ZHELP
+	bool "compress help text"
+	default y
+	depends on TOYBOX_HELP
+	help
+	  Compress help with gzip -9, deflating when displayed. This makes the
+	  binary smaller but can increase runtime memory usage.
+
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n

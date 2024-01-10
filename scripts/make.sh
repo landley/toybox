@@ -158,7 +158,6 @@ then
   # happy. New ones have '\n' so can replace one line with two without all
   # the branches and tedious mucking about with hyperspace.
   # TODO: clean this up to use modern stuff.
-
   $SED -n \
     -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
     -e 't notset' \
@@ -259,13 +258,25 @@ then
     toys/*/*.c lib/*.c | "$UNSTRIPPED"/mktags > "$GENDIR"/tags.h
 fi
 
+# Create help.h, and zhelp.h if zcat enabled
 hostcomp config2help
 if isnewer help.h "$GENDIR"/Config.in
 then
-  "$UNSTRIPPED"/config2help Config.in $KCONFIG_CONFIG > "$GENDIR"/help.h || exit 1
+  "$UNSTRIPPED"/config2help Config.in $KCONFIG_CONFIG > "$GENDIR"/help.h||exit 1
 fi
-[ -z "$DIDNEWER" ] || echo }
 
+if grep -qx 'CONFIG_TOYBOX_ZHELP=y' "$KCONFIG_CONFIG"
+then
+  do_loudly $HOSTCC -I . scripts/install.c -o "$UNSTRIPPED"/instlist || exit 1
+  { echo "#define ZHELP_LEN $("$UNSTRIPPED"/instlist --help | wc -c)" &&
+    "$UNSTRIPPED"/instlist --help | gzip -9 | od -Anone -vtx1 | \
+    sed 's/ /,0x/g;1s/^,/static char zhelp_data[] = {\n /;$s/.*/&};/'
+  } > "$GENDIR"/zhelp.h || exit 1
+else
+  rm -f "$GENDIR"/zhelp.h
+fi
+
+[ -z "$DIDNEWER" ] || echo }
 [ -n "$NOBUILD" ] && exit 0
 
 echo "Compile $OUTNAME"
