@@ -102,7 +102,7 @@ void do_hexdump(int fd, char *name)
     continue;
 
 newline:
-    strncpy(TT.linebuf+(TT.bc%16), toybuf, TT.len);
+    memcpy(TT.linebuf+(TT.bc%16), toybuf, TT.len);
     TT.bc = TT.bc % 16 + TT.len;
     sl = 0;
     if (TT.pos + TT.bc == TT.s+TT.n || TT.fn == toys.optc || TT.bc == 16) {
