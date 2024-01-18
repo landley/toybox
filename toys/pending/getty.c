@@ -166,8 +166,7 @@ static int read_login_name(void)
 
     if (!FLAG(i)) write_issue(TT.f, &uts);
 
-    printf("%s login: ", uts.nodename);
-    xflush(1);
+    dprintf(1, "%s login: ", uts.nodename);
 
     TT.buff[0] = getchar();
     if (!TT.buff[0] && TT.sc > 1) return 0; // Switch speed

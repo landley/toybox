@@ -2891,7 +2891,7 @@ static struct sh_process *run_command(void)
 //dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c; xx++) dprintf(2, "{%s}", pp->arg.v[xx]); dprintf(2, "\n");
         toy_singleinit(tl, pp->arg.v);
         tl->toy_main();
-        xflush(0);
+        xexit();
       }
       toys.rebound = 0;
       pp->exit = toys.exitval;

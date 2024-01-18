@@ -548,7 +548,8 @@ static void show_error(char *fmt, ...)
   vprintf(fmt, va);
   va_end(va);
   printf("\e[0m");
-  xflush(1);
+  fflush(0);
+  xferror(stdout);
 
   // TODO: better integration with status line: keep
   // message until next operation.
@@ -1619,7 +1620,8 @@ static void draw_page()
   printf("\e[%u;%uH%s\e[%u;%uH", TT.screen_height+1,
     (int) (1+TT.screen_width-strlen(toybuf)),
     toybuf, cy_scr+1, cx_scr+1);
-  xflush(1);
+  fflush(0);
+  xferror(stdout);
 }
 
 void vi_main(void)

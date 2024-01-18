@@ -154,6 +154,8 @@ void check_help(char **arg)
 // Setup toybox global state for this command.
 void toy_singleinit(struct toy_list *which, char *argv[])
 {
+  char *buf;
+
   toys.which = which;
   toys.argv = argv;
   toys.toycount = ARRAY_LEN(toy_list);
@@ -176,7 +178,8 @@ void toy_singleinit(struct toy_list *which, char *argv[])
       uselocale(newlocale(LC_CTYPE_MASK, "C.UTF-8", 0) ? :
         newlocale(LC_CTYPE_MASK, "en_US.UTF-8", 0));
 
-    setvbuf(stdout, 0, (which->flags & TOYFLAG_LINEBUF) ? _IOLBF : _IONBF, 0);
+    buf = (which->flags & TOYFLAG_LINEBUF) ? 0 : xmalloc(4096);
+    setvbuf(stdout, buf, buf ? _IOFBF : _IOLBF, buf ? 4096 : 0);
   }
 }
 
@@ -291,6 +294,7 @@ void toybox_main(void)
 int main(int argc, char *argv[])
 {
   // don't segfault if our environment is crazy
+  // TODO mooted by kernel commit dcd46d897adb7 5.17 kernel Jan 2022
   if (!*argv) return 127;
 
   // Snapshot stack location so we can detect recursion depth later.

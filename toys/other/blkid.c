@@ -5,8 +5,8 @@
  * See ftp://ftp.kernel.org/pub/linux/utils/util-linux/v2.24/libblkid-docs/api-index-full.html
  * TODO: -U and -L should require arguments
 
-USE_BLKID(NEWTOY(blkid, "ULo:s*[!LU]", TOYFLAG_BIN))
-USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN))
+USE_BLKID(NEWTOY(blkid, "ULo:s*[!LU]", TOYFLAG_BIN|TOYFLAG_LINEBUF))
+USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config BLKID
   bool "blkid"

@@ -54,7 +54,7 @@ void xexit(void)
 
     free(al);
   }
-  xflush(1);
+  if (fflush(0) || ferror(stdout)) if (!toys.exitval) perror_msg("write");
   _xexit();
 }
 
@@ -143,10 +143,9 @@ char *xmprintf(char *format, ...)
 }
 
 // if !flush just check for error on stdout without flushing 
-void xflush(int flush)
+void xferror(FILE *fp)
 {
-  if ((flush && fflush(0)) || ferror(stdout))
-    if (!toys.exitval) perror_msg("write");
+  if (ferror(fp)) perror_exit("write");
 }
 
 void xprintf(char *format, ...)
@@ -156,14 +155,15 @@ void xprintf(char *format, ...)
 
   vprintf(format, va);
   va_end(va);
-  xflush(0);
+
+  if (ferror(stdout)) perror_exit("stdout");
 }
 
-// Put string with length (does not append newline)
+// Put string with length (does not append newline) with immediate flush
 void xputsl(char *s, int len)
 {
-  xflush(1);
-  xwrite(1, s, len);
+  fwrite(s, 1, len, stdout);
+  if (fflush(stdout) || ferror(stdout)) perror_exit("stdout"); 
 }
 
 // xputs with no newline
@@ -176,13 +176,12 @@ void xputsn(char *s)
 void xputs(char *s)
 {
   puts(s);
-  xflush(0);
+  xferror(stdout);
 }
 
 void xputc(char c)
 {
   if (EOF == fputc(c, stdout)) perror_exit("write");
-  xflush(0);
 }
 
 // daemonize via vfork(). Does not chdir("/"), caller should do that first
