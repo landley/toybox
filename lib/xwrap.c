@@ -142,10 +142,9 @@ char *xmprintf(char *format, ...)
   return ret;
 }
 
-// if !flush just check for error on stdout without flushing 
 void xferror(FILE *fp)
 {
-  if (ferror(fp)) perror_exit("write");
+  if (ferror(fp)) perror_exit(fp==stdout ? "stdout" : "write");
 }
 
 void xprintf(char *format, ...)
@@ -156,14 +155,15 @@ void xprintf(char *format, ...)
   vprintf(format, va);
   va_end(va);
 
-  if (ferror(stdout)) perror_exit("stdout");
+  xferror(stdout);
 }
 
 // Put string with length (does not append newline) with immediate flush
 void xputsl(char *s, int len)
 {
   fwrite(s, 1, len, stdout);
-  if (fflush(stdout) || ferror(stdout)) perror_exit("stdout"); 
+  fflush(stdout);
+  xferror(stdout);
 }
 
 // xputs with no newline
@@ -181,7 +181,8 @@ void xputs(char *s)
 
 void xputc(char c)
 {
-  if (EOF == fputc(c, stdout)) perror_exit("write");
+  fputc(c, stdout);
+  xferror(stdout);
 }
 
 // daemonize via vfork(). Does not chdir("/"), caller should do that first
