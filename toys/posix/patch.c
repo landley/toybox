@@ -20,27 +20,26 @@ config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-Rlsuv] [-d DIR] [-i PATCH] [-p DEPTH] [-F FUZZ] [--dry-run] [FILE [PATCH]]
+    usage: patch [-Rlsuv] [-d DIR] [-i FILE] [-p DEPTH] [-F FUZZ] [--dry-run] [FILE [PATCH]]
 
     Apply a unified diff to one or more files.
 
     -d	Modify files in DIR
     -F	Fuzz factor (number of non-matching context lines allowed per hunk)
-    -i	Input patch file (default=stdin)
+    -i	Input patch from FILE (default=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
     -R	Reverse patch
     -s	Silent except for errors
-    -u	Ignored (only handles "unified" diffs)
     -v	Verbose (-vv to see decisions)
     --dry-run Don't change files, just confirm patch applies
 
-    This version of patch only handles unified diffs, and only modifies
-    a file when all hunks to that file apply. Patch prints failed hunks
+    Only handles "unified" diff format (-u is assumed and ignored). Only
+    modifies files when all hunks to that file apply. Prints failed hunks
     to stderr, and exits with nonzero status if any hunks fail.
 
-    A file compared against /dev/null (or with a date <= the epoch) is
-    created/deleted as appropriate. The default -F value is the number of
+    Files compared against /dev/null (or with a date <= the unix epoch) are
+    created/deleted as appropriate. Default -F value is the number of
     leading/trailing context lines minus one (usually 2).
 */
 
