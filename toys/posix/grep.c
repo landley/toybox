@@ -15,7 +15,7 @@ config GREP
   bool "grep"
   default y
   help
-    usage: grep [-bcEFHhIiLlnoqrsvwZz] [-ABC NUM] [-m MAX] [-e REGEX]... [-MS PATTERN]... [-f REGFILE]... [FILE]...
+    usage: grep [-abcEFHhIiLlnoqrsvwxZz] [-ABC NUM] [-m MAX] [-e REGEX]... [-MS PATTERN]... [-f REGFILE]... [FILE]...
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
