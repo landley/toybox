@@ -20,12 +20,12 @@ config MEMEATER
 
 void memeater_main(void)
 {
-  unsigned long size = atolx_range(*toys.optargs, 0, ULONG_MAX), i,
+  unsigned long size = atolx_range(*toys.optargs, 0, LONG_MAX), i,
     *p = xmalloc(size);
 
   // Lock and dirty the physical pages.
   if (!FLAG(M) && mlock(p, size)) perror_exit("mlock");
-  for (i = 0; i<size; i += 4096/sizeof(long)) p[i] = i;
+  for (i = 0; i<size; i += 4096) p[i/sizeof(long)] = i;
 
   while (1) pause();
 }
