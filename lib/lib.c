@@ -319,8 +319,10 @@ long long atolx(char *numstr)
     if (shift==-1) val *= 2;
     else if (!shift) val *= 512;
     else if (shift>0) {
-      if (*c && tolower(*c++)=='d') while (shift--) val *= 1000;
-      else val *= 1LL<<(shift*10);
+      if (*c && tolower(*c)=='d') {
+        c++;
+        while (shift--) val *= 1000;
+      } else val *= 1LL<<(shift*10);
     }
   }
   while (isspace(*c)) c++;
