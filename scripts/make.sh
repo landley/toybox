@@ -151,33 +151,11 @@ then
   [ $? -ne 0 ] && exit 1
 fi
 
-#TODO: "make $SED && make" doesn't regenerate config.h because diff .config
-if true #isnewer config.h "$KCONFIG_CONFIG"
-then
-  # This long and roundabout sed invocation is to make old versions of sed
-  # happy. New ones have '\n' so can replace one line with two without all
-  # the branches and tedious mucking about with hyperspace.
-  # TODO: clean this up to use modern stuff.
-  $SED -n \
-    -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
-    -e 't notset' \
-    -e 's/^CONFIG_\(.*\)=y.*/\1/' \
-    -e 't isset' \
-    -e 's/^CONFIG_\([^=]*\)=\(.*\)/#define CFG_\1 \2/p' \
-    -e 'd' \
-    -e ':notset' \
-    -e 'h' \
-    -e 's/.*/#define CFG_& 0/p' \
-    -e 'g' \
-    -e 's/.*/#define USE_&(...)/p' \
-    -e 'd' \
-    -e ':isset' \
-    -e 'h' \
-    -e 's/.*/#define CFG_& 1/p' \
-    -e 'g' \
-    -e 's/.*/#define USE_&(...) __VA_ARGS__/p' \
-    $KCONFIG_CONFIG > "$GENDIR"/config.h || exit 1
-fi
+# Rebuild config.h from .config
+$SED -En $KCONFIG_CONFIG > "$GENDIR"/config.h \
+  -e 's/^# CONFIG_(.*) is not set.*/#define CFG_\1 0\n#define USE_\1(...)/p' \
+  -e 's/^CONFIG_(.*)=y.*/#define CFG_\1 1\n#define USE_\1(...) __VA_ARGS__\n/p'\
+  || exit 1
 
 # Process config.h and newtoys.h to generate FLAG_x macros. Note we must
 # always #define the relevant macro, even when it's disabled, because we
