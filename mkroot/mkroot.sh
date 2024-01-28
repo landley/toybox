@@ -134,8 +134,8 @@ if [ $$ -eq 1 ]; then
   [ -z "$HANDOFF" ] && [ -e /mnt/init ] && HANDOFF=/mnt/init
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo -e '\e[?7hType exit when done.'
 
-  exec <>/dev/$(sed '$s@.*/@@' /sys/class/tty/console/active) 2>&1 &&
-  $HANDOFF &&
+  setsid -c <>/dev/$(sed '$s@.*/@@' /sys/class/tty/console/active) >&0 2>&1 \
+    $HANDOFF
   reboot -f &
   sleep 5
 else # for chroot
