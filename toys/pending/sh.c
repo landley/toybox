@@ -313,7 +313,7 @@ GLOBALS(
   long long SECONDS;
   char *isexec, *wcpat;
   unsigned options, jobcnt, LINENO;
-  int hfd, pid, bangpid, srclvl, recursion;
+  int hfd, pid, bangpid, srclvl, recursion, recfile[50+200*CFG_TOYBOX_FORK];
 
   // Callable function array
   struct sh_function {
@@ -608,7 +608,8 @@ static int recalculate(long long *dd, char **ss, int lvl)
   // If we got a variable, evaluate its contents to set *dd
   if (var) {
     // Recursively evaluate, catching x=y; y=x; echo $((x))
-    if (TT.recursion++ == 50+200*CFG_TOYBOX_FORK) {
+    TT.recfile[TT.recursion++] = 0;
+    if (TT.recursion == ARRAY_LEN(TT.recfile)) {
       perror_msg("recursive occlusion");
       --TT.recursion;
 
@@ -1212,6 +1213,11 @@ static void unredirect(int *urd)
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
 static void subshell_callback(char **argv)
 {
+  int i;
+
+  // Don't leave open filehandles to scripts in children
+  for (i = 0; i<TT.recursion; i++)  if (TT.recfile[i]>0) close(TT.recfile[i]);
+
   // This depends on environ having been replaced by caller
   environ[1] = xmprintf("@%d,%d", getpid(), getppid());
   environ[2] = xmprintf("$=%d", TT.pid);
@@ -2707,7 +2713,7 @@ static void sh_exec(char **argv)
 {
   char *pp = getvar("PATH" ? : _PATH_DEFPATH), *ss = TT.isexec ? : *argv,
     **sss = 0, **oldenv = environ, **argv2;
-  int norecurse = CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec;
+  int norecurse = CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec, ii;
   struct string_list *sl = 0;
   struct toy_list *tl = 0;
 
@@ -2739,6 +2745,11 @@ static void sh_exec(char **argv)
       sss = aa.v+aa.c-1;
     }
     *sss = xmprintf("_=%s", ss);
+
+    // Don't leave open filehandles to scripts in children
+    if (!TT.isexec)
+      for (ii = 0; ii<TT.recursion; ii++)
+        if (TT.recfile[ii]>0) close(TT.recfile[ii]);
 
     // Run builtin, exec command, or call shell script without #!
     toy_exec_which(tl, argv);
@@ -4077,6 +4088,7 @@ FILE *fpathopen(char *name)
 }
 
 // Read script input and execute lines, with or without prompts
+// If !ff input is interactive (prompt, editing, etc)
 int do_source(char *name, FILE *ff)
 {
   struct sh_pipeline *pl = 0;
@@ -4085,7 +4097,8 @@ int do_source(char *name, FILE *ff)
   int cc, ii;
   char *new;
 
-  if (++TT.recursion>(50+200*CFG_TOYBOX_FORK)) {
+  TT.recfile[TT.recursion++] = ff ? fileno(ff) : 0;
+  if (TT.recursion++>ARRAY_LEN(TT.recfile)) {
     error_msg("recursive occlusion");
 
     goto end;
