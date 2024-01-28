@@ -2,7 +2,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
 
-USE_SETSID(NEWTOY(setsid, "^<1wcd[!dc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SETSID(NEWTOY(setsid, "^<1wc@d[!dc]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SETSID
   bool "setsid"
@@ -13,12 +13,16 @@ config SETSID
     Run process in a new session.
 
     -d	Detach from tty
-    -c	Control tty (become foreground process & receive keyboard signals)
+    -c	Control tty (repeat to steal)
     -w	Wait for child (and exit with its status)
 */
 
 #define FOR_setsid
 #include "toys.h"
+
+GLOBALS(
+  long c;
+)
 
 void setsid_main(void)
 {
@@ -43,8 +47,10 @@ void setsid_main(void)
     }
   }
 
-  if (FLAG(c)) tcsetpgrp(0, getpid());
-  if (FLAG(d) && (i = open("/dev/tty", O_RDONLY)) != -1) {
+  if (FLAG(c)) {
+    ioctl(0, TIOCSCTTY, TT.c>1);
+    tcsetpgrp(0, getpid());
+  } if (FLAG(d) && (i = open("/dev/tty", O_RDONLY)) != -1) {
     ioctl(i, TIOCNOTTY);
     close(i);
   }
