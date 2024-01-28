@@ -4,7 +4,7 @@
  *
  * TODO: genericize for telnet/microcom/tail-f, fix -t
 
-USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uUn[!tlL][!Lw][!Lu][!46U]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uUnvz[!tlL][!Lw][!Lu][!46U]", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NETCAT
@@ -26,10 +26,12 @@ config NETCAT
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
     -t	Allocate tty
+    -v	Verbose
     -u	Use UDP
     -U	Use a UNIX domain socket
     -W	SECONDS timeout for more data on an idle connection
     -w	SECONDS timeout to establish connection
+    -z	zero-I/O mode [used for scanning]
 
     When listening the COMMAND line is executed as a child process to handle
     an incoming connection. With no COMMAND -l forwards the connection
@@ -106,9 +108,15 @@ void netcat_main(void)
   else {
     // Setup socket
     if (!FLAG(l) && !FLAG(L)) {
-      if (FLAG(U)) sockfd = usock(toys.optargs[0], type, 1);
-      else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0],
-        toys.optargs[1], family, type, 0, AI_NUMERICHOST*FLAG(n)));
+      char *host = toys.optargs[0];
+      char *port = toys.optargs[1];
+      if (FLAG(U)) sockfd = usock(host, type, 1);
+      else sockfd = xconnectany(xgetaddrinfo(host, port, family, type, 0, AI_NUMERICHOST*FLAG(n)));
+
+      if (FLAG(v)) printf("%s:%s [open]\n", host, port);
+
+      // Do not perform any I/O in zero mode
+      if (FLAG(z)) goto cleanup;
 
       // We have a connection. Disarm timeout and start poll/send loop.
       alarm(0);
