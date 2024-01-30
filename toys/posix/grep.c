@@ -100,6 +100,16 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
   }
 }
 
+static int matchw(char *line, char *start, long so, long eo)
+{
+  if (FLAG(w)) {
+    if (so+(start-line)) if (isalnum(start[so-1]) || start[so-1]=='_') return 0;
+    if (isalnum(start[eo]) || start[eo]=='_') return 0;
+  }
+
+  return 1;
+}
+
 // Show matches in one file
 static void do_grep(int fd, char *name)
 {
@@ -163,7 +173,7 @@ static void do_grep(int fd, char *name)
       rc = 1;
 
       // Handle "fixed" (literal) matches (if any)
-      if (TT.e && *start) for (ss = start; ss-line<ulen; ss++) {
+      if (TT.e) for (ss = start; ss-line<=ulen; ss++) {
         ii = FLAG(i) ? toupper(*ss) : *ss;
         for (seek = TT.fixed[ii]; seek; seek = seek->next) {
           if (*(pp = seek->arg)=='^' && !FLAG(F)) {
@@ -182,6 +192,7 @@ static void do_grep(int fd, char *name)
           }
           if (pp[ii] && (pp[ii]!='$' || pp[ii+1] || ss[ii])) continue;
           mm->rm_eo = (mm->rm_so = ss-start)+ii;
+          if (!matchw(line, start, mm->rm_so, mm->rm_eo)) continue;
           rc = 0;
 
           goto got;
@@ -189,8 +200,6 @@ static void do_grep(int fd, char *name)
         if (FLAG(x)) break;
       }
 
-      // Empty pattern always matches
-      if (rc && *TT.fixed && !FLAG(o)) rc = 0;
 got:
       // Handle regex matches (if any)
       for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) {
@@ -203,6 +212,7 @@ got:
                                 &shoe->m, start==line ? 0 : REG_NOTBOL);
         }
 
+        if (!matchw(line, start, shoe->m.rm_so, shoe->m.rm_eo)) continue;
         // If we got a match, is it a _better_ match?
         if (!shoe->rc && (rc || shoe->m.rm_so < mm->rm_so ||
             (shoe->m.rm_so == mm->rm_so && shoe->m.rm_eo >= mm->rm_eo)))
@@ -218,23 +228,6 @@ got:
       }
 
       if (!rc && FLAG(x) && (mm->rm_so || ulen-(start-line)!=mm->rm_eo)) rc = 1;
-
-      if (!rc && FLAG(w)) {
-        char c = 0;
-
-        if ((start+mm->rm_so)!=line) {
-          c = start[mm->rm_so-1];
-          if (!isalnum(c) && c != '_') c = 0;
-        }
-        if (!c) {
-          c = start[mm->rm_eo];
-          if (!isalnum(c) && c != '_') c = 0;
-        }
-        if (c) {
-          move = mm->rm_so+1;
-          continue;
-        }
-      }
 
       if (FLAG(v)) {
         if (FLAG(o)) {
@@ -417,7 +410,7 @@ static void parse_regex(void)
       } else if (*s>127 || strchr(special+4, *s)) break;
     }
 
-    // Add entry to fast path (literal-ish match) or slow path (regexec)
+    // Leave entry in fast path (literal-ish match) or move to slow path (regex)
     if (!*s || FLAG(F)) last = &((*last)->next);
     else {
       struct reg *shoe;
@@ -447,13 +440,17 @@ static void parse_regex(void)
   }
 
   // Sort each fast path pattern set by length so first hit is longest match
-  if (TT.e) for (key = 0; key<256; key++) {
-    if (!TT.fixed[key]) continue;
+  // Zero length matches aren't sorted, instead appended to every list.
+  if (TT.e) for (key = 1; key<256; key++) {
+    if (!TT.fixed[key]) {
+      TT.fixed[key] = *TT.fixed;
+      continue;
+    }
     for (len = 0, al = TT.fixed[key]; al; al = al->next) len++;
     last = xmalloc(len*sizeof(void *));
     for (len = 0, al = TT.fixed[key]; al; al = al->next) last[len++] = al;
     qsort(last, len, sizeof(void *), (void *)lensort);
-    for (ii = 0; ii<len; ii++) last[ii]->next = ii ? last[ii-1] : 0;
+    for (ii = 0; ii<len; ii++) last[ii]->next = ii ? last[ii-1] : *TT.fixed;
     TT.fixed[key] = last[len-1];
     free(last);
   }

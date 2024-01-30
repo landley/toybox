@@ -9,14 +9,18 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+testcmd 'simple' 'two' 'two\n' '' 'one\ntwo\nthree\n'
+testcmd 'negative' 'a' '' '' '\n'
+testcmd 'empty' "''" '\n' '' '\n'
+
 testcmd "-c" "-c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
 
-echo -e "this is test" > foo
-echo -e "this is test2" > foo2
-echo -e "this is foo3" > foo3
-testcmd "-l" "-l test foo foo2 foo3" "foo\nfoo2\n" "" ""
-testcmd "-L" "-L test foo foo2 foo3" "foo3\n" "" ""
-rm foo foo2 foo3
+echo -e "this is test" > file
+echo -e "this is test2" > file2
+echo -e "this is number3" > file3
+testcmd "-l" "-l test file file2 file3" "file\nfile2\n" "" ""
+testcmd "-L" "-L test file file2 file3" "file3\n" "" ""
+rm file file2 file3
 
 testcmd "-q" "-q test input && echo yes" "yes\n" "this is a test\n" ""
 testcmd "-E" "-E '[0-9]' input" "1234123asdfas123123\n1\n" \
@@ -97,7 +101,21 @@ testcmd "-Fxv -e subset" "-Fxv -e bbswitch-dkms -e dkms" "" "" "bbswitch-dkms\n"
 testcmd "-e blah -e ''" "-e blah -e '' input" "one one one\n" "one one one\n" ""
 testcmd "-w ''" "-w '' input" "" "one one one\n" ""
 testcmd "-w '' 2" "-w '' input" "one  two\n" "one  two\n" ""
+#testcmd "-w '' 3" "-w ''" "one  two\n" "one  two\n" ""
+testcmd "'$' is ''" "'\$'" 'potato\n' '' 'potato\n'
+testcmd "'$' is '' 2" "'x*\$'" 'potato\n' '' 'potato\n'
+testcmd "-w '$'" "-w '\$'" '' '' 'abc  abc\n'
+testcmd "-w '$' 2" "-w '\$'" 'abc \n' '' 'abc \n'
+testcmd "'^' is ''" "'^'" 'potato\n' '' 'potato\n'
+testcmd "'^' is '' 2" "'^x*'" 'potato\n' '' 'potato\n'
+testcmd "-w '^'" "-w '^'" '' '' 'abc  abc\n'
+testcmd "-w '^' 2" "-w '^'" ' abc\n' '' ' abc\n'
 testcmd "-w \\1" "-wo '\\(x\\)\\1'" "xx\n" "" "xx"
+testcmd '' "-nw ''" '1:\n3: \n4:a \n5: a\n7:a  a\n' '' \
+  '\na\n \na \n a\na a\na  a'
+testcmd '' "-nw '^'" '1:\n3: \n5: a\n' '' '\na\n \na \n a\na a\na  a'
+testcmd '' "-nw '\$'" '1:\n3: \n4:a \n' '' '\na\n \na \n a\na a\na  a'
+testcmd '' "-nw '^\$'" '1:\n' '' '\na\n \na \n a\na a\na  a'
 testcmd "-o ''" "-o '' input" "" "one one one\n" ""
 testcmd "backref" '-e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" "" "bcc\nbcb\nab\n"
 
