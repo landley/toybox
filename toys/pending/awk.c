@@ -4363,12 +4363,11 @@ static void init_globals(int optind, int argc, char **argv, char *sepstring,
   for (char **pkey = envp; *pkey; pkey++) {
     char *pval = strchr(*pkey, '=');
     if (!pval) continue;
-    *pval++ = 0;
-    struct zvalue zkey = ZVINIT(ZF_STR, 0, new_zstring(*pkey, strlen(*pkey)));
+    struct zvalue zkey = ZVINIT(ZF_STR, 0, new_zstring(*pkey, pval - *pkey));
     struct zvalue *v = get_map_val(&m, &zkey);
     zstring_release(&zkey.vst);
     if (v->vst) FFATAL("env var dup? (%s)", pkey);
-    *v = new_str_val(pval);    // FIXME refcnt
+    *v = new_str_val(++pval);    // FIXME refcnt
     check_numeric_string(v);
   }
 
@@ -4459,7 +4458,7 @@ static void free_literal_regex(void)
 static void run(int optind, int argc, char **argv, char *sepstring,
     struct arg_list *assign_args, char **envp)
 {
-  char *printf_fmt_rx = "%[-+ #0]*([*]|[0-9]*)([.]([*]|[0-9]*))?[aAdiouxXfFeEgGcs%]";
+  char *printf_fmt_rx = "%['-+ #0]*([*]|[0-9]*)([.]([*]|[0-9]*))?[aAdiouxXfFeEgGcs%]";
   init_globals(optind, argc, argv, sepstring, assign_args, envp);
   TT.cfile = xzalloc(sizeof(struct zfile));
   rx_compile_or_die(&TT.rx_default, "[ \t\n]+");
