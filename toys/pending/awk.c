@@ -4458,7 +4458,7 @@ static void free_literal_regex(void)
 static void run(int optind, int argc, char **argv, char *sepstring,
     struct arg_list *assign_args, char **envp)
 {
-  char *printf_fmt_rx = "%['-+ #0]*([*]|[0-9]*)([.]([*]|[0-9]*))?[aAdiouxXfFeEgGcs%]";
+  char *printf_fmt_rx = "%[-+ #0']*([*]|[0-9]*)([.]([*]|[0-9]*))?[aAdiouxXfFeEgGcs%]";
   init_globals(optind, argc, argv, sepstring, assign_args, envp);
   TT.cfile = xzalloc(sizeof(struct zfile));
   rx_compile_or_die(&TT.rx_default, "[ \t\n]+");
