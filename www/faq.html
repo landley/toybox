@@ -30,6 +30,12 @@
 <li><h2><a href="#mkroot">How do I build a working Linux system with toybox?</a></h2></li>
 </ul>
 
+<h2>Specific commands</h2>
+
+<ul>
+<li><h2><a href="#cttyhack">Why don't you have cttyhack?</h2></li>
+</ul>
+
 <hr /><h2><a name="why_toybox" />Q: "Why is there toybox? What was wrong with busybox?"</h2>
 
 <p>A: Toybox started back in 2006 when I (Rob Landley)
@@ -858,6 +864,70 @@ why it uses the .config that's there when there is one, but the default is
 currently wrong because it's not quite finished yet. All this should be
 cleaned up in a future release, before 1.0.)</p>
 
+<hr /><h2><a name="cttyhack" />Q: Why doesn't toybox have cttyhack?</h2></li>
 
+<p>A: Because it's unnecessary (it has "hack" in the name). Here's what
+mkroot does in its PID 1 init script instead (after mounting /sys and /dev):</p>
 
+<blockquote><p><b>
+trap '' CHLD<br />
+CONSOLE=$(sed '$s@.*/@@' /sys/class/tty/console/active)<br />
+: ${HANDOFF:=/bin/sh}<br />
+setsid -c &lt;&gt;/dev/$CONSOLE >&0 2>&1 $HANDOFF<br />
+reboot -f &amp;<br />
+sleep 5<br />
+</b></p></blockquote>
+
+<p>The "<b>trap</b>" tells the shell to accept and discard exiting child
+processes (so zombies don't accumulate).
+Child processes whose parents have already exited get reparented to init
+(I.E. pid 1) and the shell script is sticking around as PID 1.
+Setting SIGCHLD to SIG_IGN (which trap with an empty string does)
+prevents them from waiting around in Z state to deliver their exit status
+in case the parent ever gets around to calling wait().</p>
+
+<p><b>$CONSOLE</b> fishes the underlying console device behind /dev/console out
+of sysfs, because the linux kernel's /dev/console device can't act as a
+controlling tty (for some reason). Since there may be more than one, and it
+might or might not have a /dev/ prefix, we use <b>sed</b> to take the last
+entry and remove any path.</p>
+
+<p><b>$HANDOFF</b> is the child program to run, and the third line above
+gives it the default value of /bin/sh if it wasn't already set on the
+kernel command line. The bash ${NAME:=default value} syntax assigns a default
+value to blank environment variables (see the bash man page) and : is a synonym
+for the "<b>true</b>" command which ignores its arguments, so this combination is a
+quick way to assign default values to blank variables. You can set $HANDOFF on
+the kernel command line via "<b>KARGS='HANDOFF=cal' ./run-qemu.sh</b>"
+since the <b>run-qemu.sh</b> script appends $KARGS to the end of the kernel
+command line when launching QEMU, and unrecognized linux kernel command line
+arguments with an = in them are treated as variable assignments exported into
+PID 1's environment.</p>
+
+<p>The "<b>setsid</b>" command runs a command in a new session (see "man 7
+credentials") and the -c option makes stdin the controling TTY for the new
+session. The first redirect points stdin at the new console device (the
+<b>&lt;&gt;</b> redirect opens the file for both reading and writing at
+the same time) and the second and third redirects duplicate the stdin
+file descriptor to stdout and stderr. Redirects are guaranteed to be evaluated
+from left to right, and all redirects happen before launching the command,
+so -c grabs the new TTY device as the child's controlling tty.</p>
+
+<p>When the child process setsid launched exits (usually by using the shell's
+builtin "exit" command) the PID 1 shell script resumes and calls
+"<b>reboot</b>" to exit qemu. Ordinarily the reboot command sends SIGTERM
+to PID 1, but that won't do anything useful here, so we give it the -f option to
+force it to call the reboot() syscall directly (see man 2 reboot). For
+some reason the Linux reboot() syscall exits the process instead of blocking,
+and if PID 1 exits the kernel panics, which aborts the reboot process, so
+we background the reboot request into a child process and <b>sleep 5</b>
+to give the reboot time to finish.</p>
+
+<p>Toybox also has a <b>oneit</b> command that can do all this, and has a -3
+option which hands off daemon management to a child process by writing each
+exiting orphaned task's PID to the child's file descriptor 3 (the next
+available on after stdin, stdout, and stderr). It can also respawn its
+child (instead of halting or rebooting) when it exits, but you could add
+a loop to the shell script easily enough.</p>
+</li>
 <!--#include file="footer.html" -->
