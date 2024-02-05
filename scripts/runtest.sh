@@ -165,6 +165,16 @@ testcmd()
   testing "${1:-$CMDNAME $2}" "\"$C\" $2" "$3" "$4" "$5"
 }
 
+utf8locale()
+{
+  local i
+
+  for i in $LC_ALL C.UTF-8 en_US.UTF-8
+  do
+    [ "$(LC_ALL=$i locale charmap 2>/dev/null)" == UTF-8 ] && LC_ALL=$i && break
+  done
+}
+
 # Simple implementation of "expect" written in shell.
 
 # txpect NAME COMMAND [I/O/E/X/R[OE]string]...
