@@ -5,7 +5,7 @@
  * TODO: I have no idea how "system" category is calculated.
  * whatever we're doing isn't matching what other implementations are doing.
 
-USE_VMSTAT(NEWTOY(vmstat, ">2n", TOYFLAG_BIN))
+USE_VMSTAT(NEWTOY(vmstat, ">2n", TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config VMSTAT
   bool "vmstat"
