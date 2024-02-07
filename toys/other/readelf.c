@@ -424,6 +424,8 @@ static void show_notes(unsigned long offset, unsigned long size)
       if (type == 1) {
         printf("NT_VERSION\tAPI level %u", elf_int(&p)), j=1;
         if (descsz>=132) printf(", NDK %.64s (%.64s)", p, p+64);
+      } else if (type == 5) {
+        printf("NT_PAD_SEGMENT\tpad_segment=%u", elf_int(&p)), j=1;
       } else p -= 8;
     } else if (notematch(namesz, &p, "CORE")) {
       if (*(desc = nt_type_core(type)) != '0') printf("%s", desc), j=1;
