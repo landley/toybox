@@ -1742,13 +1742,15 @@ static void top_common(
       if (timeout<=now) timeout = new.whence+TT.top.d;
       if (timeout<=now || timeout>now+TT.top.d) timeout = now+TT.top.d;
 
+      fflush(stdout);
+
       // In batch mode, we ignore the keyboard.
       if (FLAG(b)) {
         msleep(timeout-now);
         // Make an obvious gap between datasets.
         xputs("\n\n");
         break;
-      } else fflush(stdout);
+      }
 
       recalc = 1;
       i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
