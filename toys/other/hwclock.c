@@ -63,7 +63,7 @@ void hwclock_main()
 
   if (FLAG(w)) {
     /* The value of tm_isdst is positive if daylight saving time is in effect,
-     * zero if it is not and negative if the information is not available. 
+     * zero if it is not and negative if the information is not available.
      * TODO: so why isn't this negative...? */
     tm.tm_isdst = 0;
     xioctl(fd, RTC_SET_TIME, &tm);
@@ -81,7 +81,8 @@ void hwclock_main()
   }
   if (FLAG(t) || FLAG(s)) {
     tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
+    if (settimeofday(NULL, &tzone)) perror_exit("settimeofday tzone failed");
+    if (settimeofday(&timeval, NULL)) perror_exit("settimeofday timeval failed");
   }
 
   xclose(fd);
