@@ -21,6 +21,7 @@ testing "standard input -cl" "wc -cl" "      1       5\n" "" "a b\nc"
 testing "-c" "wc -c file1" "26 file1\n" "" ""
 testing "-l" "wc -l file1" "4 file1\n" "" ""
 testing "-w" "wc -w file1" "5 file1\n" "" ""
+testing "-L" "wc -L file1" "18 file1\n" "" ""
 NOSPACE=1 testing "one file" "wc file1" "4 5 26 file1\n" "" ""
 testing "multiple files" "wc input - file1" \
         "      1       2       3 input\n      0       2       3 -\n      4       5      26 file1\n      5       9      32 total\n" "a\nb" "a b"
@@ -33,3 +34,20 @@ testing "-m 2" 'cat "$FILES/utf8/test2.txt" | wc -m' "169\n" "" ""
 echo -n " " > file1
 NOSPACE=1 testing "-mlw" "wc -mlw input" "1 2 11 input\n" "hello, 世界!\n" ""
 rm file1
+
+# Corner cases for "line length". Not QUITE fold because \b doesn't subtract
+
+testcmd '-L 2' '-L' '1\n' '' 'a\n'
+testcmd '-L 3' '-L' '1\n' '' 'a'
+testcmd '-L 4' '-L' '6\n' '' 'first\rsecond\n'
+testcmd '-L 5' '-L' '9\n' '' '\ta\n'
+testcmd '-L 6' '-L' '8\n' '' '\t\b\b\b\n'
+testcmd '-L 7' '-L' '9\n' '' 'abc\td\n'
+testcmd '-L 8' '-L' '4\n' '' 'abc\bd\n'
+testcmd '-L 9' '-L' '0\n' '' '\x01\n'
+testcmd '-L 10' '-L' '1\n' '' 'w\xcc\x88\n'
+NOSPACE=1 testcmd '-Lm incoherence' '-Lm' '2 0\n' '' '\x01\n'
+
+# 25 wide chars, also testing field order
+NOSPACE=1 testcmd '-cmlLw wide' '-cmlLw' '0 1 25 75 50\n' '' \
+  "$(<"$FILES"/utf8/japan.txt)"
