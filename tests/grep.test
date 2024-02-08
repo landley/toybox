@@ -242,3 +242,6 @@ testcmd 'middle ^ not special' 'a^' 'a^b\n' '' 'a^b\nb^a\n'
 testcmd 'middle $ not special' "'\$b'" 'a$b\n' '' 'a$b\nb$a\n'
 
 testcmd 'grep -of' '-of input' 'abc\n' 'a.c\n' 'abcdef\n'
+
+testcmd '-A with -m' '-A1 -m2 match' 'match\n1\nmatch\n2\n' '' \
+  'match\n1\nmatch\n2\nmatch\n3\n'
