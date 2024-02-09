@@ -88,7 +88,6 @@ config I2CTRANSFER
 
 #define FOR_i2cdetect
 #define FORCE_FLAGS
-#define TT this.i2ctools
 #include "toys.h"
 
 GLOBALS(

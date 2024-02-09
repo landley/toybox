@@ -204,30 +204,18 @@ fi
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
 
-function getglobals()
 {
-  for i in toys/*/*.c
-  do
-    NAME=${i##*/} NAME=${NAME%\.c}
-    DATA="$($SED -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
-            -e 's/^GLOBALS(/_data {/' \
-            -e 's/^)/};/' -e 'p' $i)"
-    [ -n "$DATA" ] && echo -e "// $i\n\nstruct $NAME$DATA\n"
-  done
-}
-
-if isnewer globals.h toys
-then
-  GLOBSTRUCT="$(getglobals)"
-  (
-    echo "$GLOBSTRUCT"
-    echo
-    echo "extern union global_union {"
-    echo "$GLOBSTRUCT" | \
-      $SED -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
-    echo "} this;"
-  ) > "$GENDIR"/globals.h
-fi
+  STRUX="$($SED -ne 's/^#define[ \t]*FOR_\([^ \t]*\).*/\1/;T s1;h;:s1' \
+  -e '/^GLOBALS(/,/^)/{s/^GLOBALS(//;T s2;g;s/.*/struct &_data {/;:s2;s/^)/};\n/;p}' \
+  $TOYFILES)"
+  echo "$STRUX" &&
+  echo "extern union global_union {" &&
+  $SED -n 's/^struct \(.*\)_data .*/\1/;T;s/.*/\tstruct &_data &;/p' \
+    <<<"$STRUX" &&
+  echo "} this;"
+} > "$GENDIR"/globals.h || exit 1
+#    -e 'h;y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/;H;g;s/\n/ /'\
+#    -e 's/\([^ ]*\) \(.*\)/\tUSE_\2(struct \1_data \1;)/p')"
 
 hostcomp mktags
 if isnewer tags.h toys

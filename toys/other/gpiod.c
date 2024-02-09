@@ -58,7 +58,6 @@ config GPIOSET
 */
 
 #define FOR_gpiodetect
-#define TT this.gpiod
 #include "toys.h"
 
 GLOBALS(

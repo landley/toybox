@@ -43,7 +43,6 @@ config REALPATH
 
 #define FOR_realpath
 #define FORCE_FLAGS
-#define TT this.readlink // workaround: first FOR_ doesn't match filename
 #include "toys.h"
 
 GLOBALS(

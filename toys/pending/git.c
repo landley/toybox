@@ -63,7 +63,6 @@ config GITCHECKOUT
     A minimal git checkout.
 */
 
-#define TT  this.git
 #define FOR_gitclone
 #include "toys.h"
 #include "openssl/sha.h" //ToDo: borrowed from OpenSSL to not pipe or refactor the SHA1SUM in toybox
