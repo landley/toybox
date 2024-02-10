@@ -4,7 +4,7 @@
  * Copyright 2014 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard
- 
+
 USE_MAKEDEVS(NEWTOY(makedevs, "<1>1d:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MAKEDEVS

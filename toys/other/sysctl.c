@@ -4,7 +4,7 @@
  * Copyright 2014 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard
- 
+
 USE_SYSCTL(NEWTOY(sysctl, "^neNqwpaA[!ap][!aq][!aw][+aA]", TOYFLAG_SBIN))
 
 config SYSCTL

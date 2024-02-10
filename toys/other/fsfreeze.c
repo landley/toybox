@@ -22,7 +22,7 @@ config FSFREEZE
 
 void fsfreeze_main(void)
 {
-  int fd = xopenro(*toys.optargs); 
+  int fd = xopenro(*toys.optargs);
   long p = 1;
 
   xioctl(fd, FLAG(f) ? FIFREEZE : FITHAW, &p);

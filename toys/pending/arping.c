@@ -44,12 +44,12 @@ GLOBALS(
              unicast_flag;
 )
 
-struct sockaddr_ll src_pk, dst_pk; 
+struct sockaddr_ll src_pk, dst_pk;
 struct in_addr src_addr, dest_addr;
 extern void *mempcpy(void *dest, const void *src, size_t n);
 
 // Gets information of INTERFACE and updates IFINDEX, MAC and IP.
-static void get_interface(char *interface, int *ifindex, uint32_t *oip, 
+static void get_interface(char *interface, int *ifindex, uint32_t *oip,
     uint8_t *mac)
 {
   struct ifreq req;
@@ -84,16 +84,16 @@ static void done(int sig)
 {
   if (!(toys.optflags & FLAG_q)) {
     xprintf("Sent %u probe(s) (%u broadcast(s))\n", TT.sent_nr, TT.brd_sent);
-    xprintf("Received %u repl%s (%u request(s), %u broadcast(s))\n", 
+    xprintf("Received %u repl%s (%u request(s), %u broadcast(s))\n",
         TT.rcvd_nr, TT.rcvd_nr == 1 ? "y":"ies", TT.rcvd_req, TT.brd_rcv);
   }
   if (toys.optflags & FLAG_D) exit(!!TT.rcvd_nr);
   //In -U mode, No reply is expected.
-  if (toys.optflags & FLAG_U) exit(EXIT_SUCCESS); 
+  if (toys.optflags & FLAG_U) exit(EXIT_SUCCESS);
   exit(!TT.rcvd_nr);
 }
 
-// Create and Send Packet 
+// Create and Send Packet
 static void send_packet()
 {
   int ret;
@@ -104,8 +104,8 @@ static void send_packet()
   arp_h->ar_hrd = htons(ARPHRD_ETHER);
   arp_h->ar_pro = htons(ETH_P_IP);
   arp_h->ar_hln = src_pk.sll_halen;
-  arp_h->ar_pln = 4;  
-  arp_h->ar_op = (toys.optflags & FLAG_A) ? htons(ARPOP_REPLY) 
+  arp_h->ar_pln = 4;
+  arp_h->ar_op = (toys.optflags & FLAG_A) ? htons(ARPOP_REPLY)
     : htons(ARPOP_REQUEST);
 
   ptr = mempcpy(ptr, &src_pk.sll_addr, src_pk.sll_halen);
@@ -115,7 +115,7 @@ static void send_packet()
                 src_pk.sll_halen);
   ptr = mempcpy(ptr, &dest_addr, 4);
 
-  ret = sendto(TT.sockfd, sbuf, ptr - sbuf, 0, 
+  ret = sendto(TT.sockfd, sbuf, ptr - sbuf, 0,
       (struct sockaddr *)&dst_pk, sizeof(dst_pk));
   if (ret == ptr - sbuf) {
     struct timeval tval;
@@ -134,19 +134,19 @@ static void recv_from(struct sockaddr_ll *from, int *recv_len)
   struct arphdr *arp_hdr = (struct arphdr *)toybuf;
   unsigned char *p = (unsigned char *)(arp_hdr + 1);
 
-  if (arp_hdr->ar_op != htons(ARPOP_REQUEST) && 
-      arp_hdr->ar_op != htons(ARPOP_REPLY)) return; 
+  if (arp_hdr->ar_op != htons(ARPOP_REQUEST) &&
+      arp_hdr->ar_op != htons(ARPOP_REPLY)) return;
 
   if (from->sll_pkttype != PACKET_HOST && from->sll_pkttype != PACKET_BROADCAST
-      && from->sll_pkttype != PACKET_MULTICAST) return; 
+      && from->sll_pkttype != PACKET_MULTICAST) return;
 
-  if (arp_hdr->ar_pro != htons(ETH_P_IP) || (arp_hdr->ar_pln != 4) 
-      || (arp_hdr->ar_hln != src_pk.sll_halen) 
+  if (arp_hdr->ar_pro != htons(ETH_P_IP) || (arp_hdr->ar_pln != 4)
+      || (arp_hdr->ar_hln != src_pk.sll_halen)
       || (*recv_len < (int)(sizeof(*arp_hdr) + 2 * (4 + arp_hdr->ar_hln))))
-    return; 
+    return;
 
   memcpy(&s_ip.s_addr, p + arp_hdr->ar_hln, 4);
-  memcpy(&d_ip.s_addr, p + arp_hdr->ar_hln + 4 + arp_hdr->ar_hln, 4); 
+  memcpy(&d_ip.s_addr, p + arp_hdr->ar_hln + 4 + arp_hdr->ar_hln, 4);
 
   if (dest_addr.s_addr != s_ip.s_addr) return;
   if (toys.optflags & FLAG_D) {
@@ -159,7 +159,7 @@ static void recv_from(struct sockaddr_ll *from, int *recv_len)
         from->sll_pkttype == PACKET_HOST ? "Uni" : "Broad",
         arp_hdr->ar_op == htons(ARPOP_REPLY) ? "ply" : "quest",
         inet_ntoa(s_ip), ether_ntoa((struct ether_addr *) p));
-    if (TT.sent_at) {  
+    if (TT.sent_at) {
       unsigned delta;
       struct timeval tval;
 
@@ -184,14 +184,14 @@ static void send_signal(int sig)
   struct timeval start;
 
   gettimeofday(&start, NULL);
-  if (!TT.start) 
+  if (!TT.start)
     TT.end = TT.start = start.tv_sec * 1000 + start.tv_usec / 1000;
   else TT.end = start.tv_sec*1000 + start.tv_usec / 1000;
   if (toys.optflags & FLAG_c) {
     if (!TT.count) done(0);
-    TT.count--; 
+    TT.count--;
   }
-  if ((toys.optflags & FLAG_w) && ((TT.end - TT.start) > 
+  if ((toys.optflags & FLAG_w) && ((TT.end - TT.start) >
         ((TT.time_out)*1000))) done(0);
   send_packet();
   alarm(1);
@@ -227,9 +227,9 @@ void arping_main(void)
     if (!hp) perror_exit("bad address '%s'", *toys.optargs);
     memcpy(&dest_addr, hp->h_addr, 4);
   }
-  if ((toys.optflags & FLAG_s) && !(inet_aton(TT.src_ip, &src_addr))) 
+  if ((toys.optflags & FLAG_s) && !(inet_aton(TT.src_ip, &src_addr)))
     perror_exit("invalid source address '%s'",TT.src_ip);
-  if (!(toys.optflags & FLAG_D) && (toys.optflags & FLAG_U) 
+  if (!(toys.optflags & FLAG_D) && (toys.optflags & FLAG_U)
       && !src_addr.s_addr) src_addr = dest_addr;
   if (!(toys.optflags & FLAG_D) || src_addr.s_addr) {
     struct sockaddr_in saddr;

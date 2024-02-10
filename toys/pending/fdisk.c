@@ -34,7 +34,7 @@ GLOBALS(
   long cylinders;
 )
 
-#define EXTENDED        0x05                                                                      
+#define EXTENDED        0x05
 #define WIN98_EXTENDED  0x0f
 #define LINUX_NATIVE    0x83
 #define LINUX_EXTENDED  0x85
@@ -136,7 +136,7 @@ static int chs_warn(void)
 static void list_types(void)
 {
   int i, adjust = 0, size = ARRAY_LEN(sys_types);
- 
+
   if(size % 2) adjust = 1;
   for (i = 0; i < (size - adjust); i+=2)
     xprintf("%2x %-22s\t\t%2x %-22.22s\n", sys_types[i].id, sys_types[i].type,
@@ -147,7 +147,7 @@ static void list_types(void)
 
 static void read_sec_sz()
 {
-  int arg;       
+  int arg;
   if (ioctl(dev_fd, BLKSSZGET, &arg) == 0) g_sect_size = arg;
   if (FLAG(b)) {
     if (TT.sect_sz !=  512 && TT.sect_sz != 1024 && TT.sect_sz != 2048 &&
@@ -200,17 +200,17 @@ static uint32_t swap_le32toh(unsigned char *cp)
   return le32toh(val);
 }
 
-static int check_order(void)    
-{                              
+static int check_order(void)
+{
   sector_t first[num_parts], last_seen_val = 0;
   int i;
-  struct part_entry *pe;       
+  struct part_entry *pe;
   struct partition *px;
 
   for (i = 0; i < num_parts; i++) {
     if (i == 4) last_seen_val = 0;
-    pe = &partitions[i];       
-    px = pe->part;             
+    pe = &partitions[i];
+    px = pe->part;
     if (px->sys_ind) {
       first[i] = swap_le32toh(px->start4) + pe->start_offset;
       if (last_seen_val > first[i]) return 1;
@@ -229,7 +229,7 @@ static void read_geometry(struct hd_geometry *disk)
   disk->sectors = geometry.sectors;
 }
 
-/* Read the extended boot record for the 
+/* Read the extended boot record for the
  * logical partion details.
  */
 static void read_ebr(int idx)
@@ -269,7 +269,7 @@ static void read_ebr(int idx)
 }
 
 static void physical_HS(int* h, int *s)
-{  
+{
   struct partition *p;
   int i, end_h, end_s, e_hh = 0, e_ss = 0, ini = 1, dirty = 0;
   const unsigned char *bufp = (const unsigned char *)MBRbuf;
@@ -336,7 +336,7 @@ static void create_empty_doslabel(void)
   reset_boot(1);
 }
 
-/* Read the Master Boot sector of the device for the 
+/* Read the Master Boot sector of the device for the
  * partition table entries/details.
  * If any extended partition is found then read the EBR
  * for logical partition details
@@ -405,21 +405,21 @@ static char* get_type(int sys_ind)
 }
 
 static void consistency_check(const struct partition *p, int partition)
-{        
+{
   unsigned physbc, physbh, physbs, physec, physeh, physes;
   unsigned lbc, lbh, lbs, lec, leh, les;
   sector_t start, end;
 
   if (!g_heads || !g_sectors || (partition >= 4)) return;
-  // physical beginning c, h, s 
+  // physical beginning c, h, s
   physbc = cylinder(p->sector,p->cyl);
   physbh = p->head;
   physbs = sector(p->sector);
-  // physical ending c, h, s 
+  // physical ending c, h, s
   physec = cylinder(p->end_sector, p->end_cyl);
   physeh = p->end_head;
   physes = sector(p->end_sector);
-  // logical begin and end CHS values 
+  // logical begin and end CHS values
   start = swap_le32toh((unsigned char*)(p->start4));
   end = start + swap_le32toh((unsigned char*)(p->size4)) -1;
 
@@ -431,7 +431,7 @@ static void consistency_check(const struct partition *p, int partition)
   leh = (end/g_sectors) % g_heads;
   les = (end % g_sectors) + 1;
 
-  //Logical and Physical diff 
+  //Logical and Physical diff
   if (g_cylinders <= ONE_K && (physbc != lbc || physbh != lbh || physbs != lbs)) {
     xprintf("Partition %u has different physical/logical beginnings (Non-Linux?): \n", partition+1);
     xprintf("phys = (%u %u %u) ",physbc, physbh, physbs);
@@ -442,7 +442,7 @@ static void consistency_check(const struct partition *p, int partition)
     xprintf("phys = (%u %u %u) ",physec, physeh, physes);
     xprintf("logical = (%u %u %u)\n", lec, leh, les);
   }
-  // Ending on cylinder boundary? 
+  // Ending on cylinder boundary?
   if (physeh != (g_heads - 1) || physes != g_sectors)
     xprintf("Partition %u does not end on cylinder boundary\n", partition + 1);
 }
@@ -536,7 +536,7 @@ static int read_input(char *mesg, char *outp)
   do {
     xprintf("%s", mesg);
     p = fgets(toybuf, 80, stdin);
-  
+
     if (!p || !(size = strlen(p))) exit(0);
     if (p[size-1] == '\n') p[--size] = '\0';
   } while (!size);
@@ -574,7 +574,7 @@ void delete_partition(int i)
   struct partition *p, *q, *ext_p, *ext_q;
   sector_t new_start;
   struct part_entry *pe = &partitions[i];
-  
+
   if (chs_warn()) return;
   p = pe->part;
   sys_id = p->sys_ind;
@@ -588,7 +588,7 @@ void delete_partition(int i)
     pe->modified = 1;
     for (looper = 4; looper < num_parts; looper++) {
       pe = &partitions[looper];
-      p = pe->part; 
+      p = pe->part;
       if (is_partition_clear(p)) break;
       else {
         memset(p, 0, sizeof(struct partition)); //clear_partition
@@ -608,7 +608,7 @@ void delete_partition(int i)
         ext_p = part_offset(partitions[i].sec_buffer, 1);
         ext_q = part_offset(partitions[i + 1].sec_buffer, 1);
         *ext_p = *ext_q; //copy the extended info pointer
-        // change the start of the 4th partiton. 
+        // change the start of the 4th partiton.
         new_start = partitions[i + 1].start_offset + swap_le32toh(q->start4) - extended_offset;
         new_start = SWAP_LE32(new_start);
         memcpy(p->start4, (void *)&new_start, 4);
@@ -648,7 +648,7 @@ static void toggle_active_flag(int i)
 {
   struct partition *p = partitions[i].part;
   if (is_partition_clear(p)) xprintf("Partition %u is empty\n", i+1);
-  
+
   if (IS_EXTENDED(p->sys_ind) && !p->boot_ind)
     xprintf("WARNING: Partition %u is an extended partition\n", i + 1);
   p->boot_ind = p->boot_ind == 0x80?0 : 0x80;
@@ -687,7 +687,7 @@ void write_table(void)
  * one, then select the same, else ask from USER
  */
 static int get_non_free_partition(int max)
-{       
+{
   int num = -1, i = 0;
 
   for (i = 0; i < max; i++) {
@@ -723,7 +723,7 @@ static int get_free_partition(int max)
 
 //taking user input for partition start/end sectors/cyinders
 static uint32_t ask_value(char *mesg, sector_t left, sector_t right, sector_t defalt)
-{ 
+{
   char *str = toybuf;
   uint32_t val;
   int use_default = 1;
@@ -820,7 +820,7 @@ static sector_t ask_start_sector(int idx, sector_t* begin, sector_t* end, int ex
   if (disp_unit_cyl) limit = (sector_t)g_sectors * g_heads * g_cylinders - 1;
   else limit = total_number_sectors - 1;
 
-  if (disp_unit_cyl) //make the begin of every partition to cylnder boundary 
+  if (disp_unit_cyl) //make the begin of every partition to cylnder boundary
     for (i = 0; i < num_parts; i++)
       begin[i] = (begin[i]/(g_heads* g_sectors)) * (g_heads* g_sectors);
 
@@ -835,7 +835,7 @@ static sector_t ask_start_sector(int idx, sector_t* begin, sector_t* end, int ex
     if (valid) break;
 
     do {
-      for (i = start_index; i < num_parts; i++) 
+      for (i = start_index; i < num_parts; i++)
         if (start >= begin[i] && start <= end[i])
           start = end[i] + 1 + ((idx >= 4)? offset : 0);
     } while (!validate(start_index, begin, end, start, 0));
@@ -845,10 +845,10 @@ static sector_t ask_start_sector(int idx, sector_t* begin, sector_t* end, int ex
 
     if (start > limit) break;
     sprintf(mesg, "First %s (%lld - %lld, default %lld): ", disp_unit_cyl? "cylinder" : "sector",
-        (long long int)(disp_unit_cyl? start_cyl : start), 
+        (long long int)(disp_unit_cyl? start_cyl : start),
         (long long int)(disp_unit_cyl? limit_cyl : limit),
         (long long int)(disp_unit_cyl? start_cyl : start));
-    temp = ask_value(mesg, disp_unit_cyl? start_cyl : start, 
+    temp = ask_value(mesg, disp_unit_cyl? start_cyl : start,
         disp_unit_cyl? limit_cyl : limit, disp_unit_cyl? start_cyl : start);
     asked = 1;
 
@@ -893,10 +893,10 @@ static sector_t ask_end_sector(int idx, sector_t* begin, sector_t* end, int ext_
   }
   sprintf(mesg, "Last %s or +size or +sizeM or +sizeK (%lld - %lld, default %lld): ",
       disp_unit_cyl? "cylinder" : "sector",
-      (long long int)(disp_unit_cyl? start_cyl : start), 
+      (long long int)(disp_unit_cyl? start_cyl : start),
       (long long int)(disp_unit_cyl? limit_cyl : limit),
       (long long int)(disp_unit_cyl? limit_cyl : limit));
-  temp = ask_value(mesg, disp_unit_cyl? start_cyl : start, 
+  temp = ask_value(mesg, disp_unit_cyl? start_cyl : start,
       disp_unit_cyl? limit_cyl : limit, disp_unit_cyl? limit_cyl : limit);
 
   if (disp_unit_cyl) { // point to the cylinder start sector
@@ -947,7 +947,7 @@ static int add_partition(int idx, int sys_id)
     if (pe->start_offset == extended_offset) pe->start_offset++;
     if (!dos_flag) start++;
   }
- 
+
   set_levalue(p->start4, start - pe->start_offset);
   set_levalue(p->size4, end - start + 1);
   set_hsc(p, start, end);
@@ -960,13 +960,13 @@ static int add_partition(int idx, int sys_id)
     set_levalue(p->start4, pe->start_offset - extended_offset);
     set_levalue(p->size4, end - start + 1 + (dos_flag? g_sectors: 1));
     set_hsc(p, pe->start_offset, end);
-    p->boot_ind = 0;  
+    p->boot_ind = 0;
     p->sys_ind = EXTENDED;
-    partitions[idx-1].modified = 1;   
+    partitions[idx-1].modified = 1;
   }
   if (IS_EXTENDED(sys_id)) {
     pe = &partitions[4];
-    pe->modified = 1; 
+    pe->modified = 1;
     pe->sec_buffer = xzalloc(g_sect_size);
     pe->part = part_offset(pe->sec_buffer, 0);
     pe->start_offset = extended_offset = start;
@@ -989,7 +989,7 @@ static void add_logical_partition(void)
       num_parts--;
       free(pe->sec_buffer);
     }
-  } 
+  }
   else add_partition(num_parts -1, LINUX_NATIVE);
 }
 
@@ -1000,13 +1000,13 @@ static void add_new_partition(void)
 {
   int choice, idx, i, free_part = 0;
   char *msg = NULL;
-  
+
   if (chs_warn()) return;
   for (i = 0; i < 4; i++) if(is_partition_clear(partitions[i].part)) free_part++;
 
   if (!free_part && num_parts >= 60) {
     xprintf("The maximum number of partitions has been created\n");
-    return;       
+    return;
   }
   if (!free_part) {
     if (extended_offset) add_logical_partition();
@@ -1030,7 +1030,7 @@ static void add_new_partition(void)
     return;
   }
   if (choice == 'e' && !extended_offset) {
-    idx = get_free_partition(4);   
+    idx = get_free_partition(4);
     if (idx >= 0) add_partition(idx, EXTENDED);
     return;
   }
@@ -1062,7 +1062,7 @@ static void change_systype(void )
 }
 
 static void check(int n, unsigned h, unsigned s, unsigned c, sector_t start)
-{   
+{
   sector_t total, real_s, real_c;
 
   real_s = sector(s) - 1;
@@ -1116,7 +1116,7 @@ static void verify_table(void)
         }
       }
     }
-  }  
+  }
   if (extended_offset) {
     struct part_entry *pex = &partitions[ext_idx];
     sector_t e_last = swap_le32toh(pex->part->start4) +
@@ -1187,7 +1187,7 @@ static void print_raw_sectors()
 
 static void print_partitions_list(int ext)
 {
-  int i;                                                                                    
+  int i;
   struct part_entry *pe;
   struct partition *p;
 
@@ -1204,7 +1204,7 @@ static void print_partitions_list(int ext)
       xprintf("%2u %02x%4u%4u%5u%4u%4u%5u%11u%11u %02x\n",
           i+1, p->boot_ind, p->head,
           sector(p->sector), cylinder(p->sector, p->cyl),
-          p->end_head,           
+          p->end_head,
           sector(p->end_sector), cylinder(p->end_sector, p->end_cyl),
           swap_le32toh(p->start4),
           swap_le32toh(p->size4),
@@ -1228,7 +1228,7 @@ static void fix_order(void)
     if (is_partition_clear(px)) first[i] = 0xffffffff;
     else first[i] = swap_le32toh(px->start4) + pe->start_offset;
   }
-  
+
   if (!check_order()) {
     xprintf("Ordering is already correct\n\n");
     return;
@@ -1278,10 +1278,10 @@ static void fix_order(void)
         *pjj = tmp;
         set_levalue(pj->start4, ojj+sjj-oj);
         set_levalue(pjj->start4, oj+sj-ojj);
-      }  
-    }    
+      }
+    }
   }
-  // If anything changed 
+  // If anything changed
   for (j = 4; j < num_parts; j++) partitions[j].modified = 1;
   xprintf("Done!\n");
 }
@@ -1311,7 +1311,7 @@ static void print_xmenu(void)
   "c\tchange number of cylinders\n"
   "d\tprint the raw data in the partition table\n"
   "e\tlist extended partitions\n"
-  "f\tfix partition order\n"  
+  "f\tfix partition order\n"
   "h\tchange number of heads\n"
   "p\tprint the partition table\n"
   "q\tquit without saving changes\n"
@@ -1450,7 +1450,7 @@ static void read_and_print_parts()
     memset(name, 0, sizeof(*name));
     if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
       continue;
-      
+
     sprintf(device,"/dev/%s",name);
     if (disk_proper(device)) {
       if (read_mbr(device, 0)) continue;

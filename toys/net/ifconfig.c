@@ -210,7 +210,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
         char *ptr = ipv6_addr+sizeof(ipv6_addr)-1;
 
         // convert giant hex string into colon-spearated ipv6 address by
-        // inserting ':' every 4 characters. 
+        // inserting ':' every 4 characters.
         for (i = 32; i; i--)
           if ((*(ptr--) = ipv6_addr[i])) if (!(i&3)) *(ptr--) = ':';
 
@@ -447,7 +447,7 @@ void ifconfig_main(void)
 
         if (*hw_addr == ':') hw_addr++;
         sscanf(hw_addr, "%2x%n", &val, &len);
-        if (!len || len > 2) break; // 1 nibble can be set e.g. C2:79:38:95:D:A 
+        if (!len || len > 2) break; // 1 nibble can be set e.g. C2:79:38:95:D:A
         hw_addr += len;
         *p++ = val;
       }

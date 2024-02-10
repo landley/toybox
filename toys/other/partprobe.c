@@ -26,5 +26,5 @@ static void do_partprobe(int fd, char *name)
 
 void partprobe_main(void)
 {
-  loopfiles(toys.optargs, do_partprobe); 
+  loopfiles(toys.optargs, do_partprobe);
 }

@@ -184,7 +184,7 @@ void sntp_main(void)
         // generating second request. (We know this time is in the past
         // because transmission took time, but it's a start. And if time is
         // miraculously exact, don't loop.)
- 
+
         lunchtime(&tv2, diff);
         diff = nanodiff(&tv, &tv2);
         if (unset && diff) break;

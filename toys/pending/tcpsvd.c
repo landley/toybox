@@ -1,9 +1,9 @@
-/* tcpsvd.c - TCP(UDP)/IP service daemon 
+/* tcpsvd.c - TCP(UDP)/IP service daemon
  *
  * Copyright 2013 Ashwini Kumar <ak.ashwini@gmail.com>
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
- * 
+ *
  * No Standard.
 
 USE_TCPSVD(NEWTOY(tcpsvd, "^<3c#=30<1b#=20<0C:u:l:hEv", TOYFLAG_USR|TOYFLAG_BIN))
@@ -16,8 +16,8 @@ config TCPSVD
   help
     usage: tcpsvd [-hEv] [-c N] [-C N[:MSG]] [-b N] [-u User] [-l Name] IP Port Prog
     usage: udpsvd [-hEv] [-c N] [-u User] [-l Name] IP Port Prog
-    
-    Create TCP/UDP socket, bind to IP:PORT and listen for incoming connection. 
+
+    Create TCP/UDP socket, bind to IP:PORT and listen for incoming connection.
     Run PROG for each connection.
 
     IP            IP to listen on, 0 = all
@@ -49,7 +49,7 @@ GLOBALS(
 
 struct list_pid {
   struct list_pid *next;
-  char *ip;  
+  char *ip;
   int pid;
 };
 
@@ -71,11 +71,11 @@ struct list_pid *pids = NULL;
 static char *sock_to_address(struct sockaddr *sock, int flags)
 {
   char hbuf[NI_MAXHOST] = {0,};
-  char sbuf[NI_MAXSERV] = {0,}; 
+  char sbuf[NI_MAXSERV] = {0,};
   int status = 0;
   socklen_t len = sizeof(struct sockaddr_in6);
 
-  if (!(status = getnameinfo(sock, len, hbuf, sizeof(hbuf), sbuf, 
+  if (!(status = getnameinfo(sock, len, hbuf, sizeof(hbuf), sbuf,
           sizeof(sbuf), flags))) {
     if (flags & NI_NUMERICSERV) return xmprintf("%s:%s",hbuf, sbuf);
     return xmprintf("%s",hbuf);
@@ -119,9 +119,9 @@ static int haship(char *addr)
 // Remove a node from the list.
 static char *delete(struct list_pid **pids, int pid)
 {
-  struct list_pid *prev, *free_node, *head = *pids; 
+  struct list_pid *prev, *free_node, *head = *pids;
   char *ip = NULL;
- 
+
   if (!head) return NULL;
   prev = free_node = NULL;
   while (head) {
@@ -182,7 +182,7 @@ static void handle_exit(int sig)
   }
 }
 
-// Grab uid and gid 
+// Grab uid and gid
 static void get_uidgid(uid_t *uid, gid_t *gid, char *ug)
 {
   struct passwd *pass = NULL;
@@ -207,7 +207,7 @@ static void get_uidgid(uid_t *uid, gid_t *gid, char *ug)
     if (!(grp = getgrnam(group))) {
       n = atolx_range(group, 0, INT_MAX);
       if (!(grp = getgrgid(n))) perror_exit("Invalid group '%s'",group);
-    }    
+    }
   }
   if (grp) *gid = grp->gr_gid;
 }
@@ -221,8 +221,8 @@ static int create_bind_sock(char *host, struct sockaddr *haddr)
   unsigned long port;
 
   errno = 0;
-  port = strtoul(toys.optargs[1], &ptr, 10);  
-  if (errno || port > 65535) 
+  port = strtoul(toys.optargs[1], &ptr, 10);
+  if (errno || port > 65535)
     error_exit("Invalid port, Range is [0-65535]");
   if (*ptr) ptr = toys.optargs[1];
   else {
@@ -231,12 +231,12 @@ static int create_bind_sock(char *host, struct sockaddr *haddr)
   }
 
   memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;  
+  hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = (TT.udp ? SOCK_DGRAM : SOCK_STREAM);
-  if ((ret = getaddrinfo(host, ptr, &hints, &res))) 
+  if ((ret = getaddrinfo(host, ptr, &hints, &res)))
     perror_exit("%s", gai_strerror(ret));
 
-  for (rp = res; rp; rp = rp->ai_next) 
+  for (rp = res; rp; rp = rp->ai_next)
     if ( (rp->ai_family == AF_INET) || (rp->ai_family == AF_INET6)) break;
 
   if (!rp) error_exit("Invalid IP %s", host);
@@ -255,7 +255,7 @@ static void handle_signal(int sig)
   if (FLAG(v)) xprintf("got signal %d, exit\n", sig);
   raise(sig);
   _exit(sig + 128); //should not reach here
-} 
+}
 
 void tcpsvd_main(void)
 {
@@ -275,7 +275,7 @@ void tcpsvd_main(void)
     if ((ptr = strchr(TT.C, ':'))) *ptr++ = 0;
     TT.maxc = atolx_range(TT.C, 1, INT_MAX);
   }
-  
+
   fd = create_bind_sock(toys.optargs[0], (struct sockaddr*)&haddr);
   if (FLAG(u)) {
     get_uidgid(&uid, &gid, TT.u);
@@ -289,11 +289,11 @@ void tcpsvd_main(void)
     if (FLAG(u))
       xprintf("%s: listening on %s, starting, uid %u, gid %u\n",
         toys.which->name, server, uid, gid);
-    else 
+    else
       xprintf("%s: listening on %s, starting\n", toys.which->name, server);
   }
   for (j = 0; j < HASH_NR; j++) h[j].head = 0;
-  sigatexit(handle_signal);  
+  sigatexit(handle_signal);
   signal(SIGCHLD, handle_exit);
 
   while (1) {

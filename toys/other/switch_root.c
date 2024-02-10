@@ -93,7 +93,7 @@ void switch_root_main(void)
     perror_msg("bad console '%s'", TT.c);
     goto panic;
   }
- 
+
   // Ok, enough safety checks: wipe root partition.
   dirtree_read("/", del_node);
 

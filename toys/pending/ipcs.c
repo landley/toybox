@@ -268,7 +268,7 @@ static void sem_array(void)
         "allocated semaphores = %d\n",
         info_buf.semusz, info_buf.semaem);
     return;
-  } 
+  }
   if (flag(l)) {
     printf("------ Semaphore Limits --------\n");
     u.array = (unsigned short *)&info_buf;

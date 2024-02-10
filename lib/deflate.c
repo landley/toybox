@@ -466,7 +466,7 @@ long long gzip_fd(int infd, int outfd)
   // 2 ID bytes (1F, 8b), gzip method byte (8=deflate), FLAG byte (none),
   // 4 byte MTIME (zeroed), Extra Flags (2=maximum compression),
   // Operating System (FF=unknown)
- 
+
   dd->infd = infd;
   xwrite(bb->fd, "\x1f\x8b\x08\0\0\0\0\0\x02\xff", 10);
 

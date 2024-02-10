@@ -36,7 +36,7 @@ config DEBUG_DHCP
 #define FOR_dhcpd
 
 #include "toys.h"
-#include <linux/sockios.h> 
+#include <linux/sockios.h>
 #include <linux/if_ether.h>
 
 // Todo: headers not in posix
@@ -1292,7 +1292,7 @@ static int verifyip6_in_lease(uint8_t *nip6, uint8_t *duid, uint16_t ia_type, ui
       return -1;
 
     if (!memcmp(((dyn_lease6*) listdls->arg)->duid, duid, ((dyn_lease6*) listdls->arg)->duid_len)
-        && ((dyn_lease6*) listdls->arg)->ia_type == ia_type) 
+        && ((dyn_lease6*) listdls->arg)->ia_type == ia_type)
       return -1;
   }
   for (sls6 = gstate.leases.sleases6; sls6; sls6 = sls6->next)
@@ -1376,12 +1376,12 @@ static int addip6_to_lease(uint8_t *assigned_nip, uint8_t *duid, uint16_t duid_l
   }
 
   dls6 = xzalloc(sizeof(dyn_lease6));
-  dls6->duid_len = duid_len; 
+  dls6->duid_len = duid_len;
   memcpy(dls6->duid, duid, duid_len);
   dls6->ia_type = ia_type;
   dls6->iaid = iaid;
   memcpy(dls6->lease_nip6, assigned_nip, sizeof(uint32_t)*4);
-  
+
   if (update) *lifetime = get_lease(*lifetime + now);
   dls6->expires = *lifetime + now;
 
@@ -1667,7 +1667,7 @@ void dhcpd_main(void)
       dbg("Error in select wait again...\n");
       continue;
     }
-    if (!retval) { // Timed out 
+    if (!retval) { // Timed out
       dbg("select wait Timed Out...\n");
       waited = 0;
       (addr_version == AF_INET6)? write_lease6file() : write_leasefile();
@@ -1680,7 +1680,7 @@ void dhcpd_main(void)
       }
       continue;
     }
-    if (FD_ISSET(sigfd.rd, &rfds)) { // Some Activity on RDFDs : is signal 
+    if (FD_ISSET(sigfd.rd, &rfds)) { // Some Activity on RDFDs : is signal
       unsigned char sig;
       if (read(sigfd.rd, &sig, 1) != 1) {
         dbg("signal read failed.\n");
@@ -1951,7 +1951,7 @@ void dhcpd_main(void)
             dbg("Message Type : %u\n", gstate.rqcode);
             break;
         }
-        
+
       } else {
         if(read_packet() < 0) {
           open_listensock();
@@ -1961,7 +1961,7 @@ void dhcpd_main(void)
 
         get_optval((uint8_t*)&gstate.rcvd.rcvd_pkt.options,
             DHCP_OPT_MESSAGE_TYPE, &gstate.rqcode);
-        if (gstate.rqcode == 0 || gstate.rqcode < DHCPDISCOVER 
+        if (gstate.rqcode == 0 || gstate.rqcode < DHCPDISCOVER
             || gstate.rqcode > DHCPINFORM) {
           dbg("no or bad message type option, ignoring packet.\n");
           continue;

@@ -97,7 +97,7 @@ int draw_trim_esc(char *str, int padto, int width, char *escmore,
   if (padto>=0 && len>width) str += utf8skip(str, len-width);
   if (len>width) len = width;
 
-  // Left pad if right justified 
+  // Left pad if right justified
   if (padto>0 && apad>len) printf("%*s", apad-len, "");
   crunch_str(&str, len, stdout, 0, crunch_rev_escape);
   if (padto<0 && apad>len) printf("%*s", apad-len, "");

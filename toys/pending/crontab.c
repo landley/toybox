@@ -349,7 +349,7 @@ void crontab_main(void)
 
   if (!toys.optc) {
     if (!FLAG_elr) {
-      if (toys.optflags & FLAG_u) 
+      if (toys.optflags & FLAG_u)
         help_exit("file name must be specified for replace");
       do_replace(pwd->pw_name);
     }

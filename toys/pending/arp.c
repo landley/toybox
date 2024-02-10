@@ -106,9 +106,9 @@ static void check_flags(int *i, char** argv)
     {"temp", 0, ~ATF_PERM},
     {"dontpub",1, ATF_DONTPUB},
   };
-  
+
   for (;*argv; argv++) {
-    for (j = 0;  j < ARRAY_LEN(f); j++) { 
+    for (j = 0;  j < ARRAY_LEN(f); j++) {
       if (!strcmp(*argv, f[j].name)) {
         (f[j].or) ?(flag |= f[j].flag):(flag &= f[j].flag);
         break;
@@ -120,7 +120,7 @@ static void check_flags(int *i, char** argv)
         resolve_host(toys.optargs[0], &sa);
         memcpy(&req.arp_netmask, &sa, sizeof(sa));
         flag |= ATF_NETMASK;
-      } else argv++; 
+      } else argv++;
     } else if (j > 4 && !strcmp(*argv, "dev")) {
       if (!*++argv) error_exit("NULL dev");
       TT.device = *argv;
@@ -129,10 +129,10 @@ static void check_flags(int *i, char** argv)
   *i = flag;
 }
 
-static int set_entry(void) 
+static int set_entry(void)
 {
   int flags = 0;
-  
+
   if (!toys.optargs[1]) error_exit("bad syntax");
 
   if (!FLAG(D)) {
@@ -173,11 +173,11 @@ static int set_entry(void)
 static int ip_to_host(struct sockaddr *sa, int flag)
 {
   int status = 0;
-  char hbuf[NI_MAXHOST] = {0,}, sbuf[NI_MAXSERV] = {0,}; 
+  char hbuf[NI_MAXHOST] = {0,}, sbuf[NI_MAXSERV] = {0,};
   socklen_t len = sizeof(struct sockaddr_in6);
-  
+
   *toybuf = 0;
-  if (!(status = getnameinfo(sa, len, hbuf, sizeof(hbuf), sbuf, 
+  if (!(status = getnameinfo(sa, len, hbuf, sizeof(hbuf), sbuf,
           sizeof(sbuf), flag))) {
     strcpy(toybuf, hbuf);
     return 0;

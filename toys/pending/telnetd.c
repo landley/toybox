@@ -1,4 +1,4 @@
-/* telnetd.c - Telnet Server 
+/* telnetd.c - Telnet Server
  *
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
@@ -177,7 +177,7 @@ static int handle_iacs(struct term_session *tm, int c, int fd)
   char *curr ,*start,*end;
   int i = 0;
 
-  curr = start = tm->buff2+tm->buff2_avail; 
+  curr = start = tm->buff2+tm->buff2_avail;
   end = tm->buff2 + c -1;
   tm->rem = 0;
   while (curr <= end) {
@@ -189,7 +189,7 @@ static int handle_iacs(struct term_session *tm, int c, int fd)
       } else {
         toybuf[i++] = *curr++;
         curr++;
-        if (curr < end && (*curr == '\n' || *curr == '\0')) 
+        if (curr < end && (*curr == '\n' || *curr == '\0'))
           curr++;
         continue;
       }
@@ -197,7 +197,7 @@ static int handle_iacs(struct term_session *tm, int c, int fd)
 
     if ((curr + 1) > end) {
       tm->rem = 1;
-      break; 
+      break;
     }
     if (*(curr+1) == IAC) { //IAC as data --> IAC IAC
       toybuf[i++] = *(curr+1);
@@ -213,8 +213,8 @@ static int handle_iacs(struct term_session *tm, int c, int fd)
       if (*(curr+2) == TELOPT_NAWS) {
         struct winsize ws;
         if ((curr+8) >= end) {  //ensure we have data to process.
-          tm->rem = end - curr; 
-          break;  
+          tm->rem = end - curr;
+          break;
         }
         ws.ws_col = (curr[3] << 8) | curr[4];
         ws.ws_row = (curr[5] << 8) | curr[6];
@@ -226,7 +226,7 @@ static int handle_iacs(struct term_session *tm, int c, int fd)
         while (*curr != IAC && curr <= end) {
           curr++;
           tm->rem++;
-        } 
+        }
         if (*curr == IAC) {
           tm->rem = 0;
           continue;
@@ -259,7 +259,7 @@ static int dup_iacs(char *start, int fd, int len)
     if (needle) c = needle - start;
     else c = len;
     count = writeall(fd, start, c);
-    if (count < 0) break; 
+    if (count < 0) break;
     len -= count;
     ret += count;
     start += count;
@@ -287,11 +287,11 @@ void telnetd_main(void)
     if (pty_fd > TT.gmax_fd) TT.gmax_fd = pty_fd;
     tm = xzalloc(sizeof(struct term_session));
     tm->child_pid = TT.fork_pid;
-    tm->new_fd = 0;    
-    tm->pty_fd = pty_fd;    
-    if (session_list) {     
+    tm->new_fd = 0;
+    tm->pty_fd = pty_fd;
+    if (session_list) {
       tm->next = session_list;
-      session_list = tm;    
+      session_list = tm;
     } else session_list = tm;
   }
 
@@ -299,7 +299,7 @@ void telnetd_main(void)
     tv.tv_sec = TT.w_sec;
     tv.tv_usec = 0;
     tv_ptr = &tv;
-  }                
+  }
   signal(SIGCHLD, generic_signal);
 
   for (;;) {
@@ -312,9 +312,9 @@ void telnetd_main(void)
 
       if (tm->pty_fd > 0 && tm->buff1_avail < BUFSIZE) FD_SET(tm->pty_fd, &rd);
       if (tm->new_fd >= 0 && tm->buff2_avail < BUFSIZE) FD_SET(tm->new_fd, &rd);
-      if (tm->pty_fd > 0 && (tm->buff2_avail - tm->buff2_written) > 0)  
+      if (tm->pty_fd > 0 && (tm->buff2_avail - tm->buff2_written) > 0)
         FD_SET(tm->pty_fd, &wr);
-      if (tm->new_fd >= 0 && (tm->buff1_avail - tm->buff1_written) > 0)  
+      if (tm->new_fd >= 0 && (tm->buff1_avail - tm->buff1_written) > 0)
         FD_SET(tm->new_fd, &wr);
       tm = tm->next;
     }
@@ -366,12 +366,12 @@ void telnetd_main(void)
         }
         c = handle_iacs(tm, c, tm->pty_fd);
         tm->buff2_avail += c;
-        if ((w = write(tm->pty_fd, tm->buff2+ tm->buff2_written, 
+        if ((w = write(tm->pty_fd, tm->buff2+ tm->buff2_written,
                 tm->buff2_avail - tm->buff2_written)) < 0) break;
         tm->buff2_written += w;
       }
       if (FD_ISSET(tm->pty_fd, &wr)) {
-        if ((w = write(tm->pty_fd,  tm->buff2 + tm->buff2_written, 
+        if ((w = write(tm->pty_fd,  tm->buff2 + tm->buff2_written,
                 tm->buff2_avail - tm->buff2_written)) < 0) break;
         tm->buff2_written += w;
       }

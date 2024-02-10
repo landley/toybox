@@ -163,7 +163,7 @@ static void od_outline(void)
     // If more than one byte of input consumed, average rounding up.
     j = od_out_t(types+i, buf, &bytes);
     j = (j+bytes-1)/bytes;
-   
+
     if (j > pad) pad = j;
   }
 

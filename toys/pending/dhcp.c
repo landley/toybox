@@ -248,7 +248,7 @@ static  struct sock_filter filter_instr[] = {
 };
 
 static  struct sock_fprog filter_prog = {
-    .len = ARRAY_LEN(filter_instr), 
+    .len = ARRAY_LEN(filter_instr),
     .filter = (struct sock_filter *) filter_instr,
 };
 
@@ -465,7 +465,7 @@ static int strtoopt( char *str, uint8_t optonly)
       valstr = strtok(NULL," \t");
     }
     break;
-  case DHCP_STRLST: 
+  case DHCP_STRLST:
   case DHCP_IPPLST:
     break;
   case DHCP_STCRTS:
@@ -668,7 +668,7 @@ static int read_raw(void)
   }
   // ignore any extra garbage bytes
   bytes = ntohs(packet.iph.tot_len);
-  // make sure its the right packet for us, and that it passes sanity checks 
+  // make sure its the right packet for us, and that it passes sanity checks
   if (packet.iph.protocol != IPPROTO_UDP || packet.iph.version != IPVERSION
    || packet.iph.ihl != (sizeof(packet.iph) >> 2)
    || packet.udph.dest != htons(DHCPC_CLIENT_PORT)
@@ -1199,14 +1199,14 @@ static void renew(void)
     break;
   case STATE_BOUND:
     mode_raw();
-  case STATE_RENEWING:    // FALLTHROUGH 
-  case STATE_REBINDING:   // FALLTHROUGH 
+  case STATE_RENEWING:    // FALLTHROUGH
+  case STATE_REBINDING:   // FALLTHROUGH
     state->status = STATE_RENEW_REQUESTED;
     break;
   case STATE_RENEW_REQUESTED:
     run_script(NULL, "deconfig");
-  case STATE_REQUESTING:           // FALLTHROUGH 
-  case STATE_RELEASED:             // FALLTHROUGH 
+  case STATE_REQUESTING:           // FALLTHROUGH
+  case STATE_RELEASED:             // FALLTHROUGH
     mode_raw();
     state->status = STATE_INIT;
     break;

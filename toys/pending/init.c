@@ -69,7 +69,7 @@ static void initialize_console(void)
 static void reset_term(int fd)
 {
   struct termios terminal;
- 
+
   tcgetattr(fd, &terminal);
   terminal.c_cc[VINTR] = 3;    //ctrl-c
   terminal.c_cc[VQUIT] = 28;   /*ctrl-\*/
@@ -255,7 +255,7 @@ static pid_t final_run(struct action_list_seed *x)
     sigfillset(&signal_set);
     sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 
-    return pid;      
+    return pid;
   } else if (pid < 0) {
     perror_msg("fork fail");
     sleep(1);
@@ -358,7 +358,7 @@ static void halt_poweroff_reboot_handler(int sig_no)
       error_msg("Requesting system poweroff");
       reboot_magic_no=RB_POWER_OFF;
       break;
-    case SIGTERM:  
+    case SIGTERM:
       error_msg("Requesting system reboot");
       reboot_magic_no=RB_AUTOBOOT;
       break;
@@ -461,8 +461,8 @@ void init_main(void)
 {
   struct sigaction sig_act;
 
-  if (getpid() != 1) error_exit("Already running"); 
-  printf("Started init\n"); 
+  if (getpid() != 1) error_exit("Already running");
+  printf("Started init\n");
   initialize_console();
   reset_term(0);
 
@@ -486,8 +486,8 @@ void init_main(void)
   sigaction(SIGTSTP, &sig_act, NULL);
   memset(&sig_act, 0, sizeof(sig_act));
   sig_act.sa_handler = catch_signal;
-  sigaction(SIGINT, &sig_act, NULL);  
-  sigaction(SIGHUP, &sig_act, NULL);  
+  sigaction(SIGINT, &sig_act, NULL);
+  sigaction(SIGHUP, &sig_act, NULL);
   run_action_from_list(SYSINIT);
   check_if_pending_signals();
   run_action_from_list(WAIT);

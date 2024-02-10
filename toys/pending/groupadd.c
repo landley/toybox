@@ -15,7 +15,7 @@ config GROUPADD
     usage: groupadd [-S] [-g GID] [USER] GROUP
 
     Add a user to a group, or create a new group.
-    
+
     -g GID	Group id
     -R	Operate within chroot
     -S	Create a system group

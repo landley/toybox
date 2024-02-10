@@ -3,8 +3,8 @@
  * Copyright 2014 Ashish Kumar Gupta <ashishkguptaiit.cse@gmail.com>
  * Copyright 2014 Kyungwan Han <asura321@gmail.com>
  *
- * 
- * Relies on libcrypt for hash calculation. 
+ *
+ * Relies on libcrypt for hash calculation.
  * No support for PAM/securetty/selinux/login script/issue/utmp
 
 
@@ -27,7 +27,7 @@ GLOBALS(
   struct termios crntio;
 )
 
-static void timeout_handle(int signo) 
+static void timeout_handle(int signo)
 {
   tcsetattr(0, TCSANOW, &(TT.crntio));
   fflush(stdout);
@@ -54,7 +54,7 @@ static int validate_password(char *pwd)
   ret = read_password(toybuf, sizeof(toybuf), s);
   if(TT.timeout) alarm(0);
 
-  if ( ret && !toybuf[0]) {   
+  if ( ret && !toybuf[0]) {
     xprintf("Normal startup.\n");
     return -1;
   }
@@ -66,7 +66,7 @@ static int validate_password(char *pwd)
   return ret;
 }
 
-static void run_shell(char *shell) 
+static void run_shell(char *shell)
 {
   snprintf(toybuf,sizeof(toybuf), "-%s", shell);
   execl(shell, toybuf, NULL);
@@ -92,7 +92,7 @@ void sulogin_main(void)
     dup2( fd, 1);
     dup2( fd, 2);
     if (fd > 2) close(fd);
-  }  
+  }
 
   for (temp = forbid; *temp; temp++) unsetenv(*temp);
 

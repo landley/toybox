@@ -7,7 +7,7 @@
  * This is useful for things like "kvm -netdev tap" and containers.
  * See https://landley.net/lxc/02-networking.html for example usage.
  *
- * TODO: bridge mode 
+ * TODO: bridge mode
  *  -b	bridge daemon (forwards packets between NAME and NAME2 interfaces)
 
 

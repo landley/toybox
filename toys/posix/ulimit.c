@@ -28,7 +28,7 @@ config ULIMIT
     Print or set resource limits for process number PID. If no LIMIT specified
     (or read-only -ap selected) display current value (sizes in bytes).
     Default is ulimit -P $PPID -Sf" (show soft filesize of your shell).
-    
+
     -P  PID to affect (default $PPID)  -a  Show all limits
     -S  Set/show soft limit            -H  Set/show hard (maximum) limit
 

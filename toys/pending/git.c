@@ -220,7 +220,7 @@ int inf(FILE *source, char *dest) //modified signature to ease use
             }
 
             have = CHUNK - strm.avail_out;
-	    memcpy(position, out, have); //added to original
+            memcpy(position, out, have); //added to original
             position += have; //added to original
             //if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
             //    (void)inflateEnd(&strm);

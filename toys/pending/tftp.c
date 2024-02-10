@@ -97,7 +97,7 @@ static int mkpkt_request(uint8_t *buffer, int opcode, char *path, int mode)
   buffer[0] = opcode >> 8;
   buffer[1] = opcode & 0xff;
   if(strlen(path) > TFTP_BLKSIZE) error_exit("path too long");
-  return sprintf((char*) &buffer[2], "%s%c%s", path, 0, 
+  return sprintf((char*) &buffer[2], "%s%c%s", path, 0,
     (mode ? "octet" : "netascii")) + 3;
 }
 
@@ -137,7 +137,7 @@ static int read_server(int sd, void *buf, int len,
 {
   socklen_t alen;
   ssize_t nb;
-  
+
   for (;;) {
     memset(buf, 0, len);
     alen = sizeof(struct sockaddr_storage);
@@ -163,7 +163,7 @@ static ssize_t write_server(int sd, void *buf, size_t len,
   struct sockaddr_storage *to)
 {
   ssize_t nb;
-  
+
   for (;;) {
     nb = sendto(sd, buf, len, 0, (struct sockaddr *)to,
             sizeof(struct sockaddr_storage));
@@ -178,7 +178,7 @@ static ssize_t write_server(int sd, void *buf, size_t len,
 }
 
 // checks packet for data and updates block no
-static inline int check_data( uint8_t *packet, uint16_t *opcode, 
+static inline int check_data( uint8_t *packet, uint16_t *opcode,
   uint16_t *blockno)
 {
   *opcode = (uint16_t) packet[0] << 8 | (uint16_t) packet[1];

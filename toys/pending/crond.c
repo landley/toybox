@@ -570,7 +570,7 @@ static void execute_jobs(void)
               free(mailfile);
             }
           }
-          loginfo(LOG_LEVEL8, "USER %s pid %3d cmd %s", 
+          loginfo(LOG_LEVEL8, "USER %s pid %3d cmd %s",
               cfile->username, job->pid, job->cmd);
           if (job->pid < 0) job->needstart = 1;
           else job->isrunning = 1;

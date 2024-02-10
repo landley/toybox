@@ -349,7 +349,7 @@ void mount_main(void)
         for (mmm = mtl2; mmm; mmm = mmm->next)
           if (!strcmp(mm->dir, mmm->dir) && !strcmp(mm->device, mmm->device))
             break;
- 
+
       // user only counts from fstab, not opts.
       if (!mmm) {
         TT.okuser = comma_scan(mm->opts, "user", 1);

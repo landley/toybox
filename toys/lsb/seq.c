@@ -55,7 +55,7 @@ static double parsef(char *s)
 static char *flush_toybuf(char *ss)
 {
   if (ss-toybuf<TT.buflen) return ss;
-  xwrite(1, toybuf, ss-toybuf); 
+  xwrite(1, toybuf, ss-toybuf);
 
   return toybuf;
 }

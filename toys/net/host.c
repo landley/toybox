@@ -142,7 +142,7 @@ void host_main(void)
   qlen = 0;
   for (sec = 0; sec<(2<<verbose); sec++) {
     count = peek_be(abuf+4+2*sec, 2);
-    if (verbose && count>0 && sec>1) 
+    if (verbose && count>0 && sec>1)
       puts(sec==2 ? "For authoritative answers, see:"
         : "Additional information:");
 
@@ -162,7 +162,7 @@ void host_main(void)
       else if (type==2 || type==5) xdn_expand(abuf, abuf+alen, p, t2, t2len);
       else if (type==13 || type==16)
         sprintf(t2, "\"%.*s\"", minof(pllen, t2len), p);
-      else if (type==6) { 
+      else if (type==6) {
         ss = p+xdn_expand(abuf, abuf+alen, p, t2, t2len-1);
         j = strlen(t2);
         t2[j++] = ' ';

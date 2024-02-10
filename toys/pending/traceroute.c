@@ -100,7 +100,7 @@ static u_int16_t in_cksum(u_int16_t *p, u_int len)
     u.c[1] = 0;
     sum += u.w;
   }
-  // end-around-carry 
+  // end-around-carry
   sum = (sum >> 16) + (sum & 0xffff);
   sum += (sum >> 16);
   return (~sum);
@@ -133,7 +133,7 @@ static void send_probe4(int seq, int ttl)
   if (res < 0) perror_exit("setsockopt ttl %d", ttl);
 
   len = TT.msg_len;
-  res = sendto(TT.snd_sock, out, len, 0, (struct sockaddr *) &dest, 
+  res = sendto(TT.snd_sock, out, len, 0, (struct sockaddr *) &dest,
       sizeof(struct sockaddr_in));
   if (res != len) perror_exit(" sendto");
 }
@@ -148,7 +148,7 @@ static void send_probe6(int seq, int ttl)
   send_data6->ident = TT.ident;
   ((struct sockaddr_in6 *)&dest)->sin6_port = TT.port;
 
-  if (setsockopt(TT.snd_sock, SOL_IPV6, IPV6_UNICAST_HOPS, &ttl, 
+  if (setsockopt(TT.snd_sock, SOL_IPV6, IPV6_UNICAST_HOPS, &ttl,
         sizeof(ttl)) < 0) error_exit("setsockopt ttl %d", ttl);
 
   out = send_data6;
@@ -225,12 +225,12 @@ static void do_trace()
       gettimeofday(&t1, NULL);
       t2 = t1;
 
-      while ((tleft = (int)(tv - ((unsigned long long)(t2.tv_sec * 1000ULL 
+      while ((tleft = (int)(tv - ((unsigned long long)(t2.tv_sec * 1000ULL
                   + t2.tv_usec/1000) - (unsigned long long)(t1.tv_sec * 1000ULL
                     + t1.tv_usec/1000)))) >= 0) {
         unsigned delta = 0;
-        if (!(res = poll(pfd, 1, tleft))) { 
-          xprintf("  *"); 
+        if (!(res = poll(pfd, 1, tleft))) {
+          xprintf("  *");
           break;
         }
         gettimeofday(&t2, NULL);
@@ -276,28 +276,28 @@ static void do_trace()
                       ricmp->icmp_code);
               } else {
                 hicmp = (struct icmp *) ((char*)hip + (hip->ip_hl << 2));
-                if (ricmp->icmp_type == ICMP_ECHOREPLY 
+                if (ricmp->icmp_type == ICMP_ECHOREPLY
                     && ricmp->icmp_id == ntohs(TT.ident)
                     && ricmp->icmp_seq == ntohs(seq))
                   icmp_res = ICMP_UNREACH_PORT;
-                else if ((hip->ip_hl << 2) + ICMP_HD_SIZE4 
+                else if ((hip->ip_hl << 2) + ICMP_HD_SIZE4
                     <= (rcv_len - (rcv_pkt->ip_hl << 2))
                     && hip->ip_p == IPPROTO_ICMP
                     && hicmp->icmp_id == htons(TT.ident)
                     && hicmp->icmp_seq == htons(seq))
-                  icmp_res = (ricmp->icmp_type == ICMP_TIMXCEED ? -1 : 
+                  icmp_res = (ricmp->icmp_type == ICMP_TIMXCEED ? -1 :
                       ricmp->icmp_code);
               }
             }
             if (!icmp_res) continue;
 
             if (addrlen > 0) {
-              if (memcmp(&((struct sockaddr_in *)&last_addr)->sin_addr, 
-                    &((struct sockaddr_in *)&from)->sin_addr, 
+              if (memcmp(&((struct sockaddr_in *)&last_addr)->sin_addr,
+                    &((struct sockaddr_in *)&from)->sin_addr,
                     sizeof(struct in_addr))) {
                 if (!(toys.optflags & FLAG_n)) {
                   char host[NI_MAXHOST];
-                  if (!getnameinfo((struct sockaddr *) &from, 
+                  if (!getnameinfo((struct sockaddr *) &from,
                         sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, 0))
                     xprintf("  %s (", host);
                   else xprintf(" %s (", inet_ntoa(
@@ -359,7 +359,7 @@ static void do_trace()
                 xprintf(" !C");
                 ++fexit;
                 break;
-              case ICMP_UNREACH_NET_UNKNOWN:  
+              case ICMP_UNREACH_NET_UNKNOWN:
               case ICMP_UNREACH_HOST_UNKNOWN:
                 xprintf(" !U");
                 ++fexit;
@@ -407,8 +407,8 @@ static void do_trace()
 
             if (!icmp_res) continue;
             if (addrlen > 0) {
-              if (memcmp(&((struct sockaddr_in6 *)&last_addr)->sin6_addr, 
-                    &((struct sockaddr_in6 *)&from)->sin6_addr, 
+              if (memcmp(&((struct sockaddr_in6 *)&last_addr)->sin6_addr,
+                    &((struct sockaddr_in6 *)&from)->sin6_addr,
                     sizeof(struct in6_addr))) {
                 if (!(toys.optflags & FLAG_n)) {
                   char host[NI_MAXHOST];
@@ -467,7 +467,7 @@ static void do_trace()
     }
     xputc('\n');
     if(!TT.istraceroute6) {
-      if (!memcmp(&((struct sockaddr_in *)&from)->sin_addr, 
+      if (!memcmp(&((struct sockaddr_in *)&from)->sin_addr,
             &((struct sockaddr_in *)&dest)->sin_addr, sizeof(struct in_addr))
           || dest_reach || (fexit && fexit >= TT.ttl_probes -1))
         break;
@@ -479,8 +479,8 @@ void traceroute_main(void)
 {
   unsigned pack_size = 0, tyser = 0;
   int lsrr = 0, set = 1;
-  
-  if(!(toys.optflags & FLAG_4) && 
+
+  if(!(toys.optflags & FLAG_4) &&
       (inet_pton(AF_INET6, toys.optargs[0], &dest)))
     toys.optflags |= FLAG_6;
 
@@ -511,29 +511,29 @@ void traceroute_main(void)
   if (TT.istraceroute6) {
     int two = 2;
 #ifdef IPV6_RECVPKTINFO
-    setsockopt(TT.recv_sock, SOL_IPV6, IPV6_RECVPKTINFO, &set, 
+    setsockopt(TT.recv_sock, SOL_IPV6, IPV6_RECVPKTINFO, &set,
         sizeof(set));
-    setsockopt(TT.recv_sock, SOL_IPV6, IPV6_2292PKTINFO, &set, 
+    setsockopt(TT.recv_sock, SOL_IPV6, IPV6_2292PKTINFO, &set,
         sizeof(set));
 #else
     setsockopt(TT.recv_sock, SOL_IPV6, IPV6_PKTINFO, &set, sizeof(set));
 #endif
 
-    if (setsockopt(TT.recv_sock, SOL_RAW, IPV6_CHECKSUM, &two, 
+    if (setsockopt(TT.recv_sock, SOL_RAW, IPV6_CHECKSUM, &two,
           sizeof(two)) < 0)  perror_exit("setsockopt RAW_CHECKSUM");
   }
 
   set_flag_dr(TT.recv_sock);
 
   if (!TT.istraceroute6) {
-    if (toys.optflags & FLAG_U) 
+    if (toys.optflags & FLAG_U)
       TT.snd_sock = xsocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     else TT.snd_sock = xsocket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
     if (toys.optflags & FLAG_i) bind_to_interface(TT.snd_sock);
 
-    resolve_addr(toys.optargs[0], AF_INET, ((toys.optflags & FLAG_U) ? 
-          SOCK_DGRAM : SOCK_RAW), ((toys.optflags & FLAG_U) ? IPPROTO_UDP : 
+    resolve_addr(toys.optargs[0], AF_INET, ((toys.optflags & FLAG_U) ?
+          SOCK_DGRAM : SOCK_RAW), ((toys.optflags & FLAG_U) ? IPPROTO_UDP :
             IPPROTO_ICMP), &dest);
     if (lsrr > 0) {
       unsigned char optlist[MAX_IPOPTLEN];
@@ -543,7 +543,7 @@ void traceroute_main(void)
       ++lsrr;
 
       optlist[0] = IPOPT_NOP;
-      optlist[1] = IPOPT_LSRR;// loose source route option 
+      optlist[1] = IPOPT_LSRR;// loose source route option
       size = lsrr * sizeof(TT.gw_list[0]);
       optlist[2] = size + 3;
       optlist[3] = IPOPT_MINOFF;
@@ -555,17 +555,17 @@ void traceroute_main(void)
     }
   } else TT.snd_sock = xsocket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
-  if (setsockopt(TT.snd_sock, SOL_SOCKET, SO_SNDBUF, &TT.msg_len, 
+  if (setsockopt(TT.snd_sock, SOL_SOCKET, SO_SNDBUF, &TT.msg_len,
         sizeof(TT.msg_len)) < 0) perror_exit("SO_SNDBUF failed ");
 
   if (!TT.istraceroute6) {
-    if ((toys.optflags & FLAG_t) && 
+    if ((toys.optflags & FLAG_t) &&
         setsockopt(TT.snd_sock, IPPROTO_IP, IP_TOS, &tyser, sizeof(tyser)) < 0)
       perror_exit("IP_TOS %ld failed ", TT.tos);
 
 #ifdef IP_DONTFRAG
     if ((toys.optflags & FLAG_F) &&
-        (setsockopt(TT.snd_sock, IPPROTO_IP, IP_DONTFRAG, &set, 
+        (setsockopt(TT.snd_sock, IPPROTO_IP, IP_DONTFRAG, &set,
                     sizeof(set)) < 0)) perror_exit("IP_DONTFRAG failed ");
 #endif
   } else if (setsockopt(TT.snd_sock, IPPROTO_IPV6, IPV6_TCLASS, &TT.tos,
@@ -589,10 +589,10 @@ void traceroute_main(void)
       xbind(TT.snd_sock,(struct sockaddr*)&source, sizeof(struct sockaddr_in));
     }
 
-    if(TT.first_ttl > TT.max_ttl) 
+    if(TT.first_ttl > TT.max_ttl)
       error_exit("ERROR :Range for -f is 1 to %ld (max ttl)", TT.max_ttl);
 
-    xprintf("traceroute to %s(%s)", toys.optargs[0], 
+    xprintf("traceroute to %s(%s)", toys.optargs[0],
            inet_ntoa(((struct sockaddr_in *)&dest)->sin_addr));
   } else {
     if (toys.optflags & FLAG_i) bind_to_interface(TT.snd_sock);
@@ -614,7 +614,7 @@ void traceroute_main(void)
 
       ((struct sockaddr_in6 *)&dest)->sin6_port = htons(1025);
       xconnect(p_fd, (struct sockaddr *)&dest, sizeof(struct sockaddr_in6));
-      if(getsockname(p_fd, (struct sockaddr *)&prb, &len)) 
+      if(getsockname(p_fd, (struct sockaddr *)&prb, &len))
         error_exit("probe addr failed");
       close(p_fd);
       prb.sin6_port = 0;
@@ -622,7 +622,7 @@ void traceroute_main(void)
       xbind(TT.recv_sock, (struct sockaddr*)&prb, sizeof(struct sockaddr_in6));
     }
 
-    inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&dest)->sin6_addr, 
+    inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&dest)->sin6_addr,
               addr_str, INET6_ADDRSTRLEN);
     xprintf("traceroute6 to %s(%s)", toys.optargs[0], addr_str);
   }

@@ -27,7 +27,7 @@ void sendevent_main(void)
 
   if (ioctl(fd, EVIOCGVERSION, &version))
     perror_exit("EVIOCGVERSION failed for %s", *toys.optargs);
-  
+
   memset(&ev, 0, sizeof(ev));
   // TODO: error checking and support for named constants.
   ev.type = atoi(toys.optargs[1]);

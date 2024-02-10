@@ -1,10 +1,10 @@
 /* bootchartd.c - bootchartd is commonly used to profile the boot process.
  *
  * Copyright 2014 Bilal Qureshi <bilal.jmi@gmail.com>
- * Copyright 2014 Kyungwan Han <asura321@gmail.com> 
+ * Copyright 2014 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard
- 
+
 USE_BOOTCHARTD(NEWTOY(bootchartd, 0, TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 
 config BOOTCHARTD
@@ -152,7 +152,7 @@ static void start_logging()
         (int) (ts.tv_nsec/10000000));
     dump_data_in_file("/proc/stat", sfd);
     dump_data_in_file("/proc/diskstats", dfd);
-    // stop proc dumping in 2 secs if getty or gdm, kdm, xdm found 
+    // stop proc dumping in 2 secs if getty or gdm, kdm, xdm found
     if (dump_proc_data(proc_ps_fp))
       if (tcnt > 2 * 1000 / TT.msec) tcnt = 2 * 1000 / TT.msec;
     fflush(0);
@@ -198,7 +198,7 @@ static void stop_logging(char *tmp_dir, char *prog)
   close(kcmd_line_fd);
   fclose(hdr_fp);
   memset(toybuf, 0, sizeof(toybuf));
-  snprintf(toybuf, sizeof(toybuf), "tar -zcf /var/log/bootlog.tgz header %s *.log", 
+  snprintf(toybuf, sizeof(toybuf), "tar -zcf /var/log/bootlog.tgz header %s *.log",
       TT.proc_accounting ? "kernel_procs_acct" : "");
   system(toybuf);
 
@@ -241,7 +241,7 @@ void bootchartd_main()
     }
   } else if (TT.pid != 1) error_exit("not PID 1");
 
-  // Execute the code below for start or init or PID1 
+  // Execute the code below for start or init or PID1
   if (!parse_config_file("bootchartd.conf"))
     parse_config_file("/etc/bootchartd.conf");
 
@@ -251,23 +251,23 @@ void bootchartd_main()
 
     sigatexit(generic_signal);
     raise(SIGSTOP);
-    if (!bchartd_opt && !getenv("PATH")) 
+    if (!bchartd_opt && !getenv("PATH"))
       putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
     start_logging();
     stop_logging(tmp_dir, bchartd_opt == 1 ? toys.optargs[1] : NULL);
     return;
-  } 
+  }
   waitpid(lgr_pid, NULL, WUNTRACED);
   kill(lgr_pid, SIGCONT);
 
-  if (!bchartd_opt) { 
+  if (!bchartd_opt) {
     char *pbchart_init = getenv("bootchart_init");
 
     if (pbchart_init) execl(pbchart_init, pbchart_init, NULL);
     execl("/init", "init", (void *)0);
     execl("/sbin/init", "init", (void *)0);
   }
-  if (bchartd_opt == 1 && toys.optargs[1]) { 
+  if (bchartd_opt == 1 && toys.optargs[1]) {
     pid_t prog_pid;
 
     if (!(prog_pid = xfork())) xexec(toys.optargs+1);

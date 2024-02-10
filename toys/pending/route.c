@@ -191,7 +191,7 @@ static void display_routes(sa_family_t f)
               metric_len = RTA_PAYLOAD(rteattr);
               for (metric = RTA_DATA(rteattr); RTA_OK(metric, metric_len);
                    metric = RTA_NEXT(metric, metric_len))
-                if (metric->rta_type == RTAX_ADVMSS) 
+                if (metric->rta_type == RTAX_ADVMSS)
                   mss = *(unsigned *)RTA_DATA(metric);
                 else if (metric->rta_type == RTAX_WINDOW)
                   win = *(unsigned *)RTA_DATA(metric);

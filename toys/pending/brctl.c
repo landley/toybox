@@ -42,7 +42,7 @@ GLOBALS(
 
 static void get_ports(char *bridge, int *indices)
 {
-  struct ifreq ifr;                              
+  struct ifreq ifr;
   int ifindices[MAX_BRIDGES];
   unsigned long args[4] = { BRCTL_GET_PORT_LIST,
     (unsigned long) ifindices, MAX_BRIDGES, 0 };
@@ -90,7 +90,7 @@ void br_show(char **argv)
     get_br_info(br, &info);
     id = (unsigned char*)&(info.bridge_id);
     printf("%s\t\t",br);
-    printf("%.2x%.2x.%.2x%.2x%.2x%.2x%.2x%.2x", id[0], id[1], 
+    printf("%.2x%.2x.%.2x%.2x%.2x%.2x%.2x%.2x", id[0], id[1],
         id[2], id[3], id[4], id[5], id[6], id[7]);
     printf("\t%s\t\t",(info.stp_enabled)?"yes" : "no");
 
@@ -112,13 +112,13 @@ void br_show(char **argv)
 
 void br_addbr(char **argv)
 {
-  char br[IFNAMSIZ];                
+  char br[IFNAMSIZ];
   unsigned long args[4] = {BRCTL_ADD_BRIDGE, (unsigned long) br, 0, 0};
 
 #ifdef SIOCBRADDBR
   xioctl(TT.sockfd, SIOCBRADDBR, argv[0]);
-#else            
-  xstrncpy(br, argv[0], IFNAMSIZ);   
+#else
+  xstrncpy(br, argv[0], IFNAMSIZ);
   xioctl(TT.sockfd, SIOCSIFBR, args);
 #endif
 }
@@ -156,8 +156,8 @@ void br_addif(char **argv)
 
 void br_delif(char **argv)
 {
-  int index;                             
-  struct ifreq ifr;                      
+  int index;
+  struct ifreq ifr;
   unsigned long args[4] = {BRCTL_DEL_IF, 0, 0, 0};
 
   if (!(index = if_nametoindex(argv[1]))) perror_exit("interface %s",argv[1]);
@@ -166,8 +166,8 @@ void br_delif(char **argv)
   ifr.ifr_ifindex = index;
   xioctl(TT.sockfd, SIOCBRDELIF, &ifr);
 #else
-  args[1] = index;     
-  ifr.ifr_data = (char *)args;  
+  args[1] = index;
+  ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 #endif
 }
@@ -182,12 +182,12 @@ static void strtotimeval(struct timeval *tv, char *time)
 }
 
 static unsigned long tv_to_jify(struct timeval *tv)
-{                       
+{
   unsigned long long jify;
 
   jify = 1000000ULL * tv->tv_sec + tv->tv_usec;
   return (jify/10000);
-}                  
+}
 
 void set_time(char *br, unsigned long cmd, unsigned long val)
 {
@@ -199,7 +199,7 @@ void set_time(char *br, unsigned long cmd, unsigned long val)
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 }
 
-void br_set_ageing_time(char **argv)     
+void br_set_ageing_time(char **argv)
 {
   struct timeval tv;
 
@@ -217,17 +217,17 @@ void br_set_fwd_delay(char **argv)
 
 void br_set_hello_time(char **argv)
 {
-  struct timeval tv;                        
+  struct timeval tv;
 
-  strtotimeval(&tv, argv[1]);               
+  strtotimeval(&tv, argv[1]);
   set_time(argv[0], BRCTL_SET_BRIDGE_HELLO_TIME, tv_to_jify(&tv));
 }
 
 void br_set_max_age(char **argv)
 {
-  struct timeval tv;                        
+  struct timeval tv;
 
-  strtotimeval(&tv, argv[1]);               
+  strtotimeval(&tv, argv[1]);
   set_time(argv[0], BRCTL_SET_BRIDGE_MAX_AGE, tv_to_jify(&tv));
 }
 
@@ -260,9 +260,9 @@ void set_cost_prio(char *br, char *port, unsigned long cmd, unsigned long val)
   struct ifreq ifr;
   int i, index, pindices[MAX_BRIDGES];
   unsigned long args[4] = {cmd, 0, val, 0};
-  
+
   if (!(index = if_nametoindex(port))) error_exit("invalid port");
-  
+
   memset(pindices, 0, sizeof(pindices));
   get_ports(br, pindices);
   for (i = 0; i < MAX_BRIDGES; i++) {
@@ -284,7 +284,7 @@ void br_set_path_cost(char **argv)
 }
 
 void br_set_port_prio(char **argv)
-{ 
+{
   int prio;
 
   prio = atolx_range(argv[2], 0, INT_MAX);

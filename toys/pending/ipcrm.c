@@ -73,7 +73,7 @@ void ipcrm_main(void)
         !strcmp(*toys.argv, "sem") || !strcmp(*toys.argv, "msg"))) {
     int t = (toys.argv[0][1] == 'h')? 1 : (toys.argv[0][1] == 's')? 2:3;
 
-    while (*(++toys.argv)) do_ipcrm(0, t, *toys.argv); 
+    while (*(++toys.argv)) do_ipcrm(0, t, *toys.argv);
   } else {
     struct arg_list *tmp;
 

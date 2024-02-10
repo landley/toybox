@@ -44,7 +44,7 @@ static void free_list()
 static void llist_add_node(struct arg_list **old, void *data)
 {
   struct arg_list *new = xmalloc(sizeof(struct arg_list));
-  
+
   new->arg = (char*)data;
   new->next = *old;
   *old = new;
@@ -54,7 +54,7 @@ static void llist_add_node(struct arg_list **old, void *data)
 static struct arg_list *find_and_dlink(struct arg_list **list, char *devname)
 {
   struct arg_list *l = *list;
-  
+
   while (*list) {
     struct utmp *ut = (struct utmp *)l->arg;
 
@@ -73,7 +73,7 @@ static void seize_duration(time_t tm0, time_t tm1)
 {
   unsigned days, hours, mins;
   double diff = difftime(tm1, tm0);
-  
+
   diff = (diff > 0) ? (tm1 - tm0) : 0;
   toybuf[0] = toybuf[18] = toybuf[28] = '\0';
   strncpy(toybuf, ctime(&tm0), 16); // Login Time.
@@ -117,13 +117,13 @@ void last_main(void)
         && strcmp(ut.ut_user, "LOGIN")) ut.ut_type = USER_PROCESS;
     /* The pair of terminal names '|' / '}' logs the
      * old/new system time when date changes it.
-     */ 
+     */
     if (!strcmp(ut.ut_user, "date")) {
       if (ut.ut_line[0] == '|') ut.ut_type = OLD_TIME;
       if (ut.ut_line[0] == '{') ut.ut_type = NEW_TIME;
     }
 
-    if ((ut.ut_type == SHUTDOWN_TIME) || ((ut.ut_type == RUN_LVL) && 
+    if ((ut.ut_type == SHUTDOWN_TIME) || ((ut.ut_type == RUN_LVL) &&
         (((ut.ut_pid & 255) == '0') || ((ut.ut_pid & 255) == '6'))))
     {
       tm[1] = tm[2] = (time_t)ut.ut_tv.tv_sec;
@@ -133,8 +133,8 @@ void last_main(void)
       seize_duration(tm[0], tm[1]);
       strcpy(ut.ut_line, "system boot");
       free_list();
-      printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user, 
-          ut.ut_line, pwidth, pwidth, ut.ut_host, 
+      printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user,
+          ut.ut_line, pwidth, pwidth, ut.ut_host,
           toybuf, toybuf+18, toybuf+28);
       curlog_type = BOOT_TIME;
       tm[2] = (time_t)ut.ut_tv.tv_sec;
@@ -144,8 +144,8 @@ void last_main(void)
       if (l) {
         struct utmp *u = (struct utmp *)l->arg;
         seize_duration(tm[0], u->ut_tv.tv_sec);
-        printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user, 
-            ut.ut_line, pwidth, pwidth, ut.ut_host, 
+        printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user,
+            ut.ut_line, pwidth, pwidth, ut.ut_host,
             toybuf, toybuf+18, toybuf+28);
         free(l->arg);
         free(l);
@@ -159,7 +159,7 @@ void last_main(void)
         switch (type) {
           case EMPTY:
             strcpy(toybuf+18, "  still");
-            strcpy(toybuf+28, "logged in"); 
+            strcpy(toybuf+28, "logged in");
             break;
           case RUN_LVL:
             strcpy(toybuf+18, "- down ");
@@ -174,8 +174,8 @@ void last_main(void)
           default:
             break;
         }
-        printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user, 
-            ut.ut_line, pwidth, pwidth, ut.ut_host, 
+        printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user,
+            ut.ut_line, pwidth, pwidth, ut.ut_host,
             toybuf, toybuf+18, toybuf+28);
       }
       llist_add_node(&TT.list, memcpy(xmalloc(sizeof(ut)), &ut, sizeof(ut)));

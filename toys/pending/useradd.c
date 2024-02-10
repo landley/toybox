@@ -110,7 +110,7 @@ void useradd_main(void)
     free(s);
   }
 
-  /*add user to system 
+  /*add user to system
    * 1. add an entry to /etc/passwd and /etcshadow file
    * 2. Copy /etc/skel dir contents to use home dir
    * 3. update the user passwd by running 'passwd' utility
@@ -123,10 +123,10 @@ void useradd_main(void)
   update_password("/etc/passwd", pwd.pw_name, entry, 0);
   free(entry);
 
-  if (toys.optflags & FLAG_S) 
-  entry = xmprintf("%s:!!:%u::::::", pwd.pw_name, 
+  if (toys.optflags & FLAG_S)
+  entry = xmprintf("%s:!!:%u::::::", pwd.pw_name,
       (unsigned)(time(NULL))/(24*60*60)); //passwd is not set initially
-  else entry = xmprintf("%s:!!:%u:0:99999:7:::", pwd.pw_name, 
+  else entry = xmprintf("%s:!!:%u:0:99999:7:::", pwd.pw_name,
             (unsigned)(time(0))/(24*60*60)); //passwd is not set initially
   update_password("/etc/shadow", pwd.pw_name, entry, 0);
   free(entry);

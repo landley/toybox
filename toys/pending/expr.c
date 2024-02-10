@@ -135,7 +135,7 @@ static struct op_def {
   // comparison ops, precedence 3, signature SI_TO_I
   {"=", 3, SI_TO_I, EQ }, {"==", 3, SI_TO_I, EQ  }, {"!=", 3, SI_TO_I, NE },
   {">", 3, SI_TO_I, GT }, {">=", 3, SI_TO_I, GTE },
-  {"<", 3, SI_TO_I, LT }, {"<=", 3, SI_TO_I, LTE }, 
+  {"<", 3, SI_TO_I, LT }, {"<=", 3, SI_TO_I, LTE },
   // arithmetic ops, precedence 4 and 5, signature I_TO_I
   {"+", 4, I_TO_I, ADD }, {"-",  4, I_TO_I, SUB },
   {"*", 5, I_TO_I, MUL }, {"/",  5, I_TO_I, DIVI }, {"%", 5, I_TO_I, MOD },
@@ -156,7 +156,7 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
     case OR:  if (is_false(ret)) *ret = *rhs; break;
     case AND: if (is_false(ret) || is_false(rhs)) assign_int(ret, 0); break;
     }
-    break;  
+    break;
 
   case SI_TO_I:
     if (get_int(ret, &a) && get_int(rhs, &b)) { // both are ints

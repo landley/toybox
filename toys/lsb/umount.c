@@ -61,7 +61,7 @@ static void do_umount(char *dir, char *dev, int flags)
 
       if (!strcmp(mt->dir, dir)) while ((s = comma_iterate(&mt->opts, &len))) {
         if (len == 4 && strncmp(s, "user", 4)) user = 1;
-        else if (len == 6 && strncmp(s, "nouser", 6)) user = 0;  
+        else if (len == 6 && strncmp(s, "nouser", 6)) user = 0;
       }
 
       mt = mt->next;
@@ -125,7 +125,7 @@ void umount_main(void)
   if (toys.optflags & FLAG_a) {
     char *typestr = 0;
     struct arg_list *tal;
-    
+
     for (tal = TT.t; tal; tal = tal->next) comma_collate(&typestr, tal->arg);
     for (ml = mlrev; ml; ml = ml->prev)
       if (mountlist_istype(ml, typestr)) do_umount(ml->dir, ml->device, flags);

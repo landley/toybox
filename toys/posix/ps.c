@@ -556,7 +556,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
 
   // Clock displays
   } else if (which <= PS_TIME_) {
-    int unit = 60, pad = 2, j = TT.ticks; 
+    int unit = 60, pad = 2, j = TT.ticks;
     time_t seconds;
 
     if (which!=PS_TIME_) unit *= 60*24;
@@ -619,7 +619,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
       if (slot[SLOT_sid]==*slot) *s++ = 's';
       if (slot[SLOT_vmlck]) *s++ = 'L';
       if (slot[SLOT_ttypgrp]==*slot) *s++ = '+';
-    } 
+    }
     *s = 0;
   } else if (which==PS_STIME) {
     time_t t = time(0)-slot[SLOT_uptime]+slot[SLOT_starttime]/TT.ticks;
@@ -1255,7 +1255,7 @@ static int ksort(void *aa, void *bb)
 
 // Collect ->extra field from leaf nodes DIRTREE_SAVEd by get_ps() into array
 // (recursion because tree from get_thread() isn't flat list of siblings)
-static struct procpid **collate_leaves(struct procpid **tb, struct dirtree *dt) 
+static struct procpid **collate_leaves(struct procpid **tb, struct dirtree *dt)
 {
   while (dt) {
     struct dirtree *next = dt->next;
@@ -1278,7 +1278,7 @@ static struct procpid **collate(int count, struct dirtree *dt)
   collate_leaves(tbsort, dt);
 
   return tbsort;
-} 
+}
 
 // parse command line arguments (ala -k -o) with a comma separated FIELD list
 static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)

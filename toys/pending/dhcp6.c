@@ -34,7 +34,7 @@ config DHCP6
 */
 #define FOR_dhcp6
 #include "toys.h"
-#include <linux/sockios.h> 
+#include <linux/sockios.h>
 #include <linux/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
@@ -89,11 +89,11 @@ GLOBALS(
 
 #define DHCPC_SERVER_PORT     547
 #define DHCPC_CLIENT_PORT     546
-  
+
 #define LOG_SILENT          0x0
 #define LOG_CONSOLE         0x1
 #define LOG_SYSTEM          0x2
-  
+
 typedef struct __attribute__((packed)) dhcp6_msg_s {
   uint8_t msgtype, transaction_id[3], options[524];
 } dhcp6_msg_t;
@@ -138,7 +138,7 @@ static void logit(char *format, ...)
   char *msg;
   va_list p, t;
   uint8_t infomode = LOG_SILENT;
-  
+
   if (toys.optflags & FLAG_S) infomode |= LOG_SYSTEM;
   if(toys.optflags & FLAG_v) infomode |= LOG_CONSOLE;
   va_start(p, format);
@@ -161,7 +161,7 @@ static void get_mac(uint8_t *mac, char *interface)
 {
   int fd;
   struct ifreq req;
-          
+
   if (!mac) return;
   fd = xsocket(AF_INET6, SOCK_RAW, IPPROTO_RAW);
   req.ifr_addr.sa_family = AF_INET6;
@@ -174,17 +174,17 @@ static void get_mac(uint8_t *mac, char *interface)
 static void fill_option(uint16_t option_id, uint16_t option_len, uint8_t **dhmesg)
 {
   uint8_t *tmp = *dhmesg;
-  
+
   *((uint16_t*)tmp) = htons(option_id);
   *(uint16_t*)(tmp+2) = htons(option_len);
   *dhmesg += 4;
   TT.length += 4;
 }
 
-static void fill_clientID() 
-{  
+static void fill_clientID()
+{
   uint8_t *tmp = &mesg.options[TT.length];
-  
+
   if(!duid) {
     uint8_t mac[7] = {0,};
     duid = (DUID*)malloc(sizeof(DUID));
@@ -204,10 +204,10 @@ static void fill_clientID()
 }
 
 // TODO: make it generic for multiple options.
-static void fill_optionRequest() 
+static void fill_optionRequest()
 {
   uint8_t *tmp = &mesg.options[TT.length];
-  
+
   fill_option(DHCP6_OPT_ORO,4,&tmp);
   *(uint16_t*)(tmp+4) = htons(23);
   *(uint16_t*)(tmp+6) = htons(24);
@@ -217,17 +217,17 @@ static void fill_optionRequest()
 static void fill_elapsedTime()
 {
   uint8_t *tmp = &mesg.options[TT.length];
-  
+
   fill_option(DHCP6_OPT_ELAPSED_TIME, 2, &tmp);
   *(uint16_t*)(tmp+6) = htons(0);
   TT.length += 2;
 }
 
-static void fill_iaid() 
+static void fill_iaid()
 {
   IA_NA iana;
   uint8_t *tmp = &mesg.options[TT.length];
-  
+
   fill_option(DHCP6_OPT_IA_NA, 12, &tmp);
   iana.iaid = rand();
   iana.t1 = 0xffffffff;
@@ -241,10 +241,10 @@ static void mode_raw()
 {
   int constone = 1;
   struct sockaddr_ll sockll;
-  
+
   if (TT.sock > 0) xclose(TT.sock);
   TT.sock = xsocket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_IPV6));
-  
+
   memset(&sockll, 0, sizeof(sockll));
   sockll.sll_family = AF_PACKET;
   sockll.sll_protocol = htons(ETH_P_IPV6);
@@ -255,17 +255,17 @@ static void mode_raw()
   }
 }
 
-static void generate_transection_id() 
+static void generate_transection_id()
 {
   int i, r = rand() % 0xffffff;
-  
+
   for (i=0; i<3; i++) {
     TT.transction_id[i] = r%0xff;
     r = r/10;
-  }  
+  }
 }
 
-static void set_timeout(int seconds) 
+static void set_timeout(int seconds)
 {
   TT.tv.tv_sec = seconds;
   TT.tv.tv_usec = 100000;
@@ -275,7 +275,7 @@ static void  send_msg(int type)
 {
   struct sockaddr_in6 addr6;
   int sendlength = 0;
-  
+
   memset(&addr6, 0, sizeof(addr6));
   addr6.sin6_family = AF_INET6;
   addr6.sin6_port = htons(DHCPC_SERVER_PORT); //SERVER_PORT
@@ -283,7 +283,7 @@ static void  send_msg(int type)
   mesg.msgtype = type;
   generate_transection_id();
   memcpy(mesg.transaction_id, TT.transction_id, 3);
-  
+
   if (type  == DHCP6SOLICIT) {
     TT.length = 0;
     fill_clientID();
@@ -291,7 +291,7 @@ static void  send_msg(int type)
     fill_elapsedTime();
     fill_iaid();
     sendlength = sizeof(dhcp6_msg_t) - 524 + TT.length;
-  } else if (type == DHCP6REQUEST || type == DHCP6RELEASE || type == DHCP6RENEW) 
+  } else if (type == DHCP6REQUEST || type == DHCP6RELEASE || type == DHCP6RENEW)
     sendlength = TT.request_length;
   dbg("Sending message type: %d\n", type);
   sendlength = sendto(TT.sock1, &mesg, sendlength , 0,(struct sockaddr *)&addr6,
@@ -302,7 +302,7 @@ static void  send_msg(int type)
 uint8_t *get_msg_ptr(uint8_t *data, int data_length, int msgtype)
 {
   uint16_t type =  *((uint16_t*)data), length = *((uint16_t*)(data+2));
-  
+
   type = ntohs(type);
   if (type == msgtype) return data;
   length = ntohs(length);
@@ -327,20 +327,20 @@ static int check_client_id(uint8_t *data, int data_length)
   if ((data = get_msg_ptr(data,  data_length, DHCP6_OPT_CLIENTID))) {
     DUID one = *((DUID*)(data+4));
     DUID two = *((DUID*)&mesg.options[4]);
-    
+
     if (!memcmp(&one, &two, sizeof(DUID))) return 1;
   }
   return 0;
 }
 
-static int validate_ids() 
+static int validate_ids()
 {
-  if (!check_server_id(mymsg->dhcp6.options, 
+  if (!check_server_id(mymsg->dhcp6.options,
     TT.status - ((char*)&mymsg->dhcp6.options[0] - (char*)mymsg) )) {
     dbg("Invalid server id: %d\n");
     return 0;
   }
-  if (!check_client_id(mymsg->dhcp6.options, 
+  if (!check_client_id(mymsg->dhcp6.options,
     TT.status - ((char*)&mymsg->dhcp6.options[0] - (char*)mymsg) )) {
     dbg("Invalid client id: %d\n");
     return 0;
@@ -348,24 +348,24 @@ static int validate_ids()
   return 1;
 }
 
-static void parse_ia_na(uint8_t *data, int data_length) 
+static void parse_ia_na(uint8_t *data, int data_length)
 {
   uint8_t *t = get_msg_ptr(data, data_length, DHCP6_OPT_IA_NA);
   uint16_t iana_len, content_len = 0;
-  
+
   memset(&dhcp_data,0,sizeof(dhcp_data));
   if (!t) return;
-  
+
   iana_len = ntohs(*((uint16_t*)(t+2)));
   dhcp_data.iaid = ntohl(*((uint32_t*)(t+4)));
   dhcp_data.t1 = ntohl(*((uint32_t*)(t+8)));
   dhcp_data.t2 = ntohl(*((uint32_t*)(t+12)));
   t += 16;
   iana_len -= 12;
-  
+
   while(iana_len > 0) {
     uint16_t sub_type = ntohs(*((uint16_t*)(t)));
-    
+
     switch (sub_type) {
       case DHCP6_OPT_IA_ADDR:
         content_len = ntohs(*((uint16_t*)(t+2)));
@@ -373,7 +373,7 @@ static void parse_ia_na(uint8_t *data, int data_length)
         if (TT.state == DHCP6SOLICIT) {
           if (TT.req_ip) {
             struct addrinfo *res = NULL;
-            
+
             if(!getaddrinfo(TT.req_ip, NULL, NULL,&res)) {
               dbg("Requesting IP: %s\n", TT.req_ip);
               memcpy (&TT.input_socket6, res->ai_addr, res->ai_addrlen);
@@ -405,7 +405,7 @@ static void parse_ia_na(uint8_t *data, int data_length)
 static void write_pid(char *path)
 {
   int pidfile = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0666);
-  
+
   if (pidfile > 0) {
     char pidbuf[12];
 
@@ -419,7 +419,7 @@ static void write_pid(char *path)
 static int fill_envp(DHCP_DATA *res)
 {
   int ret = setenv("interface", TT.interface_name, 1);
-  
+
   if (ret) return ret;
   inet_ntop(AF_INET6, res->ipaddr, toybuf, INET6_ADDRSTRLEN);
   ret = setenv("ip",(const char*)toybuf , 1);
@@ -432,7 +432,7 @@ static void run_script(DHCP_DATA *res,  char *name)
   volatile int error = 0;
   struct stat sts;
   pid_t pid;
-  char *argv[3];  
+  char *argv[3];
   char *script = (toys.optflags & FLAG_s) ? TT.script
     : "/usr/share/dhcp/default.script";
 
@@ -537,12 +537,12 @@ void dhcp6_main(void)
   struct sockaddr_in6  sinaddr6;
   int constone = 1;
   fd_set rfds;
-  
-  srand(time(NULL));  
+
+  srand(time(NULL));
   setlinebuf(stdout);
   dbg = dummy;
   TT.state = DHCP6SOLICIT;
-  
+
   if (toys.optflags & FLAG_v) dbg = logit;
   if (!TT.interface_name) TT.interface_name = "eth0";
   if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
@@ -553,34 +553,34 @@ void dhcp6_main(void)
     openlog("DHCP6 :", LOG_PID, LOG_DAEMON);
     dbg = logit;
   }
-  
+
   dbg("Interface: %s\n", TT.interface_name);
   dbg("pid file: %s\n", TT.pidfile);
   dbg("Retry count: %d\n", TT.retry);
   dbg("Timeout : %d\n", TT.timeout);
   dbg("Error timeout: %d\n", TT.errortimeout);
-  
-  
-  
+
+
+
   setup_signal();
-  TT.sock1 = xsocket(PF_INET6, SOCK_DGRAM, 0);  
+  TT.sock1 = xsocket(PF_INET6, SOCK_DGRAM, 0);
   memset(&sinaddr6, 0, sizeof(sinaddr6));
   sinaddr6.sin6_family = AF_INET6;
   sinaddr6.sin6_port = htons(DHCPC_CLIENT_PORT);
   sinaddr6.sin6_scope_id = if_nametoindex(TT.interface_name);
   sinaddr6.sin6_addr = in6addr_any ;
-  
+
   xsetsockopt(TT.sock1, SOL_SOCKET, SO_REUSEADDR, &constone, sizeof(constone));
-  
+
   xbind(TT.sock1, (struct sockaddr *)&sinaddr6, sizeof(sinaddr6));
-  
+
   mode_raw();
   set_timeout(0);
   for (;;) {
     int maxfd = TT.sock;
-    
+
     if (TT.sock >= 0) FD_SET(TT.sock, &rfds);
-    TT.retval = 0;    
+    TT.retval = 0;
     if ((TT.retval = select(maxfd + 1, &rfds, NULL, NULL, &TT.tv)) < 0) {
       if(errno == EINTR) continue;
       perror_exit("Error in select");
@@ -599,7 +599,7 @@ void dhcp6_main(void)
           set_timeout(TT.errortimeout);
         } else set_timeout(TT.timeout);
         continue;
-      } else if (TT.state == DHCP6REQUEST || TT.state == DHCP6RENEW || 
+      } else if (TT.state == DHCP6REQUEST || TT.state == DHCP6RENEW ||
               TT.state == DHCP6RELEASE) {
         dbg("State is %d , sending packet\n", TT.state);
         send_msg(TT.state);
@@ -614,7 +614,7 @@ void dhcp6_main(void)
     } else if (FD_ISSET(TT.sock, &rfds)) {
       if ((TT.status = read(TT.sock, toybuf, sizeof(toybuf))) <= 0) continue;
       mymsg = (dhcp6_raw_t*)toybuf;
-      if (ntohs(mymsg->udph.dest) == 546 && 
+      if (ntohs(mymsg->udph.dest) == 546 &&
               !memcmp(mymsg->dhcp6.transaction_id, TT.transction_id, 3)) {
         if (TT.state == DHCP6SOLICIT) {
           if (mymsg->dhcp6.msgtype == DHCP6ADVERTISE ) {
@@ -672,7 +672,7 @@ void dhcp6_main(void)
           } else {
             dbg("Invalid reply.\n");
             continue;
-          }          
+          }
         } else if (TT.state == DHCP6RELEASE) {
           dbg("Got reply to release.\n");
           run_script(NULL, "release");
@@ -680,7 +680,7 @@ void dhcp6_main(void)
         }
       }
     }
-  } 
+  }
   xclose(TT.sock1);
   xclose(TT.sock);
 }

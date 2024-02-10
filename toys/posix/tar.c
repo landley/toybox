@@ -289,7 +289,7 @@ static int add_to_tar(struct dirtree *node)
     } else if ((node->again&DIRTREE_BREADTH) && node->child) {
       struct dirtree *dt, **sort = xmalloc(sizeof(void *)*node->extra);
 
-      for (node->extra = 0, dt = node->child; dt; dt = dt->next) 
+      for (node->extra = 0, dt = node->child; dt; dt = dt->next)
         sort[node->extra++] = dt;
       qsort(sort, node->extra--, sizeof(void *), (void *)dirtree_sort);
       node->child = *sort;
@@ -616,7 +616,7 @@ static void extract_to_disk(char *name)
 
   if (dirflush(name, S_ISDIR(ala))) {
     if (S_ISREG(ala) && !TT.hdr.link_target) skippy(TT.hdr.size);
- 
+
     return;
   }
 

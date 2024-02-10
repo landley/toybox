@@ -288,8 +288,8 @@ static void print_struct(long addr)
       fprintf(stderr, ", st_nlink=%ld, st_uid=%d, st_gid=%d, "
         "st_blksize=%ld, st_blocks=%ld, st_size=%lld, st_atime=%ld, "
         "st_mtime=%ld, st_ctime=%ld}", (long) sb.st_nlink, sb.st_uid,
-	sb.st_gid, (long) sb.st_blksize, sb.st_blocks, (long long)sb.st_size,
-	sb.st_atime, sb.st_mtime, sb.st_ctime);
+        sb.st_gid, (long) sb.st_blksize, sb.st_blocks, (long long)sb.st_size,
+        sb.st_atime, sb.st_mtime, sb.st_ctime);
     } else {
       fprintf(stderr, "{st_mode=");
       print_mode(sb.st_mode);

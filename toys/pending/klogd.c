@@ -33,7 +33,7 @@ GLOBALS(
 )
 
 static void set_log_level(int level)
-{   
+{
   if (CFG_KLOGD_SOURCE_RING_BUFFER)
     klogctl(8, NULL, level);
   else {
@@ -47,7 +47,7 @@ static void set_log_level(int level)
 static void handle_signal(int sig)
 {
   if (CFG_KLOGD_SOURCE_RING_BUFFER) {
-    klogctl(7, NULL, 0); 
+    klogctl(7, NULL, 0);
     klogctl(0, NULL, 0);
   } else {
     set_log_level(7);

@@ -61,11 +61,11 @@ struct child_list {
 static struct f_sys_info *filesys_info = NULL; //fstab entry list
 static struct child_list *c_list = NULL; //fsck.type child list.
 
-static void kill_all(void) 
+static void kill_all(void)
 {
   struct child_list *child;
 
-  for (child = c_list; child; child = child->next) 
+  for (child = c_list; child; child = child->next)
     kill(child->pid, SIGTERM);
   _exit(0);
 }
@@ -107,7 +107,7 @@ static int is_no_prefix(char **p)
 {
   int no = 0;
 
-  if ((*p[0] == 'n' && *(*p + 1) == 'o')) no = 2; 
+  if ((*p[0] == 'n' && *(*p + 1) == 'o')) no = 2;
   else if (*p[0] == '!') no = 1;
   *p += no;
   return ((no) ? 1 :0);
@@ -161,7 +161,7 @@ static int ignore_type(char *type)
 }
 
 // return true if has to ignore the filesystem.
-static int to_be_ignored(struct f_sys_info *finfo) 
+static int to_be_ignored(struct f_sys_info *finfo)
 {
   int i, ret = 0, type_present = 0;
 
@@ -185,7 +185,7 @@ static int to_be_ignored(struct f_sys_info *finfo)
 }
 
 // find type and execute corresponding fsck.type prog.
-static void do_fsck(struct f_sys_info *finfo) 
+static void do_fsck(struct f_sys_info *finfo)
 {
   struct child_list *child;
   char **args;
@@ -201,7 +201,7 @@ static void do_fsck(struct f_sys_info *finfo)
 
   args = xzalloc((toys.optc + 2 + 1 + 1) * sizeof(char*)); //+1, for NULL, +1 if -C
   args[0] = xmprintf("fsck.%s", type);
-  
+
   if(toys.optflags & FLAG_C) args[i++] = xmprintf("%s %d","-C", TT.fd_num);
   while(toys.optargs[j]) {
     if(*toys.optargs[j]) args[i++] = xstrdup(toys.optargs[j]);
@@ -221,15 +221,15 @@ static void do_fsck(struct f_sys_info *finfo)
     for (j=0;j<i;j++) free(args[i]);
     free(args);
     return;
-  } else { 
+  } else {
     if ((pid = fork()) < 0) {
       perror_msg_raw(*args);
       for (j=0;j<i;j++) free(args[i]);
       free(args);
-      return; 
+      return;
     }
     if (!pid) xexec(args); //child, executes fsck.type
-  } 
+  }
 
   child = xzalloc(sizeof(struct child_list)); //Parent, add to child list.
   child->dev_name = xstrdup(finfo->device);
@@ -275,18 +275,18 @@ static int wait_for(int for_all)
     }
     if (child_exited) {
       if (WIFEXITED(status)) TT.sum_status |= WEXITSTATUS(status);
-      else if (WIFSIGNALED(status)) { 
+      else if (WIFSIGNALED(status)) {
         TT.sum_status |= 4; //Uncorrected.
         if (WTERMSIG(status) != SIGINT)
           perror_msg("child Term. by sig: %d\n",(WTERMSIG(status)));
         TT.sum_status |= 8; //Operatinal error
-      } else { 
+      } else {
         TT.sum_status |= 4; //Uncorrected.
-        perror_msg("%s %s: status is %x, should never happen\n", 
+        perror_msg("%s %s: status is %x, should never happen\n",
             temp->prog_name, temp->dev_name, status);
       }
       TT.nr_run--;
-      if (prev == temp) c_list = c_list->next; //first node 
+      if (prev == temp) c_list = c_list->next; //first node
       else prev->next = temp->next;
       free(temp->prog_name);
       free(temp->dev_name);
@@ -334,7 +334,7 @@ static int scan_all(void)
   }
   passno = 1;
   while (1) {
-    for (finfo = filesys_info; finfo; finfo = finfo->next) 
+    for (finfo = filesys_info; finfo; finfo = finfo->next)
       if (!finfo->flag) break;
     if (!finfo) break;
 
@@ -343,7 +343,7 @@ static int scan_all(void)
       if (finfo->passno == passno) {
         do_fsck(finfo);
         finfo->flag |= FLAG_DONE;
-        if ((toys.optflags & FLAG_s) || (TT.nr_run 
+        if ((toys.optflags & FLAG_s) || (TT.nr_run
               && (TT.nr_run >= TT.max_nr_run))) ret |= wait_for(0);
       }
     }
@@ -354,7 +354,7 @@ static int scan_all(void)
   return ret;
 }
 
-void record_sig_num(int sig) 
+void record_sig_num(int sig)
 {
   TT.sig_num = sig;
 }
@@ -395,7 +395,7 @@ void fsck_main(void)
   dev->prev->next = NULL; //break double list to traverse.
   for (; dev; dev = dev->next) {
     for (finfo = filesys_info; finfo; finfo = finfo->next)
-      if (!strcmp(finfo->device, dev->data) 
+      if (!strcmp(finfo->device, dev->data)
           || !strcmp(finfo->mountpt, dev->data)) break;
     if (!finfo) { //if not present, fill def values.
       mt.mnt_fsname = dev->data;
@@ -407,7 +407,7 @@ void fsck_main(void)
     }
     do_fsck(finfo);
     finfo->flag |= FLAG_DONE;
-    if ((toys.optflags & FLAG_s) || (TT.nr_run && (TT.nr_run >= TT.max_nr_run))) 
+    if ((toys.optflags & FLAG_s) || (TT.nr_run && (TT.nr_run >= TT.max_nr_run)))
       toys.exitval |= wait_for(0);
   }
   if (TT.sig_num) kill_all();

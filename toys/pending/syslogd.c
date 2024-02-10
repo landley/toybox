@@ -84,7 +84,7 @@ int logger_lookup(int where, char *key)
 //search the given name and return its value
 static char *dec(int val, CODE *clist, char *buf)
 {
-  for (; clist->c_name; clist++) 
+  for (; clist->c_name; clist++)
     if (val == clist->c_val) return clist->c_name;
   sprintf(buf, "%u", val);
 
@@ -258,7 +258,7 @@ static void open_logfiles(void)
       rp.ai_socktype = SOCK_DGRAM;
       rp.ai_protocol = IPPROTO_UDP;
 
-      if (getaddrinfo(tmpfile, NULL, &rp, &info) || !info) 
+      if (getaddrinfo(tmpfile, NULL, &rp, &info) || !info)
         perror_exit("BAD ADDRESS: can't find : %s ", tmpfile);
       ((struct sockaddr_in*)info->ai_addr)->sin_port = htons(port);
       memcpy(&tfd->saddr, info->ai_addr, info->ai_addrlen);

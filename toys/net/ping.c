@@ -13,7 +13,7 @@
 // -s > 4064 = sizeof(toybuf)-sizeof(struct icmphdr)-CMSG_SPACE(sizeof(uint8_t)), then kernel adds 20 bytes
 USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4064=56i%W#<0=3w#<0qf46I:[-46]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PING(OLDTOY(ping6, ping, TOYFLAG_USR|TOYFLAG_BIN))
- 
+
 config PING
   bool "ping"
   default y
@@ -40,7 +40,7 @@ config PING
     -w SEC		Exit after this many seconds
 */
 
-#define FOR_ping 
+#define FOR_ping
 #include "toys.h"
 
 #include <ifaddrs.h>

@@ -586,7 +586,7 @@ static void do_diff(char **files)
   struct arg_list *llist = TT.L;
   int *J;
   regex_t reg;
-  
+
   TT.offset[0] = TT.offset[1] = NULL;
   J = diff(files);
 

@@ -128,7 +128,7 @@ struct dev_ids *parse_dev_ids(char *name, struct dev_ids **and)
   else if (s) fd = xopen(s, O_RDONLY);
   llist_traverse(sl, free);
   if (fd == -1) return 0;
-  
+
   for (fp = fdopen(fd, "r"); (s = ss = xgetline(fp)); free(s)) {
     // TODO parse and use third level instead of skipping it here
     if (s[strspn(s, " \t")]=='#' || strstart(&ss, "\t\t")) continue;

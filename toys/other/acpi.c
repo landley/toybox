@@ -11,7 +11,7 @@ config ACPI
   default y
   help
     usage: acpi [-abctV]
-    
+
     Show status of power sources and thermal devices.
 
     -a	Show power adapters

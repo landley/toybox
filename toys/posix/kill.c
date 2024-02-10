@@ -130,7 +130,7 @@ void kill_main(void)
       if (!readfile(toybuf, toybuf, sizeof(toybuf)) || !*toybuf) continue;
 
       // Check with omit list.
-      for (count = 0; count < ocount; count++) 
+      for (count = 0; count < ocount; count++)
         if (procpid == olist[count]) break;
       if (count != ocount) continue;
 

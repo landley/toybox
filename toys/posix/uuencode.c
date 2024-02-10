@@ -8,7 +8,7 @@ USE_UUENCODE(NEWTOY(uuencode, "<1>2m", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UUENCODE
   bool "uuencode"
-  default y 
+  default y
   help
     usage: uuencode [-m] [INFILE] ENCODE_FILENAME
 
@@ -51,7 +51,7 @@ void uuencode_main(void)
         out = (x>>((3-j)*6)) & 0x3f;
         xputc(FLAG(m) ? (j > bytes ? '=' : toybuf[out])
           : (out ? out + 0x20 : 0x60));
-      } 
+      }
     }
     xputc('\n');
   }

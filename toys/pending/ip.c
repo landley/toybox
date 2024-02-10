@@ -52,7 +52,7 @@ struct arglist {
   int idx;
 };
 
-static struct 
+static struct
 {
   int ifindex, scope, scopemask, up, to;
   char *label, *addr;
@@ -290,7 +290,7 @@ static struct arglist **getlist(u_int8_t whichDB)
         parseRPDB("/etc/iproute2/rt_tables", alist, ARRAY_LEN(rt_tables));
       }
       break;
-    default: 
+    default:
       error_exit("wrong database");
       break; // Unreachable code.
   }
@@ -370,7 +370,7 @@ static int get_prefix(uint32_t *addr, uint8_t *af, char *name, int family)
   if (strchr(name, ':')) {
     *af = AF_INET6;
     if (family != AF_UNSPEC && family != AF_INET6) return 1;
-    if (inet_pton(AF_INET6, name, (void *)addr) != 1) 
+    if (inet_pton(AF_INET6, name, (void *)addr) != 1)
       return 1;
   } else { // for IPv4.
     char *ptr = name;
@@ -508,8 +508,8 @@ static uint32_t get_ifaceindex(char *name, int ext)
   if (!if_ni) perror_exit("if_nameindex");
 
   for (i = if_ni; i->if_index && i->if_name; i++)
-    if (!strcmp(name, i->if_name)) { 
-      index = i->if_index; 
+    if (!strcmp(name, i->if_name)) {
+      index = i->if_index;
       break;
     }
   if_freenameindex(if_ni);
@@ -553,7 +553,7 @@ static char *get_flag_string(struct arglist *aflags, int flags, int ismulti)
 
 static void vlan_parse_opt(char **argv, struct nlmsghdr *n, unsigned int size)
 {
-  struct arglist vlan_optlist[] = {{"id", 0}, {"protocol", 1}, 
+  struct arglist vlan_optlist[] = {{"id", 0}, {"protocol", 1},
     {"reorder_hdr", 2}, {"gvrp", 3}, {NULL,-1}};
   struct arglist vlan_protolist[] = {{"802.1q", 0}, {"802.1ad", 1}, {NULL,-1}};
   struct arglist on_off[] = { {"on", 0}, {"off", 1}, {NULL,-1}};
@@ -583,13 +583,13 @@ static void vlan_parse_opt(char **argv, struct nlmsghdr *n, unsigned int size)
       case 3: // ARG_gvrp
         if ((param = substring_to_idx(*argv, on_off)) == -1) help_exit(0);
 
-        flags.mask |= (idx -1); // VLAN FLAG REORDER Header              
-        flags.flags &= ~(idx -1); // VLAN FLAG REORDER Header            
+        flags.mask |= (idx -1); // VLAN FLAG REORDER Header
+        flags.flags &= ~(idx -1); // VLAN FLAG REORDER Header
         if (!param) flags.flags |= (idx -1); // VLAN FLAG REORDER Header
         break;
     }
   }
-  if (flags.mask) 
+  if (flags.mask)
     add_string_to_rtattr(n, size, IFLA_VLAN_FLAGS, &flags, sizeof(flags));
 }
 
@@ -599,14 +599,14 @@ static int linkupdate(char **argv)
     struct nlmsghdr mhdr;
     struct ifinfomsg info;
     char buf[1024];
-  } request;  
+  } request;
   char *name, *dev, *type, *link, *addr;
   struct rtattr *attr = NULL;
   int len = 0, add = (*argv[-1] == 'a') ? 1 : 0;
 
   name = dev = type = link = addr = NULL;
   for (; *argv; argv++) {
-    struct arglist objectlist[] = { {"type", 0}, {"name", 1}, {"link", 2}, 
+    struct arglist objectlist[] = { {"type", 0}, {"name", 1}, {"link", 2},
       {"address", 3}, {NULL,-1}};
     uint8_t idx = substring_to_idx(*argv, objectlist);
 
@@ -644,7 +644,7 @@ static int linkupdate(char **argv)
         IFLA_INFO_KIND, type, strlen(type));
     if (!strcmp(type, "vlan")) {
       struct rtattr *data = NLMSG_TAIL(&request.mhdr);
-      add_string_to_rtattr(&request.mhdr, sizeof(request), 
+      add_string_to_rtattr(&request.mhdr, sizeof(request),
           IFLA_INFO_DATA, NULL, 0);
       vlan_parse_opt(++argv, &request.mhdr, sizeof(request));
       data->rta_len = (void *)NLMSG_TAIL(&request.mhdr) - (void *)data;
@@ -654,14 +654,14 @@ static int linkupdate(char **argv)
 
   if (link) {
     uint32_t idx = get_ifaceindex(link, 1);
-    add_string_to_rtattr(&request.mhdr, sizeof(request), 
+    add_string_to_rtattr(&request.mhdr, sizeof(request),
         IFLA_LINK, &idx, sizeof(uint32_t));
   }
   if (addr) {
     char abuf[IF_NAMESIZE] = {0,};
 
     fill_hwaddr(addr, IF_NAMESIZE, (unsigned char *)abuf);
-    add_string_to_rtattr(&request.mhdr, sizeof(request), 
+    add_string_to_rtattr(&request.mhdr, sizeof(request),
         IFLA_ADDRESS, abuf, strlen(abuf));
   }
   if (!name) {
@@ -682,8 +682,8 @@ static int linkupdate(char **argv)
 
 static int link_set(char **argv)
 {
-  struct arglist cmd_objectlist[] = {{"up", 0}, {"down", 1}, {"arp", 2}, 
-    {"multicast", 3}, {"dynamic", 4}, {"name", 5}, {"txqueuelen", 6}, 
+  struct arglist cmd_objectlist[] = {{"up", 0}, {"down", 1}, {"arp", 2},
+    {"multicast", 3}, {"dynamic", 4}, {"name", 5}, {"txqueuelen", 6},
     {"mtu", 7},{"address", 8}, {"broadcast", 9}, {"dev", 10}, {NULL,-1}};
   int case_flags[] = {IFF_NOARP,IFF_MULTICAST,IFF_DYNAMIC};
   struct ifreq req;
@@ -822,7 +822,7 @@ static void print_stats(struct  rtnl_link_stats *rtstat)
       xprintf("    TX: errors  aborted  fifo  window  "
           "heartbeat%s%-10u %-8u %-7u %-8u %-8u\n",
           line_feed, rtstat->tx_errors, rtstat->tx_aborted_errors,
-          rtstat->tx_fifo_errors, rtstat->tx_window_errors, 
+          rtstat->tx_fifo_errors, rtstat->tx_window_errors,
           rtstat->tx_heartbeat_errors);
     }
   }
@@ -831,7 +831,7 @@ static void print_stats(struct  rtnl_link_stats *rtstat)
 static int print_link_output(struct linkdata *link)
 {
   char *line_feed = " ", *flags,*peer = "brd";
-  struct arglist iface_flags[] = {{"",0},{"UP", IFF_UP}, 
+  struct arglist iface_flags[] = {{"",0},{"UP", IFF_UP},
     {"BROADCAST", IFF_BROADCAST}, {"DEBUG", IFF_DEBUG},
     {"LOOPBACK", IFF_LOOPBACK}, {"POINTOPOINT", IFF_POINTOPOINT},
     {"NOTRAILERS", IFF_NOTRAILERS}, {"RUNNING", IFF_RUNNING},
@@ -859,7 +859,7 @@ static int print_link_output(struct linkdata *link)
 
 
   if (!(flags = get_flag_string(iface_flags, link->flags, 1)))
-    error_exit("Invalid data.");    
+    error_exit("Invalid data.");
   if (!TT.singleline) line_feed="\n    ";
   if (link->parent != -1) {
     char iface[IF_NAMESIZE];
@@ -970,10 +970,10 @@ static int get_link_info(struct nlmsghdr* h,struct linkdata* link,char **argv)
       case IFLA_TXQLEN:
         link->txqueuelen = *((int*)(RTA_DATA(attr)));
         break;
-      case IFLA_OPERSTATE: 
+      case IFLA_OPERSTATE:
         {
-          struct arglist flags[]={{"UNKNOWN", 0}, {"NOTPRESENT", 1}, 
-            {"DOWN", 2}, {"LOWERLAYERDOWN", 3}, {"TESTING", 4}, 
+          struct arglist flags[]={{"UNKNOWN", 0}, {"NOTPRESENT", 1},
+            {"DOWN", 2}, {"LOWERLAYERDOWN", 3}, {"TESTING", 4},
             {"DORMANT", 5}, {"UP", 6}, {NULL, -1}};
           if (!(lname = get_flag_string(flags, *((int*)(RTA_DATA(attr))), 0)))
             error_exit("Invalid state.");
@@ -1337,7 +1337,7 @@ static int ipaddr_listflush(char **argv)
   addrinfo.scope = -1;
   while (*argv) {
     switch (idx = substring_to_idx(*argv, cmd_objectlist)) {
-      case 0: 
+      case 0:
         {// ADDR_TO
           if (!*++argv) error_exit("Incomplete Command line");
           else if (!strcmp(*argv, "0")) return 0;
@@ -1374,10 +1374,10 @@ static int ipaddr_listflush(char **argv)
             free(name);
           addrinfo.scope = scope;
         }
-        break;       
+        break;
       case 2: // ADDR_UP
         addrinfo.up = 1;
-        break;            
+        break;
       case 3: // ADDR_LABEL
         if (!*++argv) error_exit("Incomplete Command line");
         addrinfo.label = *argv;
@@ -1385,7 +1385,7 @@ static int ipaddr_listflush(char **argv)
       case 4: // ADDR_DEV
         if (!*++argv) error_exit("Incomplete Command line");
 
-      default:                               
+      default:
         if (TT.filter_dev)
           error_exit("Either \"dev\" is duplicate or %s is garbage",
               *argv);
@@ -1396,7 +1396,7 @@ static int ipaddr_listflush(char **argv)
   }
 
   link_show(&tmp);
-  while ( linfo && (dlist = dlist_pop(&linfo))){    
+  while ( linfo && (dlist = dlist_pop(&linfo))){
     struct linkdata *tmp  = (struct linkdata*) dlist;
     char *temp = &tmp->iface[0];
 
@@ -1412,7 +1412,7 @@ static int ipaddr_listflush(char **argv)
       if ( fnmatch(addrinfo.label, temp, 0)) {
         ipaddr_print(tmp, 1);
         continue;
-      }      
+      }
     }
     if (!TT.addressfamily && ! TT.flush ) print_link_output(tmp);
 
@@ -1456,7 +1456,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
         if (addrinfo.ifindex && addrinfo.ifindex != addressInfo->ifa_index)
           continue;
 
-        if (addrinfo.to) {        
+        if (addrinfo.to) {
           memset(rta_tb, 0, sizeof(rta_tb));
           int rt_len = IFA_PAYLOAD(addr_ptr);
           for (rta = IFA_RTA(addressInfo); RTA_OK(rta, rt_len); rta=RTA_NEXT(rta, rt_len)) {
@@ -1499,7 +1499,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
           if ((addr_ptr->nlmsg_type == NLMSG_DONE) ||
               (addr_ptr->nlmsg_type == NLMSG_ERROR) ||
               (TT.flush && addrinfo.to))
-            goto ret_stop;          
+            goto ret_stop;
         }
         if ((addr_ptr->nlmsg_type == NLMSG_DONE) ||
             (addr_ptr->nlmsg_type == NLMSG_ERROR))
@@ -1703,7 +1703,7 @@ static int display_route_info(struct nlmsghdr *mhdr, char **argv)
   if (attr[RTA_OIF]) {
     if (gfilter.odev !=0 && gfilter.odev != *(int*)RTA_DATA(attr[RTA_OIF]))
       return 0;
-    sprintf(out, "%s dev %s ", out, 
+    sprintf(out, "%s dev %s ", out,
         if_indextoname(*(int*)RTA_DATA(attr[RTA_OIF]), toybuf));
   }
 
@@ -1741,13 +1741,13 @@ static int display_route_info(struct nlmsghdr *mhdr, char **argv)
       sprintf(out, "%s error %d", out, ci->rta_error);
   }
   if (attr[RTA_IIF] && !gfilter.idev)
-    sprintf(out, "%s iif %s", out, 
+    sprintf(out, "%s iif %s", out,
         if_indextoname(*(int*)RTA_DATA(attr[RTA_IIF]), toybuf));
 
   if (attr[RTA_METRICS])
     print_rta_metrics(out, attr[RTA_METRICS]);
 
-  if (TT.flush || (TT.connected && !TT.from_ok)) 
+  if (TT.flush || (TT.connected && !TT.from_ok))
     memcpy(toybuf, (void*)mhdr,mhdr->nlmsg_len);
 
   if (TT.flush) {
@@ -1824,7 +1824,7 @@ static int display_route_info(struct nlmsghdr *mhdr, char **argv)
 static int route_get(char **argv)
 {
   int idx, flag;
-  struct arglist cmd_objectlist[] = {{"from", 0}, {"iif", 1}, {"oif", 2}, 
+  struct arglist cmd_objectlist[] = {{"from", 0}, {"iif", 1}, {"oif", 2},
     {"dev", 3}, {"notify", 4}, {"connected", 5}, {"to", 6}, {NULL, -1}};
   char *idev = NULL, *odev = NULL;
   struct {
@@ -1843,7 +1843,7 @@ static int route_get(char **argv)
     switch(idx = substring_to_idx(*argv, cmd_objectlist)) {
       case 0: TT.from_ok = 1; // dst address
       case 6: argv++; //fallthrough
-      default: 
+      default:
               {
                 uint32_t addr[8] = {0,}, netmask = 0;
                 uint8_t len = 0;
@@ -1876,7 +1876,7 @@ static int route_get(char **argv)
               break;
     }
   }
-  if (!request.msg.rtm_dst_len) 
+  if (!request.msg.rtm_dst_len)
     error_exit("need at least destination address");
 
   send_nlmesg(0, 0, 0, &request, sizeof(request));
@@ -1917,8 +1917,8 @@ static int route_get(char **argv)
 static int route_show_flush(char **argv)
 {
   struct arglist cmd_objectlist[] = {{"protocol", 0}, {"dev", 1}, {"oif", 2},
-    {"iif", 3}, {"via", 4}, {"table", 5}, {"cache", 6}, {"from", 7}, 
-    {"to", 8}, {"all", 9}, {"root", 10}, {"match", 11}, {"exact", 12}, 
+    {"iif", 3}, {"via", 4}, {"table", 5}, {"cache", 6}, {"from", 7},
+    {"to", 8}, {"all", 9}, {"root", 10}, {"match", 11}, {"exact", 12},
     {"main", 13}, {NULL,-1}};
   int family = TT.addressfamily, idx;
   struct {
@@ -1946,7 +1946,7 @@ static int route_show_flush(char **argv)
           int dev = get_ifaceindex(*argv, 1);
 
           if (idx == 3) gfilter.idev = dev;
-          else gfilter.odev = dev;        
+          else gfilter.odev = dev;
         }
         break;
       case 4:
@@ -2121,7 +2121,7 @@ static int route_update(char **argv, unsigned int route_flags)
       char* ptr;
       if (!*++argv) show_iproute_help();
       metric = strtoul(*argv, &ptr, 0);
-      if (!(!*ptr && metric <= 0xFFFFFFFFUL)) 
+      if (!(!*ptr && metric <= 0xFFFFFFFFUL))
         error_exit("Invalid argument metric %s.",*argv);
       else
         res = metric;
@@ -2252,7 +2252,7 @@ static int ruleupdate(char **argv)
   for (; *argv; argv++) {
     switch ((idx = substring_to_idx(*argv, options))) {
       case 0:
-      case 1: 
+      case 1:
         { // e.g. from IP/Netmask and to IP/Netmask.
           uint32_t addr[4] = {0,}, netmask = 0;
           uint8_t len = 0, *tmp;
@@ -2269,7 +2269,7 @@ static int ruleupdate(char **argv)
         }
         break;
       case 2:
-      case 4: 
+      case 4:
         { // e.g. Preference p# and fwmark MARK
           uint32_t pref;
           char *ptr;
@@ -2352,10 +2352,10 @@ static int ruleupdate(char **argv)
           request.msg.rtm_type = rtmtype_str2idx(*argv);
         }
         break;
-      case 10: 
+      case 10:
         show_iprule_help();
         break; // Unreachable code.
-      default: 
+      default:
         error_exit("Invalid argument '%s'", *argv);
         break; // Unreachable code.
     }
@@ -2578,7 +2578,7 @@ static int read_tunnel(struct ip_tunnel_parm *ptnl)
   return 0;
 }
 
-static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv, 
+static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv,
     int ipt_opt_idx)
 {
   int idx;
@@ -2588,7 +2588,7 @@ static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv,
     {"okey", 3}, {"seq", 4}, {"iseq", 5}, {"oseq", 6}, {"csum", 7},
     {"icsum", 8}, {"ocsum", 9}, {"nopmtudisc", 10}, {"pmtudisc", 11},
     {"remote", 12}, {"local", 13},{"dev", 14}, {"ttl", 15}, {"tos", 16},
-    {"dsfield", 17}, {"name", 18}, {NULL, -1} 
+    {"dsfield", 17}, {"name", 18}, {NULL, -1}
   };
 
   ptnl->iph.version = 4; // The value indicates the version of IP (4 or 6)
@@ -2764,11 +2764,11 @@ static int tunnellist(char **argv)
   memset(&iptnl, 0, sizeof(iptnl));
   parse_iptunnel_args(&iptnl, argv, 3);
 
-  if (iptnl.iph.protocol == IPPROTO_IPIP) 
+  if (iptnl.iph.protocol == IPPROTO_IPIP)
     ret = tnl_ioctl(*iptnl.name ? iptnl.name : "tunl0", SIOCGETTUNNEL, &iptnl);
-  else if (iptnl.iph.protocol == IPPROTO_GRE) 
+  else if (iptnl.iph.protocol == IPPROTO_GRE)
     ret = tnl_ioctl(*iptnl.name ? iptnl.name : "gre0", SIOCGETTUNNEL, &iptnl);
-  else if (iptnl.iph.protocol == IPPROTO_IPV6) 
+  else if (iptnl.iph.protocol == IPPROTO_IPV6)
     ret = tnl_ioctl(*iptnl.name ? iptnl.name : "sit0", SIOCGETTUNNEL, &iptnl);
   else return read_tunnel(&iptnl);
 

@@ -61,7 +61,7 @@ static char *path2mod(char *file, char *mod)
   if (!mod) mod = xmalloc(MODNAME_LEN);
 
   from = getbasename(file);
-  
+
   for (i = 0; i < (MODNAME_LEN-1) && from[i] && from[i] != '.'; i++)
     mod[i] = (from[i] == '-') ? '_' : from[i];
   mod[i] = '\0';
@@ -177,11 +177,11 @@ static int read_line(FILE *fl, char **li)
   }
   for (;;) {
     if (line[len - 1] == '\n') len--;
-    if (!len) { 
+    if (!len) {
       free(line);
       return len;
     } else if (line[len - 1] != '\\') break;
-    
+
     len--;
     nxtlen = getline(&nxtline, &nxtlinelen, fl);
     if (nxtlen <= 0) break;
@@ -223,7 +223,7 @@ static int config_action(struct dirtree *node)
       free(line), free(linecp), line = linecp = NULL) {
     char *tk = NULL;
 
-    if (!strlen(line)) continue; 
+    if (!strlen(line)) continue;
     linecp = xstrdup(line);
     for (tk = strtok(linecp, "# \t"), tcount = 0; tk;
         tk = strtok(NULL, "# \t"), tcount++) {
@@ -317,7 +317,7 @@ static void find_dep(void)
       mod = get_mod(line, 0);
       if (!mod) continue;
       if ((mod->flags & MOD_ALOADED) && !(FLAG(r)|FLAG(D))) continue;
-      
+
       mod->flags |= MOD_FNDDEPMOD;
       if ((mod->flags & MOD_NDDEPS) && !mod->dep) {
         TT.nudeps--;
@@ -404,7 +404,7 @@ static void go_probe(struct module_s *m)
   }
   if (FLAG(v)) printf("go_prob'ing %s\n", m->name);
   if (!FLAG(r)) m->dep = llist_rev(m->dep);
-  
+
   while (m->dep) {
     struct module_s *m2;
     char *fn, *options;
@@ -534,11 +534,11 @@ void modprobe_main(void)
     do { // Probe all real names for the alias.
       char *real = ((struct arg_list *)llist_pop(&module->rnames))->arg;
       struct module_s *m2 = get_mod(real, 0);
-      
+
       if (FLAG(v))
         printf("probing alias %s by realname %s\n", module->name, real);
       if (!m2) continue;
-      if (!(m2->flags & MOD_BLACKLIST) 
+      if (!(m2->flags & MOD_BLACKLIST)
           && (!(m2->flags & MOD_ALOADED) || FLAG(r) || FLAG(D)))
         go_probe(m2);
       free(real);

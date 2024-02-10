@@ -148,7 +148,7 @@ static void tail_continue()
       }
       fd = TT.F[i].fd;
       path = TT.F[i].path;
- 
+
       if (stat(TT.F[i].path, &sb)) {
         if (fd >= 0) {
           close(fd);

@@ -389,6 +389,6 @@ void hash_by_name(int fd, char *name, char *result)
   // by looping on a volatile pointer.
   for (pp = (void *)hash; pp-(unsigned *)hash<sizeof(*hash)/4; pp++) *pp = 0;
   for (pp = (void *)libbuf; pp-(unsigned *)libbuf<sizeof(libbuf)/4; pp++)
-    *pp = 0; 
+    *pp = 0;
 }
 #endif

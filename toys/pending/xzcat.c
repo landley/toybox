@@ -13,7 +13,7 @@ config XZCAT
   default n
   help
     usage: xzcat [filename...]
-    
+
     Decompress listed files to stdout. Use stdin if no files listed.
 
 */
@@ -35,7 +35,7 @@ config XZCAT
  *                          which is not used in the kernel. Unsupported
  *                          check types return XZ_OPTIONS_ERROR if
  *                          XZ_DEC_ANY_CHECK was not defined at build time.
- * @XZ_MEM_ERROR:           Allocating memory failed. The amount of memory 
+ * @XZ_MEM_ERROR:           Allocating memory failed. The amount of memory
  *                          that was tried to be allocated was no more than the
  *                          dict_max argument given to xz_dec_init().
  * @XZ_MEMLIMIT_ERROR:      A bigger LZMA2 dictionary would be needed than
@@ -52,11 +52,11 @@ config XZCAT
  *                          different between multi-call and single-call
  *                          mode; more information below.
  *
- * XZ_BUF_ERROR is returned when two consecutive calls to XZ code cannot 
+ * XZ_BUF_ERROR is returned when two consecutive calls to XZ code cannot
  * consume any input and cannot produce any new output. This happens when
  * there is no new input available, or the output buffer is full while at
  * least one output byte is still pending. Assuming your code is not buggy,
- * you can get this error only when decoding a compressed stream that is 
+ * you can get this error only when decoding a compressed stream that is
  * truncated or otherwise corrupt.
  */
 enum xz_ret {
@@ -305,7 +305,7 @@ void xzcat_main(void)
 // BEGIN xz_private.h
 
 
-/* Uncomment as needed to enable BCJ filter decoders. 
+/* Uncomment as needed to enable BCJ filter decoders.
  * These cost about 2.5 k when all are enabled; SPARC and IA64 make 0.7 k
  * */
 
