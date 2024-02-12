@@ -35,10 +35,11 @@ do
 
   make allnoconfig > /dev/null || exit 1
 
+  # For the shell pull in MAYFORK commands from other source files as builtins.
   unset DEPENDS MPDEL
   if [ "$i" == sh ]
   then
-    DEPENDS="$($SED -n 's/USE_\([^(]*\)(NEWTOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
+    DEPENDS="$($SED -n 's/USE_\([^(]*\)(...TOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
   else
     MPDEL='s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t'
   fi
