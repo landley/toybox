@@ -521,8 +521,8 @@ static size_t zlist_append_zvalue(struct zlist *p, struct zvalue *v)
     zlist_expand(p);
   }
   *(struct zvalue *)p->avail = *v;
-  p->avail += p->size;
-  return (p->avail - p->base - p->size) / p->size;  // offset of updated slot
+  p->avail += sizeof(*v);
+  return (p->avail - p->base - sizeof(*v)) / sizeof(*v);  // offset of new slot
 }
 
 // push_val() is used for initializing globals (see init_compiler())
@@ -533,7 +533,7 @@ static size_t zlist_append_zvalue(struct zlist *p, struct zvalue *v)
 // pushed, invalidating the v pointer.
 static void push_val(struct zvalue *v)
 {
-  if (IS_STR(v)) zstring_incr_refcnt(v->vst);
+  if (IS_STR(v) && v->vst) v->vst->refcnt++;  // inlined zstring_incr_refcnt()
   TT.stkptr = zlist_append_zvalue(&TT.stack, v);
 }
 
@@ -3249,6 +3249,18 @@ static int assign_global(char *var, char *value)
   if (globals_ent) {
     struct zvalue *v = &STACK[globals_ent];
     if (IS_MAP(v)) error_exit("-v assignment to array");  // Maybe not needed?
+
+// The compile phase may insert a var in global table with flag of zero.  Then
+// init_globals() will assign a ZF_MAYBEMAP flag to it. If it is then assigned
+// via -v option or by assignment_arg() it will here be assigned a string value.
+// So first, remove all map data to prevent memory leak. BUG FIX // 2024-02-13.
+    if (v->flags & ZF_ANYMAP) {
+      zmap_delete_map_incl_slotdata(v->map);
+      xfree(v->map);
+      v->map = 0;
+      v->flags &= ~ZF_ANYMAP;
+    }
+
     zvalue_release_zstring(v);
     value = xstrdup(value);
     *v = new_str_val(escape_str(value));
