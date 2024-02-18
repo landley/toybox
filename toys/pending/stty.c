@@ -65,7 +65,7 @@ static speed_t speed(int baud)
 
   for (i=0;i<ARRAY_LEN(bauds);i++) if (bauds[i] == baud) break;
   if (i == ARRAY_LEN(bauds)) error_exit("unknown speed: %d", baud);
-  return i+4081*(i>16);
+  return i+4081*(i>=16);
 }
 
 struct flag {
