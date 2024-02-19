@@ -4,7 +4,7 @@
  *
  * No standard.
 
-USE_TS(NEWTOY(ts, "ims", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_TS(NEWTOY(ts, "ims", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config TS
   bool "ts"
