@@ -10,12 +10,15 @@ setfattr -n user.empty attrs/file
 setfattr -n user.data -v hello attrs/file
 setfattr -n user.delete-me -v hello attrs/file
 
+# The filesystem may include some extended attributes by default (for
+# instance, security.selinux). Use the -n option to limit the output.
+
 testing "-x" \
-    "setfattr -x user.delete-me attrs/file && getfattr attrs/file" \
-    "# file: attrs/file\nuser.data\nuser.empty\n\n" "" ""
-testing "-n" "setfattr -n user.new attrs/file && getfattr -d attrs/file" \
-    "# file: attrs/file\nuser.data=\"hello\"\nuser.empty\nuser.new\n\n" "" ""
-testing "-n -v" "setfattr -n user.new -v data attrs/file && getfattr -d attrs/file" \
-    "# file: attrs/file\nuser.data=\"hello\"\nuser.empty\nuser.new=\"data\"\n\n" "" ""
+    "setfattr -x user.delete-me attrs/file && getfattr -n user.delete-me attrs/file" \
+    "# file: attrs/file\n\n" "" ""
+testing "-n" "setfattr -n user.new attrs/file && getfattr -n user.new -d attrs/file" \
+    "# file: attrs/file\nuser.new\n\n" "" ""
+testing "-n -v" "setfattr -n user.new -v data attrs/file && getfattr -n user.new -d attrs/file" \
+    "# file: attrs/file\nuser.new=\"data\"\n\n" "" ""
 
 rm -rf attrs

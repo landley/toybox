@@ -8,18 +8,14 @@ mkdir attrs
 touch attrs/file
 setfattr -n user.empty attrs/file
 setfattr -n user.data -v hello attrs/file
-setfattr -n user.more -v world attrs/file
 
-testing "" "getfattr attrs/file" \
-    "# file: attrs/file\nuser.data\nuser.empty\nuser.more\n\n" "" ""
-testing "-d" "getfattr -d attrs/file" \
-    "# file: attrs/file\nuser.data=\"hello\"\nuser.empty\nuser.more=\"world\"\n\n" "" ""
+# The filesystem may include some extended attributes by default (for
+# instance, security.selinux). Use the -n option to limit the output.
+
 testing "-n" "getfattr -n user.empty attrs/file" \
     "# file: attrs/file\nuser.empty\n\n" "" ""
 testing "-d -n" "getfattr -d -n user.data attrs/file" \
     "# file: attrs/file\nuser.data=\"hello\"\n\n" "" ""
-testing "--only-values" "getfattr --only-values attrs/file" \
-    "helloworld" "" ""
 testing "--only-values -n" "getfattr --only-values -n user.data attrs/file" \
     "hello" "" ""
 
