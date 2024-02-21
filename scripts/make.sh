@@ -90,8 +90,8 @@ mkdir -p "$UNSTRIPPED"  "$(dirname $OUTNAME)" || exit 1
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
 
 [ -n "$V" ] && echo -e "\nWhich C files to build..."
-TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
-TOYFILES="main.c $(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c | xargs)"
+TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' ' '|')"
+TOYFILES="main.c $(egrep -l "^USE_($TOYFILES)[(]...TOY[(]" toys/*/*.c | xargs)"
 
 if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
