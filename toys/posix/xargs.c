@@ -98,10 +98,25 @@ static void signal_P(int sig)
   else TT.P++;
 }
 
+static void waitchild(int options)
+{
+  int ii, status;
+
+  if (1>waitpid(-1, &status, options)) return;
+  TT.np--;
+  ii = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
+  if (ii == 255) {
+    error_msg("%s: exited with status 255; aborting", *toys.optargs);
+    toys.exitval = 124;
+  } else if ((ii|1)==127) toys.exitval = ii;
+  else if (ii>127) toys.exitval = 125;
+  else if (ii) toys.exitval = 123;
+}
+
 void xargs_main(void)
 {
   struct double_list *dlist = 0, *dtemp;
-  int entries, bytes, done = 0, status;
+  int entries, bytes, done = 0;
   char *data = 0, **out = 0;
   pid_t pid = 0;
 
@@ -133,10 +148,17 @@ void xargs_main(void)
   while (data || !done) {
     TT.entries = 0;
     TT.bytes = bytes;
+    if (TT.np) waitchild(WNOHANG*!(TT.np==TT.P||(!data && done)));
+    if (toys.exitval==124) break;
+
+    // Arbitrary number of execs, can't just leak memory each time...
+    llist_traverse(dlist, llist_free_double);
+    dlist = 0;
+    free(out);
+    out = 0;
 
     // Loop reading input
     for (;;) {
-
       // Read line
       if (!data) {
         size_t l = 0;
@@ -159,15 +181,15 @@ void xargs_main(void)
 
     if (!TT.entries) {
       if (data) error_exit("argument too long");
-      if (pid || FLAG(r)) goto reap_children;
+      if (pid || FLAG(r)) break;
     }
 
     // Fill out command line to exec
-    out = xzalloc((entries+TT.entries+1)*sizeof(char *));
-    memcpy(out, toys.optargs, entries*sizeof(char *));
+    out = xzalloc((toys.optc+TT.entries+1)*sizeof(char *));
+    memcpy(out, toys.optargs, toys.optc*sizeof(char *));
     TT.entries = 0;
     TT.bytes = bytes;
-    if (dlist) dlist->prev->next = 0;
+    dlist_terminate(dlist);
     for (dtemp = dlist; dtemp; dtemp = dtemp->next)
       handle_entries(dtemp->data, out+entries);
 
@@ -178,7 +200,7 @@ void xargs_main(void)
       if (FLAG(p)) {
         fprintf(stderr, "?");
         if (!TT.tty) TT.tty = xfopen("/dev/tty", "re");
-        if (!fyesno(TT.tty, 0)) goto reap_children;
+        if (!fyesno(TT.tty, 0)) continue;
       } else fprintf(stderr, "\n");
     }
 
@@ -188,29 +210,7 @@ void xargs_main(void)
       xexec(out);
     }
     TT.np++;
-
-reap_children:
-    while (TT.np) {
-      int xv = (TT.np == TT.P) || (!data && done);
-
-      if (1>(xv = waitpid(-1, &status, WNOHANG*!xv))) break;
-      TT.np--;
-      xv = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
-      if (xv == 255) {
-        error_msg("%s: exited with status 255; aborting", *out);
-        toys.exitval = 124;
-        break;
-      } else if ((xv|1)==127) toys.exitval = xv;
-      else if (xv>127) xv = 125;
-      else if (xv) toys.exitval = 123;
-    }
-
-    // Abritrary number of execs, can't just leak memory each time...
-    llist_traverse(dlist, llist_free_double);
-    dlist = 0;
-    free(out);
-    out = 0;
   }
-  while (TT.np && -1 != wait(&status)) TT.np--;
+  while (TT.np) waitchild(0);
   if (TT.tty) fclose(TT.tty);
 }

@@ -86,3 +86,7 @@ testing "parallel sleep" "
 #testing "-s impossible"
 
 testing "no stdin" "echo -n | xargs cat" "" "" ""
+
+testing "exit 255 aborts" \
+  "xargs -n1 sh -c 'echo \$1; exit \$1' blah 2>/dev/null" '123\n234\n255\n' \
+  '' '123\n234\n255\n42\n99\n'
