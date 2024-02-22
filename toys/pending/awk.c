@@ -112,7 +112,7 @@ GLOBALS(
 
   int spec_var_limit;
   int zcode_last;
-  int stkptr;
+  struct zvalue *stackp;  // top of stack ptr
 
   char *pbuf;   // Used for number formatting in num_to_zstring()
 #define RS_MAX  64
@@ -257,6 +257,9 @@ struct zstring {
 
 #define FUNC_DEFINED    (1u)
 #define FUNC_CALLED     (2u)
+
+#define MIN_STACK_LEFT 1024
+
 struct functab_slot {    // function symbol table entry
   unsigned flags;
   int slotnum;
@@ -389,6 +392,7 @@ static struct zlist *zlist_init(struct zlist *p, size_t size)
   return zlist_initx(p, size, SLIST_MAX_INIT_BYTES / size);
 }
 
+// This is called from zlist_append() and add_stack() in run
 static void zlist_expand(struct zlist *p)
 {
   size_t offset = p->avail - p->base;
@@ -512,19 +516,6 @@ static void zvalue_release_zstring(struct zvalue *v)
   if (v && ! (v->flags & (ZF_ANYMAP | ZF_RX))) zstring_release(&v->vst);
 }
 
-static size_t zlist_append_zvalue(struct zlist *p, struct zvalue *v)
-{
-  struct zvalue vtemp;
-  if (p->avail > p->limit - sizeof(*v)) {
-    vtemp = *v;
-    v = &vtemp;
-    zlist_expand(p);
-  }
-  *(struct zvalue *)p->avail = *v;
-  p->avail += sizeof(*v);
-  return (p->avail - p->base - sizeof(*v)) / sizeof(*v);  // offset of new slot
-}
-
 // push_val() is used for initializing globals (see init_compiler())
 // but mostly used in runtime
 // WARNING: push_val may change location of v, so do NOT depend on it after!
@@ -534,7 +525,7 @@ static size_t zlist_append_zvalue(struct zlist *p, struct zvalue *v)
 static void push_val(struct zvalue *v)
 {
   if (IS_STR(v) && v->vst) v->vst->refcnt++;  // inlined zstring_incr_refcnt()
-  TT.stkptr = zlist_append_zvalue(&TT.stack, v);
+  *++TT.stackp = *v;
 }
 
 static void zvalue_copy(struct zvalue *to, struct zvalue *from)
@@ -1224,7 +1215,11 @@ static void init_tables(void)
   zlist_init(&TT.zcode, sizeof(int));
   gencd(tkeof);   // to ensure zcode offsets are non-zero
   zlist_init(&TT.literals, sizeof(struct zvalue));
-  zlist_init(&TT.stack, sizeof(struct zvalue));
+  // Init stack size at twice MIN_STACK_LEFT. MIN_STACK_LEFT is at least as
+  // many entries as any statement may ever take.  Currently there is no diag
+  // if this is exceeded; prog. will probably crash. 1024 should be plenty?
+  zlist_initx(&TT.stack, sizeof(struct zvalue), 2 * MIN_STACK_LEFT);
+  TT.stackp = (struct zvalue *)TT.stack.base;
   zlist_init(&TT.fields, sizeof(struct zvalue));
   zlist_append(&TT.literals, &uninit_zvalue);
   zlist_append(&TT.stack, &uninit_zvalue);
@@ -2828,7 +2823,7 @@ static void push_field(int fnum)
 ////   END fields
 ////////////////////
 
-#define STKP    (&STACK[TT.stkptr])   // pointer to top of stack
+#define STKP    TT.stackp   // pointer to top of stack
 
 // Random number generator
 // Extracted from http://www.cs.ucl.ac.uk/staff/d.jones/GoodPracticeRNG.pdf
@@ -2858,15 +2853,13 @@ static unsigned seed_jkiss32(unsigned n)
 
 static int popnumval(void)
 {
-  TT.stack.avail -= sizeof(struct zvalue);
-  return STACK[TT.stkptr--].num;
+  return STKP-- -> num;
 }
 
 static void drop(void)
 {
-  TT.stack.avail -= sizeof(struct zvalue);
-  struct zvalue *v = &STACK[TT.stkptr--];
-  zvalue_release_zstring(v);
+  if (!(STKP->flags & (ZF_ANYMAP | ZF_RX))) zstring_release(&STKP->vst);
+  STKP--;
 }
 
 static void drop_n(int n)
@@ -2886,7 +2879,8 @@ static void force_maybemap_to_scalar(struct zvalue *v)
   if (!(v->flags & ZF_ANYMAP)) return;
   if (v->flags & ZF_MAP || v->map->count)
     FATAL("array in scalar context");
-  v->flags = 0; v->map = 0; // v->flags = v->map = 0 gets warning
+  v->flags = 0;
+  v->map = 0; // v->flags = v->map = 0 gets warning
 }
 
 static void force_maybemap_to_map(struct zvalue *v)
@@ -2989,6 +2983,7 @@ static struct zvalue *get_map_val(struct zvalue *v, struct zvalue *key)
 
 static struct zvalue *setup_lvalue(int ref_stack_ptr, int parmbase, int *field_num)
 {
+  // ref_stack_ptr is number of slots down in stack the ref is
   // for +=, *=, etc
   // Stack is: ... scalar_ref value_to_op_by
   // or ... subscript_val map_ref value_to_op_by
@@ -3000,7 +2995,7 @@ static struct zvalue *setup_lvalue(int ref_stack_ptr, int parmbase, int *field_n
   int k;
   struct zvalue *ref, *v = 0; // init v to mute "may be uninit" warning
   *field_num = -1;
-  ref = &STACK[ref_stack_ptr];
+  ref = STKP - ref_stack_ptr;
   if (ref->flags & ZF_FIELDREF) return get_field_ref(*field_num = ref->num);
   k = ref->num >= 0 ? ref->num : parmbase - ref->num;
   if (k == NF) *field_num = THIS_MEANS_SET_NF;
@@ -3010,7 +3005,7 @@ static struct zvalue *setup_lvalue(int ref_stack_ptr, int parmbase, int *field_n
   } else if (ref->flags & ZF_MAPREF) {
     force_maybemap_to_map(v);
     if (!IS_MAP(v)) FATAL("scalar in array context");
-    v = get_map_val(v, &STACK[ref_stack_ptr - 1]);
+    v = get_map_val(v, STKP - ref_stack_ptr - 1);
     swap();
     drop();
   } else FATAL("assignment to bad lvalue");
@@ -3095,9 +3090,12 @@ static struct zfile *setup_file(char *file_or_pipe, char *mode)
   return badfile;
 }
 
+// TODO FIXME should be a function?
+#define stkn(n) ((int)(TT.stackp - (n) - (struct zvalue *)TT.stack.base))
+
 static int getcnt(int k)
 {
-  if (k >= TT.stkptr) FATAL("too few args for printf\n");
+  if (k >= stkn(0)) FATAL("too few args for printf\n");
   return (int)val_to_num(&STACK[k]);
 }
 
@@ -3130,9 +3128,9 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
   double n = 0;
   char *s;
   regoff_t offs = -1, e = -1;
-  val_to_str(&STACK[TT.stkptr-nargs+1]);
-  char *fmt = STACK[TT.stkptr-nargs+1].vst->str;
-  k = TT.stkptr - nargs + 2;
+  val_to_str(STKP-nargs+1);
+  char *fmt = (STKP-nargs+1)->vst->str;
+  k = stkn(nargs - 2);
   while (*fmt) {
     nn = strcspn(fmt, "%");
     if (nn) {
@@ -3166,7 +3164,7 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
         cnt2 = getcnt(k++);
         ATTR_FALLTHROUGH_INTENDED;
       case 1:
-        if (k > TT.stkptr) FATAL("not enough args for printf format\n");
+        if (k > stkn(0)) FATAL("too few args for printf\n");
         if (fmtc == 's') {
           val_to_str(&STACK[k]);
           s = STACK[k++].vst->str;
@@ -3476,7 +3474,7 @@ static void gsub(int opcode, int nargs, int parmbase)
 { (void)nargs;
   int field_num = -1;
   // compile ensures 3 args
-  struct zvalue *v = setup_lvalue(TT.stkptr, parmbase, &field_num);
+  struct zvalue *v = setup_lvalue(0, parmbase, &field_num);
   struct zvalue *ere = STKP-2;
   struct zvalue *repl = STKP-1;
   regex_t rx, *rxp = &rx;
@@ -3597,6 +3595,16 @@ static void math_builtin(int opcode, int nargs)
   }
 }
 
+// Initially set stackp_needmore at MIN_STACK_LEFT before limit.
+// When stackp > stackp_needmore, then expand and reset stackp_needmore
+static void add_stack(struct zvalue **stackp_needmore)
+{
+  int k = stkn(0);  // stack elements in use
+  zlist_expand(&TT.stack);
+  STKP = (struct zvalue *)TT.stack.base + k;
+  *stackp_needmore = (struct zvalue *)TT.stack.limit - MIN_STACK_LEFT;
+}
+
 #define CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : (x) > (hi) ? (hi) : (x))
 
 // Main loop of interpreter. Run this once for all BEGIN rules (which
@@ -3608,9 +3616,10 @@ static int interpx(int start, int *status)
   int opcode, op2, k, r, nargs, nsubscrs, range_num, parmbase = 0;
   int field_num;
   double nleft, nright;
-  struct zvalue *v, vv;
-// looptop
+  struct zvalue *v, vv,
+        *stackp_needmore = (struct zvalue*)TT.stack.limit - MIN_STACK_LEFT;
   while ((opcode = *ip++)) {
+
     switch (opcode) {
       case opquit:
         return opquit;
@@ -3758,7 +3767,7 @@ static int interpx(int start, int *status)
         // Stack is: ... scalar_ref value_to_op_by
         // or ... subscript_val map_ref value_to_op_by
         // or ... fieldref value_to_op_by
-        v = setup_lvalue(TT.stkptr-1, parmbase, &field_num);
+        v = setup_lvalue(1, parmbase, &field_num);
         val_to_num(v);
         val_to_num(STKP);
         switch (opcode) {
@@ -3794,7 +3803,7 @@ static int interpx(int start, int *status)
         // Stack is: ... scalar_ref value_to_assign
         // or ... subscript_val map_ref value_to_assign
         // or ... fieldref value_to_assign
-        v = setup_lvalue(TT.stkptr-1, parmbase, &field_num);
+        v = setup_lvalue(1, parmbase, &field_num);
         force_maybemap_to_scalar(STKP);
         zvalue_copy(v, STKP);
         swap();
@@ -3809,7 +3818,7 @@ static int interpx(int start, int *status)
         // Stack is: ... scalar_ref
         // or ... subscript_val map_ref
         // or ... fieldnum fieldref
-        v = setup_lvalue(TT.stkptr, parmbase, &field_num);
+        v = setup_lvalue(0, parmbase, &field_num);
         val_to_num(v);
         v->flags = ZF_NUM;
         switch (opcode) {
@@ -3863,7 +3872,7 @@ static int interpx(int start, int *status)
           val_to_str(&tempv);
           for (int k = 0; k < nargs; k++) {
             if (k) fprintf(outfp->fp, "%s", tempv.vst->str);
-            int sp = TT.stkptr - nargs + 1 + k;
+            int sp = stkn(nargs - 1 - k);
             ////// FIXME refcnt -- prob. don't need to copy from TT.stack?
             v = &STACK[sp];
             val_to_str_fmt(v, val_to_str(&STACK[OFMT])->vst->str);
@@ -3898,7 +3907,7 @@ static int interpx(int start, int *status)
         int nparms = zlist_len(loctab)-1;
 
         nargs = popnumval();
-        int newparmbase = TT.stkptr - nargs;
+        int newparmbase = stkn(nargs);
         STACK[newparmbase + PREV_PARMBASE].num = parmbase;
         parmbase = newparmbase;
         for ( ;nargs > nparms; nargs--)
@@ -3938,20 +3947,21 @@ static int interpx(int start, int *status)
         drop();
         // Remove the local args (not supplied by caller) from TT.stack, check to
         // release any map data created.
-        while (TT.stkptr > parmbase + nargs) {
+        while (stkn(0) > parmbase + nargs) {
           if ((STKP)->flags & ZF_ANYMAP) {
             zmap_delete_map_incl_slotdata((STKP)->map);
             xfree((STKP)->map);
           }
           drop();
         }
-        while (TT.stkptr > parmbase + RETURN_VALUE)
+        while (stkn(0) > parmbase + RETURN_VALUE)
           drop();
         ip = &ZCODE[(int)STACK[parmbase+RETURN_ADDR].num];
         parmbase = STACK[parmbase+PREV_PARMBASE].num;
         break;
 
       case opprepcall:    // function call prep
+        if (STKP > stackp_needmore) add_stack(&stackp_needmore);
         push_int_val(0);      // return value placeholder
         push_int_val(0);      // return addr
         push_int_val(0);      // parmbase
@@ -3961,7 +3971,7 @@ static int interpx(int start, int *status)
 
       case tkfunc:        // function call
         nargs = *ip++;
-        newparmbase = TT.stkptr - nargs;
+        newparmbase = stkn(nargs);
         STACK[newparmbase+RETURN_ADDR].num = ip - &ZCODE[0];
         STACK[newparmbase+ARG_CNT].num = nargs;
         push_int_val(nargs);      // FIXME TODO pass this in a zregister?
@@ -4032,7 +4042,7 @@ static int interpx(int start, int *status)
           kk++;
         STKP->num = kk; // save index for next iteration
         if (kk < zlen) {
-          struct zvalue *var = setup_lvalue(TT.stkptr-2, parmbase, &field_num);
+          struct zvalue *var = setup_lvalue(2, parmbase, &field_num);
           var->flags = ZF_STR;
           zstring_release(&var->vst);
           var->vst = MAPSLOT[kk].key;
@@ -4185,7 +4195,7 @@ static int interpx(int start, int *status)
         //  1 tklt:    (lvalue)  from  named file in 'stream'
         //  0 tkpipe:  (nothing) from piped command in 'stream'
         //  1 tkpipe:  (lvalue)  from piped command in 'stream'
-        v = nargs ? setup_lvalue(TT.stkptr, parmbase, &field_num) : 0;
+        v = nargs ? setup_lvalue(0, parmbase, &field_num) : 0;
         if (v) drop();
         // source is tkeof (no pipe/file), tklt (file), or tkpipe (pipe)
         // stream is name of file or pipe
@@ -4237,14 +4247,14 @@ static int interpx(int start, int *status)
 
       case tksubstr:
         nargs = *ip++;
-        struct zstring *zz = val_to_str(&STACK[TT.stkptr-nargs+1])->vst;
+        struct zstring *zz = val_to_str(STKP - nargs + 1)->vst;
         // Offset of start of string; convert 1-based to 0-based
-        ssize_t mm = CLAMP(trunc(val_to_num(&STACK[TT.stkptr-nargs+2]))-1, 0, zz->size);
+        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, zz->size);
         ssize_t nn = zz->size - mm;   // max possible substring length
         if (nargs == 3) nn = CLAMP(trunc(val_to_num(STKP)), 0, nn);
         struct zstring *zzz = new_zstring(zz->str + mm, nn);
-        zstring_release(&STACK[TT.stkptr-nargs+1].vst);
-        STACK[TT.stkptr-nargs+1].vst = zzz;
+        zstring_release(&(STKP - nargs + 1)->vst);
+        (STKP - nargs + 1)->vst = zzz;
         drop_n(nargs - 1);
         break;
 
@@ -4338,15 +4348,15 @@ static int interpx(int start, int *status)
 // depth unchanged after each run through the rules.
 static int interp(int start, int *status)
 {
-  int stkptrbefore = TT.stkptr;
+  int stkptrbefore = stkn(0);
   int r = interpx(start, status);
   // If exit from function, TT.stack will be loaded with args etc. Clean it.
   if (r == tkexit) {
-    TT.stack.avail -= (TT.stkptr - stkptrbefore) * TT.stack.size;
-    TT.stkptr = stkptrbefore;
+    // TODO FIXME is this safe? Just remove extra entries?
+    STKP = &STACK[stkptrbefore];
   }
-  if (TT.stkptr - stkptrbefore)
-    error_exit("!!AWK BUG stack pointer offset: %d", TT.stkptr - stkptrbefore);
+  if (stkn(0) - stkptrbefore)
+    error_exit("!!AWK BUG stack pointer offset: %d", stkn(0) - stkptrbefore);
   return r;
 }
 
