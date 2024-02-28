@@ -2860,14 +2860,14 @@ void do_xzcat(int fd, char *name)
     if (ret == XZ_OK || ret == XZ_UNSUPPORTED_CHECK)
       continue;
 
-    else if (ret == XZ_STREAM_END) {
-      xz_dec_end(s);
-      return;
-    }
-
     if (fwrite(out, 1, b.out_pos, stdout) != b.out_pos) {
       msg = "Write error\n";
       goto error;
+    }
+
+    if (ret == XZ_STREAM_END) {
+      xz_dec_end(s);
+      return;
     }
 
     msg = (ret-3 < ARRAY_LEN(errors)) ? errors[ret-3] : "Bug!";
