@@ -1,6 +1,9 @@
 /* getopt.c - Parse command-line options
  *
  * Copyright 2019 The Android Open Source Project
+ *
+ * See https://man7.org/linux/man-pages/man1/getopt.1.html
+ * No standard
 
 USE_GETOPT(NEWTOY(getopt, "^a(alternative)n:(name)o:(options)l*(long)(longoptions)Tu", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -31,14 +34,14 @@ GLOBALS(
 
 static void out(char *s)
 {
-  if (FLAG(u)) printf(" %s", s);
+  if (FLAG(u)) xprintf(" %s", s);
   else {
-    printf(" '");
+    xputsn(" '");
     for (; *s; s++) {
-      if (*s == '\'') printf("'\\''");
+      if (*s == '\'') xputsn("'\\''");
       else putchar(*s);
     }
-    printf("'");
+    putchar('\'');
   }
 }
 
@@ -85,21 +88,21 @@ void getopt_main(void)
   // BSD getopts don't honor argv[0] (for -n), so handle errors ourselves.
   opterr = 0;
   optind = 1;
-  while ((ch = (FLAG(a)?getopt_long_only:getopt_long)(argc, argv, TT.o,
+  while ((ch = (FLAG(a) ? getopt_long_only : getopt_long)(argc, argv, TT.o,
           lopts, &i)) != -1) {
     if (ch == '?') {
       fprintf(stderr, "%s: invalid option '%c'\n", argv[0], optopt);
       toys.exitval = 1;
     } else if (!ch) {
-      printf(" --%s", lopts[i].name);
-      if (lopts[i].has_arg) out(optarg ? optarg : "");
+      xprintf(" --%s", lopts[i].name);
+      if (lopts[i].has_arg) out(optarg ? : "");
     } else {
-      printf(" -%c", ch);
+      xprintf(" -%c", ch);
       if (optarg) out(optarg);
     }
   }
 
-  printf(" --");
+  xputsn(" --");
   for (; optind<argc; optind++) out(argv[optind]);
-  printf("\n");
+  putchar('\n');
 }
