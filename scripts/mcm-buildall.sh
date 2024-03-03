@@ -172,16 +172,13 @@ patch_mcm()
   # and doesn't even use the latest musl release by default, so fix it up.
 
   # Select newer package versions and don't use dodgy mirrors
-  sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.6/;s/\(GCC_VER =\).*/\1 11.2.0/;s/\(MUSL_VER =\).*/\1 1.2.4/' \
+  sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.6/;s/\(GCC_VER =\).*/\1 11.2.0/' \
     Makefile &&
   echo 'c8dbfa8285f1a90596a227690653d84b9eb2debe  linux-6.6.tar.xz' > \
     hashes/linux-6.6.tar.xz.sha1 &&
-  echo '78eb982244b857dbacb2ead25cc0f631ce44204d  musl-1.2.4.tar.gz' > \
-    hashes/musl-1.2.4.tar.gz.sha1 &&
   # mcm redundantly downloads tarball if hash file has newer timestamp,
   # and it whack-a-moles how to download kernels by version for some reason.
   touch -d @1 hashes/linux-6.6.tar.xz.sha1 &&
-  touch -d @1 hashes/musl-1.2.4.tar.gz.sha1 &&
   sed -i 's/\(.*linux-\)3\(.*\)v3.x/\16\2v6.x/' Makefile &&
 
   # nommu toolchains need to vfork()+pipe, and or1k has different kernel arch
