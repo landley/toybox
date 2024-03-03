@@ -732,3 +732,14 @@ int timer_settime_wrap(timer_t t, int flags, struct itimerspec *val,
   return syscall(SYS_timer_settime, t, flags, val, old);
 }
 #endif
+
+// Atomically swap two files
+int rename_exchange(char *file1, char *file2)
+{
+#if defined(__linux__)
+  // 2 is RENAME_EXCHANGE
+  return syscall(SYS_renameat2, AT_FDCWD, file1, AT_FDCWD, file2, 2);
+#else
+  return ENOSYS;
+#endif
+}

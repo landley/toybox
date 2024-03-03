@@ -403,6 +403,7 @@ int dev_makedev(int major, int minor);
 char *fs_type_name(struct statfs *statfs);
 
 int get_block_device_size(int fd, unsigned long long *size);
+int rename_exchange(char *file1, char *file2);
 
 #ifdef __APPLE__
 // Apple doesn't have POSIX timers; this is "just enough" for timeout(1).

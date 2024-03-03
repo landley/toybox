@@ -15,8 +15,8 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<1(preserve):;D(parents)RHLPprudaslvnF(remove-destination)fit:T[-HLPd][-niu][+Rr]", TOYFLAG_BIN))
-USE_MV(NEWTOY(mv, "<1v(verbose)nF(remove-destination)fit:T[-ni]", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<1(preserve):;D(parents)RHLPprudaslv(verbose)nF(remove-destination)fit:T[-HLPd][-niu][+Rr]", TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<1x(swap)v(verbose)nF(remove-destination)fit:T[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDp(preserve-timestamps)svt:m:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
@@ -31,7 +31,7 @@ config CP
     -a	Same as -dpr
     -D	Create leading dirs under DEST (--parents)
     -d	Don't dereference symlinks
-    -F	Delete any existing destination file first (--remove-destination)
+    -F	Delete any existing DEST first (--remove-destination)
     -f	Delete destination files we can't write to
     -H	Follow symlinks listed on command line
     -i	Interactive, prompt before overwriting existing DEST
@@ -61,14 +61,16 @@ config MV
   bool "mv"
   default y
   help
-    usage: mv [-finTv] [-t TARGET] SOURCE... [DEST]
+    usage: mv [-FfinTvx] [-t TARGET] SOURCE... [DEST]
 
+    -F	Delete any existing DEST first (--remove-destination)
     -f	Force copy by deleting destination file
     -i	Interactive, prompt before overwriting existing DEST
     -n	No clobber (don't overwrite DEST)
     -t	Move to TARGET dir (no DEST)
     -T	DEST always treated as file, max 2 arguments
     -v	Verbose
+    -x	Atomically exchange source/dest (--swap)
 
 config INSTALL
   bool "install"
@@ -464,21 +466,28 @@ void cp_main(void)
   }
 }
 
-void mv_main(void)
-{
-  toys.optflags |= FLAG_d|FLAG_p|FLAG_r;
-  TT.pflags =~0;
-
-  cp_main();
-}
-
-// Export cp flags into install's flag context.
+// Export cp's flags into mv and install flag context.
 
 static inline int cp_flag_F(void) { return FLAG_F; }
 static inline int cp_flag_p(void) { return FLAG_p; }
 static inline int cp_flag_v(void) { return FLAG_v; }
+static inline int cp_flag_dpr(void) { return FLAG_d|FLAG_p|FLAG_r; }
 
-// Switch to install's flag context
+#define FOR_mv
+#include <generated/flags.h>
+
+void mv_main(void)
+{
+  toys.optflags |= cp_flag_dpr();
+  TT.pflags =~0;
+
+  if (FLAG(x)) {
+    if (toys.optc != 2) error_exit("-x needs 2 args");
+    if (rename_exchange(toys.optargs[0], toys.optargs[1]))
+      perror_exit("-x %s %s", toys.optargs[0], toys.optargs[1]);
+  } else cp_main();
+}
+
 #define FOR_install
 #include <generated/flags.h>
 
