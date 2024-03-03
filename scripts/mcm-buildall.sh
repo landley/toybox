@@ -29,9 +29,9 @@ TARGETS=(i686:: aarch64:eabi:
   "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie"
   armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie"
   i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: or1k:: powerpc::
-  powerpc64:: powerpc64le:: s390x:: sh2eb:fdpic:--with-cpu=mj2
-  sh4::--enable-incomplete-targets x86_64::--with-mtune=nocona
-  x86_64@x32:x32:
+  powerpc64:: powerpc64le:: riscv64:: s390x:: sh2eb:fdpic:--with-cpu=mj2
+  sh4::--enable-incomplete-targets sh4eb::--enable-incomplete-targets
+  x86_64::--with-mtune=nocona x86_64@x32:x32:
 )
 
 # All toolchains after the first are themselves cross compiled (so they
@@ -71,7 +71,8 @@ make_toolchain()
     if [ "$TYPE" == static ]
     then
       HOST=$BOOTSTRAP
-      [ "$TARGET" = "$HOST" ] && LP="$PWD/host-$HOST/bin:$LP"
+      [ "$TARGET" = "$HOST" ] && LP="$PWD/host-$HOST/bin:$LP" &&
+        GCC_CONFIG="--build=${TARGET%%-*}-donotmatch-linux $GCC_CONFIG"
       TYPE=cross
       EXTRASUB=y
       LP="$OUTPUT/$HOST-cross/bin:$LP"
