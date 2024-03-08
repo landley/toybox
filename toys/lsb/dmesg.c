@@ -19,7 +19,7 @@ config DMESG
 
     -C	Clear ring buffer without printing
     -c	Clear ring buffer after printing
-    -n	Set kernel logging LEVEL (1-9)
+    -n	Set kernel logging LEVEL (1-8)
     -r	Raw output (with <level markers>)
     -S	Use syslog(2) rather than /dev/kmsg
     -s	Show the last SIZE many bytes
