@@ -40,8 +40,7 @@ static void watch_child(int sig)
 
   status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
   if (status) {
-    // TODO should this be beep()?
-    if (FLAG(b)) putchar('\b');
+    if (FLAG(b)) putchar('\a');
     if (FLAG(e)) {
       printf("Exit status %d\r\n", status);
       tty_reset();
@@ -89,6 +88,7 @@ void watch_main(void)
   xsignal_flags(SIGCHLD, watch_child, SA_RESTART|SA_NOCLDSTOP);
 
   for (;;) {
+    fflush(NULL);
 
     // Time for a new period?
     if ((now = millitime())>=then) {
