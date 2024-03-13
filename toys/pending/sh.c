@@ -3931,8 +3931,9 @@ do_then:
             printf("\n");
           } else {
             match = atoi(ss);
+            i = *s;
             free(ss);
-            if (!*ss) {
+            if (!i) {
               TT.ff->pl = blk->start;
               continue;
             } else setvarval(blk->fvar, (match<1 || match>blk->farg.c)
