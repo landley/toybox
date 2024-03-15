@@ -1,5 +1,4 @@
-/*
- * Simple XZ decoder command line tool
+/* xzcat.c - Simple XZ decoder command line tool
  *
  * Author: Lasse Collin <lasse.collin@tukaani.org>
  *
