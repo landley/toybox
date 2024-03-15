@@ -57,6 +57,19 @@ hostcomp()
   fi
 }
 
+# --as-needed removes libraries we don't use any symbols out of, but the
+# compiler has no way to ignore a library that doesn't exist, so detect
+# and skip nonexistent libraries for it (probing in parallel).
+LIBRARIES=$(
+  [ -z "$V" ] && X=/dev/null || X=/dev/stderr
+  for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
+  do
+    do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i >>$X 2>&1 \
+      -o /dev/null <<<"int main(int argc,char*argv[]){return 0;}"&&
+      echo -l$i &
+  done | sort | xargs
+)
+
 # Set/record build environment information
 compflags()
 {
@@ -67,7 +80,7 @@ compflags()
   echo '#!/bin/sh'
   echo
   echo "VERSION='$VERSION'"
-  echo "LIBRARIES='$(xargs 2>/dev/null < "$GENDIR/optlibs.dat")'"
+  echo "LIBRARIES='$LIBRARIES'"
   echo "BUILD='${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE '\"\$VERSION\""
   echo "LINK='$LDOPTIMIZE $LDFLAGS '\"\$LIBRARIES\""
   echo "PATH='$PATH'"
@@ -96,29 +109,6 @@ TOYFILES="main.c $(egrep -l "^USE_($TOYFILES)[(]...TOY[(]" toys/*/*.c | xargs)"
 if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
   echo -e "\n\033[1;31mwarning: using unfinished code from toys/pending\033[0m"
-fi
-
-# Probe library list if our compiler/linker options changed
-if [ ! -e "$GENDIR"/optlibs.dat ]
-then
-  echo -n "Library probe"
-
-  # --as-needed removes libraries we don't use any symbols out of, but the
-  # compiler has no way to ignore a library that doesn't exist, so detect
-  # and skip nonexistent libraries for it.
-
-  > "$GENDIR"/optlibs.new
-  [ -z "$V" ] && X=/dev/null || X=/dev/stderr
-  for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
-  do
-    do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i >>$X 2>&1 \
-      -o "$UNSTRIPPED"/libprobe <<<"int main(int argc,char*argv[]){return 0;}"&&
-      do_loudly echo -n ' '-l$i >> "$GENDIR"/optlibs.new
-  done
-  unset X
-  rm -f "$UNSTRIPPED"/libprobe
-  mv "$GENDIR"/optlibs.{new,dat} || exit 1
-  echo
 fi
 
 # Write build variables (and set them locally), then append build invocation.
