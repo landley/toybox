@@ -370,14 +370,14 @@ static void show_attributes(unsigned long offset, unsigned long size)
 
 static void show_notes(unsigned long offset, unsigned long size)
 {
-  char *note = TT.elf + offset;
+  char *note = TT.elf + offset, *end = TT.elf + offset + size;
 
   if (!fits("note", -1, offset, size)) return;
 
   printf("  %-20s%11s\tDescription\n", "Owner", "Data size");
-  while (note < TT.elf+offset+size) {
+  while (note < end) {
     char *p = note, *desc;
-    unsigned namesz=elf_int(&p), descsz=elf_int(&p), type=elf_int(&p), j=0;
+    unsigned namesz=elf_int(&p),descsz=elf_int(&p),type=elf_int(&p),j=0;
 
     if (namesz > size || descsz > size)
       return error_msg("%s: bad note @%lu", TT.f, offset);
@@ -392,13 +392,13 @@ static void show_notes(unsigned long offset, unsigned long size)
       } else if (type == 4) {
         printf("NT_GNU_GOLD_VERSION\t%.*s", descsz, p), j=1;
       } else if (type == 5) {
-        printf("NT_GNU_PROPERTY_TYPE_0\t");
-        while (descsz-j > 8) { // Ignore 0-padding at the end.
+        printf("NT_GNU_PROPERTY_TYPE_0\n    Properties:");
+        while (descsz - j > 0) {
           int pr_type = elf_int(&p);
           int pr_size = elf_int(&p), k, pr_data;
 
           j += 8;
-          printf("\n    Properties:    ");
+          if (p > end) return error_msg("%s: bad property @%lu", TT.f, offset);
           if (pr_size != 4) {
             // Just hex dump anything we aren't familiar with.
             for (k=0;k<pr_size;k++) printf("%02x", *p++);
@@ -406,16 +406,22 @@ static void show_notes(unsigned long offset, unsigned long size)
             j += pr_size;
           } else {
             pr_data = elf_int(&p);
-            j += 4;
+            elf_int(&p); // Skip padding.
+            j += 8;
             if (pr_type == 0xc0000000) {
-              printf("arm64 features:");
+              printf("\tarm64 features:");
               if (pr_data & 1) printf(" bti");
               if (pr_data & 2) printf(" pac");
               xputc('\n');
+            } else if (pr_type == 0xc0000002) {
+              printf("\tx86 feature:");
+              if (pr_data & 1) printf(" ibt");
+              if (pr_data & 2) printf(" shstk");
+              xputc('\n');
             } else if (pr_type == 0xc0008002) {
-              printf("x86 isa needed: x86-64v%d", ffs(pr_data));
+              printf("\tx86 isa needed: x86-64v%d", ffs(pr_data));
             } else {
-              printf("other (%#x): %#x", pr_type, pr_data);
+              printf("\tother (%#x): %#x", pr_type, pr_data);
             }
           }
         }
