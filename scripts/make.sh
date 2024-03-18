@@ -65,27 +65,27 @@ LIBRARIES=$(
   for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
   do
     do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i >>$X 2>&1 \
-      -o /dev/null <<<"int main(int argc,char*argv[]){return 0;}"&&
+      -o /dev/null <<<"int main(int argc,char*argv[]){return 0;}" &&
       echo -l$i &
   done | sort | xargs
 )
 
+[ -z "$VERSION" ] && [ -d ".git" ] && [ -n "$(which git 2>/dev/null)" ] &&
+  VERSION="$(git describe --tags --abbrev=12 2>/dev/null)"
+
 # Set/record build environment information
 compflags()
 {
-  [ -z "$VERSION" ] && [ -d ".git" ] && [ -n "$(which git 2>/dev/null)" ] &&
-   VERSION="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
-
-  # VERSION and LIBRARIES volatile, changing either does not require a rebuild
+  # The #d lines tag dependencies that force full rebuild if changed
   echo '#!/bin/sh'
   echo
   echo "VERSION='$VERSION'"
   echo "LIBRARIES='$LIBRARIES'"
-  echo "BUILD='${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE '\"\$VERSION\""
-  echo "LINK='$LDOPTIMIZE $LDFLAGS '\"\$LIBRARIES\""
-  echo "PATH='$PATH'"
-  echo "# Built from $KCONFIG_CONFIG"
-  echo
+  echo "BUILD='${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE" \
+       "'\"\${VERSION:+-DTOYBOX_VERSION=\\\"$VERSION\\\"}\" #d"
+  echo "LINK='$LDOPTIMIZE $LDFLAGS '\"\$LIBRARIES\" #d"
+  echo "#d Config was $KCONFIG_CONFIG"
+  echo "#d PATH was '$PATH'"
 }
 
 # Make sure rm -rf isn't gonna go funny
@@ -95,7 +95,7 @@ B="$(readlink -f "$PWD")/" A="$(readlink -f "$GENDIR")" A="${A%/}"/
 unset A B DOTPROG DIDNEWER
 
 # Force full rebuild if our compiler/linker options changed
-cmp -s <(compflags|sed '5,8!d') <($SED '5,8!d' "$GENDIR"/build.sh 2>/dev/null)||
+cmp -s <(compflags | grep '#d') <(grep '%d' "$GENDIR"/build.sh 2>/dev/null) ||
   rm -rf "$GENDIR"/* # Keep symlink, delete contents
 mkdir -p "$UNSTRIPPED"  "$(dirname $OUTNAME)" || exit 1
 
@@ -113,7 +113,11 @@ fi
 
 # Write build variables (and set them locally), then append build invocation.
 compflags > "$GENDIR"/build.sh && source "$GENDIR/build.sh" &&
-  echo -e "\$BUILD lib/*.c $TOYFILES \$LINK -o $OUTNAME" >> "$GENDIR"/build.sh&&
+  {
+    echo FILES=$'"\n'"$(fold -s <<<"$TOYFILES")"$'\n"' &&
+    echo &&
+    echo -e "\$BUILD lib/*.c \$FILES \$LINK -o $OUTNAME"
+  } >> "$GENDIR"/build.sh &&
   chmod +x "$GENDIR"/build.sh || exit 1
 
 if isnewer Config.in toys || isnewer Config.in Config.in
@@ -204,8 +208,6 @@ fi
     <<<"$STRUX" &&
   echo "} this;"
 } > "$GENDIR"/globals.h || exit 1
-#    -e 'h;y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/;H;g;s/\n/ /'\
-#    -e 's/\([^ ]*\) \(.*\)/\tUSE_\2(struct \1_data \1;)/p')"
 
 hostcomp mktags
 if isnewer tags.h toys
