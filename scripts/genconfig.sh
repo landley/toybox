@@ -77,11 +77,11 @@ WORKING= PENDING= EXAMPLE=
 toys toys/*/*.c | (
 while IFS=":" read FILE NAME
 do
+  echo -e "test_$NAME:\n\tscripts/test.sh $NAME\n"
   [ "$NAME" == help ] && continue
   [ "$NAME" == install ] && continue
   [ "$NAME" == sh ] && FILE="toys/*/*.c"
   echo -e "$NAME: $FILE *.[ch] lib/*.[ch]\n\tscripts/single.sh $NAME\n"
-  echo -e "test_$NAME:\n\tscripts/test.sh $NAME\n"
   [ "${FILE/example//}" != "$FILE" ] && EXAMPLE="$EXAMPLE $NAME" ||
   [ "${FILE/pending//}" != "$FILE" ] && PENDING="$PENDING $NAME" ||
     WORKING="$WORKING $NAME"
