@@ -76,7 +76,7 @@ testing "dummy0 default" \
 # Results Expected: After calling ifconfig dummy0, there is one line with the
 #                   selected MTU
 testing "dummy0 mtu 1269" \
-"ifconfig dummy0 mtu 1269 && ifconfig dummy0 | grep 1269 | wc -l" \
+"ifconfig dummy0 mtu 1269 && ifconfig dummy0 | grep MTU:1269 | wc -l" \
 "1\n" "" ""
 
 # Test Description: ifconfig add for IPv6 fails with an mtu too small for IPv6.
