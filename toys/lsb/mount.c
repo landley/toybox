@@ -373,24 +373,24 @@ void mount_main(void)
   // show mounts from /proc/mounts
   } else if (!dev) {
     for (mtl = xgetmountlist(0); mtl && (mm = dlist_pop(&mtl)); free(mm)) {
-      char *s = mm->device, *ss = "";
+      char *s = mm->device, *ss = "", *temp;
       struct stat st;
 
       if (TT.t && strcmp(TT.t, mm->type)) continue;
       if (*s == '/') {
-        s = xabspath(mm->device, 0);
-        if (!stat(s, &st) && S_ISBLK(st.st_mode) &&dev_major(st.st_rdev)==7) {
-          char *temp = xmprintf("/sys/block/loop%d/loop/backing_file",
+        if (!stat(mm->device, &st) && S_ISBLK(st.st_mode) &&
+            dev_major(st.st_rdev)==7)
+        {
+          temp = xmprintf("/sys/block/loop%d/loop/backing_file",
             dev_minor(st.st_rdev));
-
-          ss = chomp(readfile(temp, 0, 0));
+          s = chomp(readfile(temp, 0, 0));
           free(temp);
-          if (ss) {
-            temp = xmprintf(",file=%s"+!*mm->opts, ss);
-            free(ss);
-            ss = temp;
-          }
+          if (s) {
+            ss = xmprintf(",file=%s"+!*mm->opts, s);
+            free(s);
+          };
         }
+        s = xabspath(mm->device, 0);
       }
       xprintf("%s on %s type %s (%s%s)\n", s, mm->dir, mm->type, mm->opts, ss);
       if (s != mm->device) free(s);
