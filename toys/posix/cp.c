@@ -515,12 +515,15 @@ void install_main(void)
   TT.gid = TT.i.g ? xgetgid(TT.i.g) : -1;
 
   if (FLAG(d)) {
+    int mode = TT.i.m ? string_to_mode(TT.i.m, 0) : 0755;
+
     for (ss = toys.optargs; *ss; ss++) {
       if (FLAG(v)) printf("%s\n", *ss);
-      if (mkpathat(AT_FDCWD, *ss, 0777, MKPATHAT_MKLAST | MKPATHAT_MAKE))
+      if (mkpathat(AT_FDCWD, *ss, mode, MKPATHAT_MKLAST | MKPATHAT_MAKE))
         perror_msg_raw(*ss);
       if (FLAG(g)||FLAG(o))
         if (lchown(*ss, TT.uid, TT.gid)) perror_msg("chown '%s'", *ss);
+      if ((mode&~01777) && chmod(*ss, mode)) perror_msg("chmod '%s'", *ss);
     }
 
     return;
