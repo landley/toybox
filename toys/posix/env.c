@@ -8,16 +8,17 @@
  *
  * Deviations from posix: "-" argument and -0
 
-USE_ENV(NEWTOY(env, "^i0u*", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
+USE_ENV(NEWTOY(env, "^e:i0u*", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 
 config ENV
   bool "env"
   default y
   help
-    usage: env [-0i] [-u NAME] [NAME=VALUE...] [COMMAND...]
+    usage: env [-0i] [-e FILE] [-u NAME] [NAME=VALUE...] [COMMAND...]
 
     Set the environment for command invocation, or list environment variables.
 
+    -e	Execute FILE instead of argv[0] in COMMAND list
     -i	Clear existing environment
     -u NAME	Remove NAME from the environment
     -0	Use null instead of newline in output
@@ -28,6 +29,7 @@ config ENV
 
 GLOBALS(
   struct arg_list *u;
+  char *e;
 )
 
 void env_main(void)
@@ -51,13 +53,15 @@ void env_main(void)
       else xsetenv(xstrdup(*ev), 0);
       if (!strncmp(*ev, "PATH=", 5)) path=(*ev)+5;
     } else {
+      char *ex = TT.e ? : *ev;
+
       // unfortunately, posix has no exec combining p and e, so do p ourselves
-      if (!strchr(*ev, '/') && path) {
+      if (!strchr(ex, '/') && path) {
          errno = ENOENT;
-         for (sl = find_in_path(path, *ev); sl; sl = sl->next)
+         for (sl = find_in_path(path, ex); sl; sl = sl->next)
            execve(sl->str, ev, ee ? : environ);
-      } else execve(*ev, ev, ee ? : environ);
-      perror_msg("exec %s", *ev);
+      } else execve(ex, ev, ee ? : environ);
+      perror_msg("exec %s", ex);
       _exit(126+(errno == ENOENT));
     }
   }
