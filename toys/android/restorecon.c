@@ -33,12 +33,11 @@ void restorecon_main(void)
   char **s;
   int flags = 0;
 
-  if (toys.optflags & FLAG_D) flags |= SELINUX_ANDROID_RESTORECON_DATADATA;
-  if (toys.optflags & FLAG_F) flags |= SELINUX_ANDROID_RESTORECON_FORCE;
-  if (toys.optflags & (FLAG_R|FLAG_r))
-    flags |= SELINUX_ANDROID_RESTORECON_RECURSE;
-  if (toys.optflags & FLAG_n) flags |= SELINUX_ANDROID_RESTORECON_NOCHANGE;
-  if (toys.optflags & FLAG_v) flags |= SELINUX_ANDROID_RESTORECON_VERBOSE;
+  if (FLAG(D)) flags |= SELINUX_ANDROID_RESTORECON_DATADATA;
+  if (FLAG(F)) flags |= SELINUX_ANDROID_RESTORECON_FORCE;
+  if (FLAG(R) || FLAG(r)) flags |= SELINUX_ANDROID_RESTORECON_RECURSE;
+  if (FLAG(n)) flags |= SELINUX_ANDROID_RESTORECON_NOCHANGE;
+  if (FLAG(v)) flags |= SELINUX_ANDROID_RESTORECON_VERBOSE;
 
   for (s = toys.optargs; *s; s++)
     if (selinux_android_restorecon(*s, flags) < 0)
