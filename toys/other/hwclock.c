@@ -81,7 +81,8 @@ void hwclock_main()
   }
   if (FLAG(t) || FLAG(s)) {
     tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
+    if (settimeofday(NULL, &tzone)) perror_exit("settimeofday tzone failed");
+    if (settimeofday(&timeval, NULL)) perror_exit("settimeofday timeval failed");
   }
 
   xclose(fd);
