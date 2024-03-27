@@ -5,7 +5,7 @@
  *
  * No Standard.
 
-USE_INOTIFYD(NEWTOY(inotifyd, "<2", TOYFLAG_USR|TOYFLAG_BIN))
+USE_INOTIFYD(NEWTOY(inotifyd, "<2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config INOTIFYD
   bool "inotifyd"
