@@ -2991,10 +2991,11 @@ static struct zvalue *setup_lvalue(int ref_stack_ptr, int parmbase, int *field_n
 }
 
 
-static struct zfile *new_file(char *fn, FILE *fp, char mode, char f_or_p)
+static struct zfile *new_file(char *fn, FILE *fp, char mode, char file_or_pipe)
 {
   struct zfile *f = xzalloc(sizeof(struct zfile));
-  *f = (struct zfile){TT.zfiles, xstrdup(fn), fp, mode, f_or_p, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  *f = (struct zfile){TT.zfiles, xstrdup(fn), fp, mode, file_or_pipe,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0};
   return TT.zfiles = f;
 }
 
@@ -3033,7 +3034,7 @@ static int close_file(char *fn)
       xfree(p->recbuf_multi);
       xfree(p->recbuf_multx);
       xfree(p->fn);
-      r = (p->fp) ? (p->file_or_pipe == 'f' ? fclose : pclose)(p->fp) : -1;
+      r = (p->fp) ? (p->file_or_pipe ? fclose : pclose)(p->fp) : -1;
       *pp = p->next;
       xfree(p);
       if (fn) return r;
@@ -3047,7 +3048,7 @@ static struct zfile badfile_obj, *badfile = &badfile_obj;
 // FIXME TODO check if file/pipe/mode matches what's in the table already.
 // Apparently gawk/mawk/nawk are OK with different mode, but just use the file
 // in whatever mode it's already in; i.e. > after >> still appends.
-static struct zfile *setup_file(char *file_or_pipe, char *mode)
+static struct zfile *setup_file(char file_or_pipe, char *mode)
 {
   val_to_str(STKP);   // filename at top of TT.stack
   char *fn = STKP[0].vst->str;
@@ -3057,9 +3058,9 @@ static struct zfile *setup_file(char *file_or_pipe, char *mode)
       drop();
       return p;   // open; return it
     }
-  FILE *fp = (*file_or_pipe == 'f' ? fopen : popen)(fn, mode);
+  FILE *fp = (file_or_pipe ? fopen : popen)(fn, mode);
   if (fp) {
-    struct zfile *p = new_file(fn, fp, *mode, *file_or_pipe);
+    struct zfile *p = new_file(fn, fp, *mode, file_or_pipe);
     drop();
     return p;
   }
@@ -3816,9 +3817,9 @@ static int interpx(int start, int *status)
         int outmode = *ip++;
         struct zfile *outfp = TT.zstdout;
         switch (outmode) {
-          case tkgt: outfp = setup_file("f", "w"); break;
-          case tkappend: outfp = setup_file("f", "a"); break;
-          case tkpipe: outfp = setup_file("p", "w"); break;
+          case tkgt: outfp = setup_file(1, "w"); break;     // file
+          case tkappend: outfp = setup_file(1, "a"); break; // file
+          case tkpipe: outfp = setup_file(0, "w"); break;   // pipe
           default: nargs++; break;
         }
         nargs--;
@@ -4148,7 +4149,7 @@ static int interpx(int start, int *status)
         if (nargs == 2 && source == tkpipe) swap();
         struct zfile *zfp = 0;
         if (source == tklt || source == tkpipe) {
-          zfp = setup_file(source == tklt ? "f" : "p", "r");
+          zfp = setup_file(source == tklt, "r");
           nargs--;
         }
         // now cases are:
