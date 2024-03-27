@@ -3542,16 +3542,16 @@ static void gsub(int opcode, int nargs, int parmbase)
   if (field_num >= 0) fixup_fields(field_num);
 }
 
-static long time_ms(void)
+static long millinow(void)
 {
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
   return ts.tv_sec*1000+ts.tv_nsec/1000000;
 }
 
-static double (*mathfunc[])(double) = {cos, sin, exp, log, sqrt};
 static void math_builtin(int opcode, int nargs)
 {
+  double (*mathfunc[])(double) = {cos, sin, exp, log, sqrt};
   double d;
   switch (opcode) {
     case tkint:
@@ -3574,7 +3574,7 @@ static void math_builtin(int opcode, int nargs)
     case tksrand:
       if (nargs == 1) {
         STKP->num = seed_jkiss32((unsigned)trunc(val_to_num(STKP)));
-      } else push_int_val(seed_jkiss32((unsigned)time_ms()));
+      } else push_int_val(seed_jkiss32((unsigned)millinow()));
       break;
     default:
       if (tkcos <= opcode && opcode <= tksqrt) {
@@ -3683,48 +3683,24 @@ static int interpx(int start, int *status)
               (IS_NUM(&STKP[0]) &&
               (STKP[-1].flags & (ZF_NUM | ZF_NUMSTR) || !STKP[-1].flags))) {
           switch (opcode) {
-            case tklt:
-              cmp = STKP[-1].num < STKP[0].num;
-              break;
-            case tkle:
-              cmp = STKP[-1].num <= STKP[0].num;
-              break;
-            case tkne:
-              cmp = STKP[-1].num != STKP[0].num;
-              break;
-            case tkeq:
-              cmp = STKP[-1].num == STKP[0].num;
-              break;
-            case tkgt:
-              cmp = STKP[-1].num > STKP[0].num;
-              break;
-            case tkge:
-              cmp = STKP[-1].num >= STKP[0].num;
-              break;
+            case tklt: cmp = STKP[-1].num < STKP[0].num; break;
+            case tkle: cmp = STKP[-1].num <= STKP[0].num; break;
+            case tkne: cmp = STKP[-1].num != STKP[0].num; break;
+            case tkeq: cmp = STKP[-1].num == STKP[0].num; break;
+            case tkgt: cmp = STKP[-1].num > STKP[0].num; break;
+            case tkge: cmp = STKP[-1].num >= STKP[0].num; break;
           }
         } else {
           val_to_str(STKP-1);
           val_to_str(STKP);
           cmp = CMPSTR(STKP[-1], STKP[0]);
           switch (opcode) {
-            case tklt:
-              cmp = cmp < 0;
-              break;
-            case tkle:
-              cmp = cmp <= 0;
-              break;
-            case tkne:
-              cmp = cmp != 0;
-              break;
-            case tkeq:
-              cmp = cmp == 0;
-              break;
-            case tkgt:
-              cmp = cmp > 0;
-              break;
-            case tkge:
-              cmp = cmp >= 0;
-              break;
+            case tklt: cmp = cmp < 0; break;
+            case tkle: cmp = cmp <= 0; break;
+            case tkne: cmp = cmp != 0; break;
+            case tkeq: cmp = cmp == 0; break;
+            case tkgt: cmp = cmp > 0; break;
+            case tkge: cmp = cmp >= 0; break;
           }
         }
         drop();
