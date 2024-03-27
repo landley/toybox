@@ -4511,21 +4511,8 @@ static void progfiles_init(char *progstring, struct arg_list *prog_args)
   TT.scs->progstring = progstring;
   TT.scs->prog_args = prog_args;
   TT.scs->filename = "(cmdline)";
-  TT.scs->line = 0;      // for getline()
-  TT.scs->line_size = 0; // for getline()
-  TT.scs->line_num = 0;  // Not needed...
-  TT.scs->fp = 0;        // For get_char() initial state.
-
-  TT.scs->tok = 0;
-  TT.scs->tokbuiltin = 0;
-  TT.scs->toktype = 0;
   TT.scs->maxtok = 256;
   TT.scs->tokstr = xzalloc(TT.scs->maxtok);
-  TT.scs->toklen = 0;        // Needed?
-  TT.scs->ch = 0;        // Needed?
-
-  TT.scs->numval = 0;
-  TT.scs->error = 0;
 }
 
 static int awk(char *sepstring, char *progstring, struct arg_list *prog_args,
