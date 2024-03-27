@@ -1063,7 +1063,7 @@ static void scan(void)
 //    case tkmatchop, tknotmatch -- fix ~ (/re/)
 
 // Forward declarations -- for mutually recursive parsing functions
-static int exprn(int rbp);
+static int expr(int rbp);
 static void lvalue(void);
 static int primary(void);
 static void stmt(void);
@@ -1385,10 +1385,6 @@ static void map_name(void)
   gen2cd(tkvar, slotnum);
 }
 
-static void expr(void)
-{
-  exprn(0);
-}
 
 static void check_builtin_arg_counts(int tk, int num_args, char *fname)
 {
@@ -1421,10 +1417,10 @@ static void builtin_call(int tk, char *builtin_name)
       if (ISTOK(tkregex)) {
         gen2cd(tkregex, make_literal_regex_val(TT.tokstr));
         scan();
-      } else expr();
+      } else expr(0);
       expect(tkcomma);
       optional_nl();
-      expr();
+      expr(0);
       if (have_comma()) {
         lvalue();
       } else {
@@ -1435,18 +1431,18 @@ static void builtin_call(int tk, char *builtin_name)
       break;
 
     case tkmatch:
-      expr();
+      expr(0);
       expect(tkcomma);
       optional_nl();
       if (ISTOK(tkregex)) {
         gen2cd(tkregex, make_literal_regex_val(TT.tokstr));
         scan();
-      } else expr();
+      } else expr(0);
       num_args = 2;
       break;
 
     case tksplit:
-      expr();
+      expr(0);
       expect(tkcomma);
       optional_nl();
       if (ISTOK(tkvar) && (TT.scs->ch == ',' || TT.scs->ch == ')')) {
@@ -1454,7 +1450,7 @@ static void builtin_call(int tk, char *builtin_name)
         scan();
       } else {
         XERR("%s\n", "expected array name as split() 2nd arg");
-        expr();
+        expr(0);
       }
       // FIXME some recovery needed here!?
       num_args = 2;
@@ -1462,7 +1458,7 @@ static void builtin_call(int tk, char *builtin_name)
         if (ISTOK(tkregex)) {
           gen2cd(tkregex, make_literal_regex_val(TT.tokstr));
           scan();
-        } else expr();
+        } else expr(0);
         num_args++;
       }
       break;
@@ -1478,7 +1474,7 @@ static void builtin_call(int tk, char *builtin_name)
     default:
       if (ISTOK(tkrparen)) break;
       do {
-        expr();
+        expr(0);
         num_args++;
       } while (have_comma());
       break;
@@ -1533,7 +1529,7 @@ static void function_call(void)
         // context if it is a scalar or map. Just add it to symbol table.
         gen2cd(tkvar, find_or_add_var_name());
         scan();
-      } else expr();
+      } else expr(0);
       num_args++;
     } while (have_comma());
     expect(tkrparen);
@@ -1552,7 +1548,7 @@ static void var(void)
     check_set_map(slotnum);
     int num_subscripts = 0;
     do {
-      expr();
+      expr(0);
       num_subscripts++;
     } while (have_comma());
     expect(tkrbracket);
@@ -1717,7 +1713,7 @@ static int primary(void)
     case tkminus:
     case tkplus:
       scan();
-      exprn(getlbp(tknot));   // unary +/- same precedence as !
+      expr(getlbp(tknot));   // unary +/- same precedence as !
       if (tok == tknot) gencd(tknot);
       else gencd(opnegate);               // forces to number
       if (tok == tkplus) gencd(opnegate); // forces to number
@@ -1737,7 +1733,7 @@ static int primary(void)
       TT.cgl.paren_level++;
       num_exprs = 0;
       do {
-        expr();
+        expr(0);
         num_exprs++;
       } while (have_comma());
       expect(tkrparen);
@@ -1759,7 +1755,7 @@ static int primary(void)
         nargs++;
       }
       if (havetok(tklt)) {
-        exprn(getrbp(tkcat));   // bwk "historical practice" precedence
+        expr(getrbp(tkcat));   // bwk "historical practice" precedence
         nargs++;
         modifier = tklt;
       }
@@ -1811,7 +1807,7 @@ static void binary_op(int optor)  // Also for ternary ?: optor.
       optional_nl();
       gen2cd(optor, -1);  // tkand: jump if false, else drop
       cdx = TT.zcode_last;   // tkor:  jump if true, else drop
-      exprn(rbp);
+      expr(rbp);
       gencd(opnotnot);    // replace TT.stack top with truth value
       ZCODE[cdx] = TT.zcode_last - cdx;
       break;
@@ -1819,24 +1815,24 @@ static void binary_op(int optor)  // Also for ternary ?: optor.
   case tkternif:
       gen2cd(optor, -1);
       cdx = TT.zcode_last;
-      expr();
+      expr(0);
       expect(tkternelse);
       gen2cd(tkternelse, -1);
       ZCODE[cdx] = TT.zcode_last - cdx;
       cdx = TT.zcode_last;
-      exprn(rbp);
+      expr(rbp);
       ZCODE[cdx] = TT.zcode_last - cdx;
       break;
 
   case tkmatchop:
   case tknotmatch:
-      exprn(rbp);
+      expr(rbp);
       if (ZCODE[TT.zcode_last - 1] == opmatchrec) ZCODE[TT.zcode_last - 1] = tkregex;
       gencd(optor);
       break;
 
   default:
-      exprn(rbp);
+      expr(rbp);
       gencd(optor);
   }
 }
@@ -1853,7 +1849,7 @@ static int cat_start_concated_expr(int tok)
 
 #define CALLED_BY_PRINT 99987 // Arbitrary, different from any real rbp value
 
-static int exprn(int rbp)
+static int expr(int rbp)
 {
   // On entry: TT.scs has first symbol of expression, e.g. var, number, string,
   // regex, func, getline, left paren, prefix op ($ ++ -- ! unary + or -) etc.
@@ -1891,7 +1887,7 @@ static int exprn(int rbp)
     if (prim_st < 0 && (rbp <= getrbp(optor) || strchr(odd_assignment_rbp, rbp))) {
       convert_push_to_reference();
       scan();
-      exprn(getrbp(optor));
+      expr(getrbp(optor));
       gencd(optor);
       return 0;
     }
@@ -1917,17 +1913,17 @@ static void print_stmt(int tk)
   if ((tk == tkprintf) || !strchr(printexprendsy, CURTOK())) {
     // printf always needs expression
     // print non-empty statement needs expression
-    num_exprs = exprn(CALLED_BY_PRINT);
+    num_exprs = expr(CALLED_BY_PRINT);
     if (num_exprs > 0 && !strchr(printexprendsy, CURTOK())) FATAL("print stmt bug");
     if (!num_exprs) {
       for (num_exprs++; have_comma(); num_exprs++)
-        expr();
+        expr(0);
     }
   }
   outmode = CURTOK();
   if (strchr(outmodes, outmode)) {
     scan();
-    expr(); // FIXME s/b only bwk term? check POSIX
+    expr(0); // FIXME s/b only bwk term? check POSIX
     num_exprs++;
   } else outmode = 0;
   gen2cd(tk, num_exprs);
@@ -1945,7 +1941,7 @@ static void delete_stmt(void)
     if (havetok(tklbracket)) {
       int num_subscripts = 0;
       do {
-        expr();
+        expr(0);
         num_subscripts++;
       } while (have_comma());
       expect(tkrbracket);
@@ -1963,7 +1959,7 @@ static void delete_stmt(void)
 static void simple_stmt(void)
 {
   if (strchr(exprstartsy, CURTOK())) {
-    expr();
+    expr(0);
     gencd(opdrop);
     return;
   }
@@ -1997,7 +1993,7 @@ static void if_stmt(void)
 {
   expect(tkif);
   expect(tklparen);
-  expr();
+  expr(0);
   rparen();
   gen2cd(tkif, -1);
   int cdx = TT.zcode_last;
@@ -2038,7 +2034,7 @@ static void while_stmt(void)
   expect(tkwhile);
   expect(tklparen);
   TT.cgl.continue_dest = TT.zcode_last + 1;
-  expr();
+  expr(0);
   rparen();
   gen2cd(tkwhile, 2);    // drop, jump if true
   TT.cgl.break_dest = TT.zcode_last + 1;
@@ -2075,7 +2071,7 @@ static void do_stmt(void)
   optional_nl();
   expect(tkwhile);
   expect(tklparen);
-  expr();
+  expr(0);
   rparen();
   gen2cd(tkwhile, TT.cgl.break_dest - TT.zcode_last - 1);
   ZCODE[TT.cgl.break_dest + 1] = TT.zcode_last - TT.cgl.break_dest - 1;
@@ -2092,7 +2088,7 @@ static void for_not_map_iter(void)
     gen2cd(opjump, -1);     // jump to statement
   } else {
     optional_nl();                // NOT posix or awk book; in OTA
-    expr();                 // loop while true
+    expr(0);                 // loop while true
     expect(tksemi);
     gen2cd(tkwhile, -1);    // drop, jump to statement if true
   }
@@ -2197,7 +2193,7 @@ static void stmt(void)
     case tkexit:
       scan();
       if (strchr(exprstartsy, CURTOK())) {
-        expr();
+        expr(0);
       } else gen2cd(tknumber, make_literal_num_val(NO_EXIT_STATUS));
       gencd(tkexit);
       break;
@@ -2206,7 +2202,7 @@ static void stmt(void)
       scan();
       if (TT.cgl.stack_offset_to_fix) gen2cd(opdrop_n, TT.cgl.stack_offset_to_fix);
       if (strchr(exprstartsy, CURTOK())) {
-        expr();
+        expr(0);
       } else gen2cd(tknumber, make_literal_num_val(0.0));
       gen2cd(tkreturn, TT.cgl.nparms);
       if (!TT.cgl.in_function_body) XERR("%s", "return outside function def\n");
@@ -2394,7 +2390,7 @@ static void rule(void)
       gen2cd(opjump, 1);
       gencd(tkeof);
       int cdx = 0, saveloc = TT.zcode_last;
-      expr();
+      expr(0);
       if (!have_comma()) {
         gen2cd(tkif, -1);
         cdx = TT.zcode_last;
@@ -2405,7 +2401,7 @@ static void rule(void)
         ZCODE[saveloc-2] = oprange1;
         ZCODE[saveloc-1] = TT.cgl.range_pattern_num;
         ZCODE[saveloc] = TT.zcode_last - saveloc;
-        expr();
+        expr(0);
         gen2cd(oprange3, TT.cgl.range_pattern_num);
       }
       if (ISTOK(tklbrace)) {
