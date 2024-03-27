@@ -1,0 +1,416 @@
+#!/bin/bash
+
+# Original found at http://lists.landley.net/pipermail/toybox-landley.net/2015-March/015201.html
+
+# Copyright 2015 Divya Kothari <divya.s.kothari@gmail.com>                    
+
+# 2023: A few mods by Ray Gardner <raygard@gmail.com>
+#   See "awk -f test04.awk" near line 170
+#   and "awk -e ..." tests near line 410
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+FILE1="abc def ghi 5\nghi jkl mno 10\nmno pqr stu 15\nstu vwx abc 20\n"
+FILE2="abc,def,ghi,5\nghi,jkl,mno,10\nmno,pqr,stu,15\nstu,vwx,abc,20\n"
+FILE3="abc:def:ghi:5\nghi:jkl:mno:10\nmno:pqr:stu:15\nstu:vwx:abc:20\n"
+FILE4="abc def ghi -5\nghi jkl mno -10\nmno pqr stu -15\nstu vwx abc -20\n"
+
+testing "awk PATTERN input" "awk '/abc/' input" \
+  "abc def ghi 5\nstu vwx abc 20\n" "$FILE1" ""
+
+testing "awk SUBPATTERN input" "awk '/ab/' input" \
+  "abc def ghi 5\nstu vwx abc 20\n" "$FILE1" ""
+
+testing "awk FIELD input" "awk '{print \$2,\$3}' input" \
+  "def ghi\njkl mno\npqr stu\nvwx abc\n" "$FILE1" ""
+
+testing "awk FIELD input (out range)" "awk '{print \$2,\$8}' input" \
+  "def \njkl \npqr \nvwx \n" "$FILE1" ""
+
+L1="def def def def def def def def def def"
+L2="jkl jkl jkl jkl jkl jkl jkl jkl jkl jkl"
+L3="pqr pqr pqr pqr pqr pqr pqr pqr pqr pqr"
+L4="vwx vwx vwx vwx vwx vwx vwx vwx vwx vwx"
+testing "awk FIELD input (single, multiple times)" \
+  "awk '{ print \$2,\$2,\$2,\$2,\$2,\$2,\$2,\$2,\$2,\$2 }' input" \
+  "$L1\n$L2\n$L3\n$L4\n" "$FILE1" ""
+
+
+HEAD="Head1\tHead2\tHead3"
+FOOT="Report Generated"
+testing "awk CODE input" "awk 'BEGIN { print \"$HEAD\"; } {
+   print \$1,\"\t\",\$3; } END { print \"$FOOT\"; }' input" \
+  "$HEAD\nabc \t ghi\nghi \t mno\nmno \t stu\nstu \t abc\n$FOOT\n" "$FILE1" ""
+
+testing "awk '>' input" "awk '\$4>0' input" \
+  "abc def ghi 5\nghi jkl mno 10\nmno pqr stu 15\nstu vwx abc 20\n" "$FILE1" ""
+
+testing "awk '<' input" "awk '\$4<25' input" \
+  "abc def ghi 5\nghi jkl mno 10\nmno pqr stu 15\nstu vwx abc 20\n" "$FILE1" ""
+
+testing "awk '==' input" "awk '\$4==15' input" "mno pqr stu 15\n" "$FILE1" ""
+
+testing "awk CMP input" "awk '\$1~/abc/' input" "abc def ghi 5\n" "$FILE1" ""
+
+testing "awk COUNT input" "awk 'BEGIN { count=0; } \$1~/abc/ { count++; } END {
+   print \"Total Count =\",count; }' input" "Total Count = 1\n" "$FILE1" ""
+
+testing "awk COLUMN input" "awk '{ print \$1 }' input" "abc\nghi\nmno\nstu\n" \
+  "$FILE1" ""
+
+testing "awk SUM input" "awk 'BEGIN { sum=0; } { sum=sum+\$4; } END {
+   print \"Sum is =\",sum; }' input" "Sum is = 50\n" "$FILE1" ""
+
+testing "awk IF input" "awk '{ if(\$2 == \"jkl\") print \$1; }' input" "ghi\n" \
+  "$FILE1" ""
+
+testing "awk FOR MUL input" \
+  "awk 'BEGIN { for(i=1;i<=3;i++) print \"square of\", i, \"is\",i*i; }'" \
+  "square of 1 is 1\nsquare of 2 is 4\nsquare of 3 is 9\n" "" ""
+
+testing "awk FOR ADD input" \
+  "awk 'BEGIN { for(i=1;i<=3;i++) print \"twice of\", i, \"is\",i+i; }'" \
+  "twice of 1 is 2\ntwice of 2 is 4\ntwice of 3 is 6\n" "" ""
+
+testing "awk FOR SUB input" \
+  "awk 'BEGIN { for(i=1;i<=3;i++) print \"sub of\", i, \"is\",i-i; }'" \
+  "sub of 1 is 0\nsub of 2 is 0\nsub of 3 is 0\n" "" ""
+
+testing "awk {FS:invalid} input1" "awk 'BEGIN { FS=\"69793793\" } { print \$2
+   }' input" "\n\n\n\n" "$FILE3" ""
+
+testing "awk -F invalid input1" "awk -F69793793 '{ print \$2 }' input" \
+  "\n\n\n\n" "$FILE3" ""
+
+testing "awk {FS} input2" "awk 'BEGIN { FS=\",\" } { print \$2 }' input" \
+  "def\njkl\npqr\nvwx\n" "$FILE2" ""
+
+testing "awk -F input2" "awk -F\",\" '{ print \$2 }' input" \
+  "def\njkl\npqr\nvwx\n" "$FILE2" ""
+
+testing "awk {FS} input3" "awk 'BEGIN { FS=\":\" } { print \$2 }' input" \
+  "def\njkl\npqr\nvwx\n" "$FILE3" ""
+
+testing "awk -F input3" "awk -F: '{ print \$2 }' input" "def\njkl\npqr\nvwx\n" \
+  "$FILE3" ""
+
+testing "awk {OFS} {1} input" "awk 'BEGIN { OFS=\"__\" } { print \$2 }' input" \
+  "def\njkl\npqr\nvwx\n" "$FILE1" ""
+
+testing "awk {OFS} {1,2} input" "awk 'BEGIN { OFS=\"__\" } { print \$2,\$3
+   }' input" "def__ghi\njkl__mno\npqr__stu\nvwx__abc\n" "$FILE1" ""
+
+testing "awk {NF} input" "awk '{print NF}' input" "4\n4\n4\n4\n" "$FILE1" ""
+
+testing "awk {NR} input" "awk '{print NR}' input" "1\n2\n3\n4\n" "$FILE1" ""
+
+testing "awk END{NR} input" "awk 'END {print NR}' input" "4\n" "$FILE1" ""
+
+testing "awk SPLIT input" "awk '{ split(\$0,arr,\" \"); if(arr[3] == \"abc\")
+   print \$2 }' input" "vwx\n" "$FILE1" ""
+
+testing "awk SUBSTR input" "awk '{if (substr(\$0,1,3) == \"abc\") { print \$3 }
+   }' input" "ghi\n" "$FILE1" ""
+
+testing "awk SEARCH {PRINT} input" "awk '/ghi/ {print \$1,\$2,\$3,\$4}' input" \
+  "abc def ghi 5\nghi jkl mno 10\n" "$FILE1" ""
+
+testing "awk SEARCH {PRINTF} input" "awk '/ghi/ { printf \$1 \$2 \$3 \$4 
+   }' input" "abcdefghi5ghijklmno10" "$FILE1" ""
+
+testing "awk {PRINT with TAB} input" "awk '{print \$2,\"\t\",\$4}' input" \
+  "def \t 5\njkl \t 10\npqr \t 15\nvwx \t 20\n" "$FILE1" ""
+
+testing "awk {PRINT 2,4} input" "awk '{print \$2,\$4}' input" \
+  "def 5\njkl 10\npqr 15\nvwx 20\n" "$FILE1" ""
+
+testing "awk {PRINT 4,2} input" "awk '{print \$4,\$2}' input" \
+  "5 def\n10 jkl\n15 pqr\n20 vwx\n" "$FILE1" ""
+
+testing "awk {PRINT X,Y} input" "awk '{print \$6,\$9}' input" \
+  " \n \n \n \n" "$FILE1" ""
+
+testing "awk {PRINT} input" "awk '{ print }' input" "$FILE1" "$FILE1" ""
+
+testing "awk INVALID_ARGS1 input" "awk '{ print x,y }' input" \
+  " \n \n \n \n" "$FILE1" ""
+
+testing "awk INVALID_ARGS2 input" "awk '{ print \$4,\$5 }' input" \
+  "5 \n10 \n15 \n20 \n" "$FILE1" ""
+
+testing "awk PATTERN input (not found)" "awk '/abcd/' input && echo 'yes'" \
+  "yes\n" "$FILE1" ""
+
+testing "awk {PATTERN:-ve} input" "awk '/-5/' input" "abc def ghi -5\n" \
+  "$FILE4" ""
+
+testing "awk FIELD input (high value)" "awk '{print \$99999}' input &&
+   echo 'yes'" "\n\n\n\nyes\n" "$FILE1" ""
+
+#### Starting "-f file" tests ####
+
+echo "{ if (\$1 == \"#START\") { FS=\":\"; } else if (\$1 == \"#STOP\") {
+  FS=\" \"; } else { print \$3 } }" > test.awk
+testing "awk -f test01.awk" "awk -f test.awk input" \
+  "ghi\nmno\nstu\nabc\n" "$FILE1" ""
+
+echo "BEGIN { i=1; while (i <= 5) { printf i \"-\" i*i \" \"; i=i+1; }
+  for (i=1; i <= 5; i++) { printf i \"-\" i*i \" \"; } }" > test.awk
+testing "awk -f test02.awk" "awk -f test.awk" \
+  "1-1 2-4 3-9 4-16 5-25 1-1 2-4 3-9 4-16 5-25 " "" ""
+
+echo "BEGIN { print \"Start.\" } { print \$1,\"-\",\$1*\$1; }
+  END { print \"End.\" }" > test.awk
+testing "awk -f test03.awk" "awk -f test.awk" \
+  "Start.\n5 - 25\n10 - 100\n15 - 225\n20 - 400\nEnd.\n" "" "5\n10\n15\n20\n"
+
+### echo "{ if ( \$0 ~ /:/ ) {FS=\":\";} else {FS=\" \";} print \$3 }" > test.awk
+### testing "awk -f test04.awk" "awk -f test.awk input" \
+###   "ghi\nmno\nstu\nabc\nghi\nmno\nstu\nabc\n" "$FILE1$FILE3" ""
+
+### TEST ERROR This test originally ended with:
+###   "ghi\nmno\nstu\nabc\nghi\nmno\nstu\nabc\n" "$FILE1$FILE3" ""
+### This is wrong; gawk/mawk/bbawk/bwk awk agree that second ghi should not appear.
+### (My current version of goawk agrees with the "wrong" expected value;
+###  I need to update to latest goawk and test again. rdg 2023-10-29)
+echo "{ if ( \$0 ~ /:/ ) {FS=\":\";} else {FS=\" \";} print \$3 }" > test.awk
+testing "awk -f test04.awk" "awk -f test.awk input" \
+  "ghi\nmno\nstu\nabc\n\nmno\nstu\nabc\n" "$FILE1$FILE3" ""
+
+echo "BEGIN { lines=0; total=0; } { lines++; total+=\$1; } END {
+  print \"Read:\",lines; print \"Total:\",total; if (lines > 0 ) {
+  print \"Average:\", total/lines; } else { print \"0\"; } }" > test.awk
+testing "awk -f test05.awk" "awk -f test.awk input" \
+  "Read: 5\nTotal: 150\nAverage: 30\n" "10\n20\n30\n40\n50\n" ""
+
+echo "BEGIN{FS=\":\";}{if(\$2==\"pqr\"){print \"first one:\", \$1;}}" > test.awk
+testing "awk -f test06.awk" "awk -f test.awk input" \
+  "first one: mno\n" "$FILE3" ""
+
+echo "{ print \$2; FS=\":\"; print \$2 }" > test.awk
+testing "awk -f test07.awk" "awk -f test.awk input" \
+  "\n\njkl\njkl\npqr\npqr\nvwx\nvwx\n" "$FILE3" ""
+
+echo "BEGIN { FS=\":\"; OFS=\":\"; } { \$2=\"\"; print }" > test.awk
+testing "awk -f test09.awk" "awk -f test.awk input" \
+  "abc::ghi:5\nghi::mno:10\nmno::stu:15\nstu::abc:20\n" "$FILE3" ""
+
+mkdir dir && touch dir/file && LLDATA="`ls -l dir`"
+rm -rf dir
+echo "{ if (NF==8) { print \$8; } else if (NF==9) { print \$9; } }" > test.awk
+testing "awk -f test10.awk" "awk -f test.awk input" "file\n" "$LLDATA" ""
+
+echo "{ if (NR >= 1) { print NR;} }" > test.awk
+testing "awk -f test11.awk" "awk -f test.awk input" "1\n2\n" "$LLDATA" ""
+
+echo "BEGIN { RS=\"\"; FS=\"\n\" } { print \$2,\$3; }" > test.awk
+testing "awk -f test12.awk" "awk -f test.awk input" \
+  "ghi jkl mno 10 mno pqr stu 15\n" "$FILE1" ""
+
+L="abc\ndef\nghi\n5\nghi\njkl\nmno\n10\nmno\npqr\nstu\n15\nstu\nvwx\nabc\n20\n"
+echo "BEGIN { RS=\" \"; } { print; }" > test.awk
+testing "awk -f test13.awk" "awk -f test.awk input" "$L\n" "$FILE1" ""
+
+L="abc def ghi 5\r\nghi jkl mno 10\r\nmno pqr stu 15\r\nstu vwx abc 20\r\n"
+echo "BEGIN { ORS=\"\r\n\" } { print }" > test.awk
+testing "awk -f test14.awk" "awk -f test.awk input" "$L" "$FILE1" ""
+
+echo "BEGIN { f=\"\"; }{ if(f != FILENAME){ f=FILENAME; print f }}" > test.awk
+testing "awk -f test15.awk" "awk -f test.awk input" "input\n" "$FILE1" ""
+
+echo "{ if (NF == 6) { } else { if (FILENAME == \"-\" ) { print \"ERROR\",
+  NR,\"line:\"; } else { print \"ERROR\",FILENAME,NR;}}}" > test.awk
+testing "awk -f test16.awk" "awk -f test.awk input" \
+  "ERROR input 1\nERROR input 2\nERROR input 3\nERROR input 4\n" "$FILE1" ""
+
+echo "BEGIN { number_of_users=0; } { if (NF>7) {
+  user=0; for (i=1; i<=number_of_users; i++) { if (username[i] == \$3) { user=i;
+  } } if (user == 0) { username[++number_of_users]=\$3; user=number_of_users; }
+  count[user]++; } } END { for (i=1; i<=number_of_users; i++) { 
+  print count[i], username[i] } } " > test.awk
+testing "awk -f test17.awk" "awk -f test.awk input" "1 $USER\n" "$LLDATA" ""
+
+echo "{ usrname[\$3]++;}END{for(i in usrname){print usrname[i],i;} }" > test.awk
+testing "awk -f test18.awk" "awk -f test.awk input" "1 \n1 $USER\n" "$LLDATA" ""
+
+echo "{ if (NF>7) { username[\$3]++; } } END { for (i in username) { 
+  print username[i], i; } }" > test.awk
+testing "awk -f test19.awk" "awk -f test.awk input" "1 $USER\n" "$LLDATA" ""
+
+echo "BEGIN { username[\"\"]=0; } { username[\$3]++; } END {
+  for (i in username) { if (i != \"\") { print username[i], i; }}}" > test.awk
+testing "awk -f test20.awk" "awk -f test.awk input" "1 $USER\n" "$LLDATA" ""
+
+echo "{ printf \"%5s %3d\n\", \$3, \$4; }" > test.awk
+testing "awk -f test22.awk" "awk -f test.awk input" \
+  "  ghi   5\n  mno  10\n  stu  15\n  abc  20\n" "$FILE1" ""
+
+echo "BEGIN { format1 =\"%8s %6sn\"; format2 =\"%8s %6dn\"; }
+  { printf(format2, \$1, \$4); }" > test.awk
+testing "awk -f test23.awk" "awk -f test.awk input" \
+  "     abc      5n     ghi     10n     mno     15n     stu     20n" "$FILE1" ""
+
+echo "END { for (i=1;i<=2;i++) {
+  printf(\"i=%d\n\", i) > \"ConcatedFile_a\" i; } }" > test.awk
+testing "awk -f test24.awk" "awk -f test.awk && cat ConcatedFile_a1 &&
+  cat ConcatedFile_a2 && rm -f ConcatedFile_a*" "i=1\ni=2\n" "" ""
+
+L1="             abc def ghi 5\n"
+L2="            ghi jkl mno 10\n"
+L3="            mno pqr stu 15\n"
+L4="            stu vwx abc 20\n"
+echo "{ if (length(\$0) < 80) { prefix = \"\";
+  for (i = 1;i<(40-length(\$0))/2;i++) { prefix = prefix \" \" };
+  print prefix \$0; } else { print; } }" > test.awk
+testing "awk -f test26.awk" "awk -f test.awk input" "$L1$L2$L3$L4" "$FILE1" ""
+
+echo "{ line = \$0; while (substr(line,length(line),1) == \"\\\\\") {
+  line = substr(line,1,length(line)-1); i=getline; if (i > 0) {
+  line = line \$0; } else { printf(\"%d\", NR); } } print line; }" > test.awk
+testing "awk -f test27.awk" "awk -f test.awk input" "$FILE1" "$FILE1" ""
+
+echo "BEGIN { for (x = 0; x <= 20; x++) { if (x == 5) { continue; }
+  printf \"%d \",x } print \"\" }" > test.awk
+testing "awk -f test28.awk" "awk -f test.awk" \
+  "0 1 2 3 4 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \n" "" ""
+
+echo "{ i = 1; while (i <= 2) { print \$i; i++ } }" > test.awk
+testing "awk -f test29.awk" "awk -f test.awk input" \
+  "abc\ndef\nghi\njkl\nmno\npqr\nstu\nvwx\n" "$FILE1" ""
+
+L1="abc def ghi 5\nabc def ghi 5\nabc def ghi 5\n"
+L2="ghi jkl mno 10\nghi jkl mno 10\nghi jkl mno 10\n"
+L3="mno pqr stu 15\nmno pqr stu 15\nmno pqr stu 15\n"
+L4="stu vwx abc 20\nstu vwx abc 20\nstu vwx abc 20\n"
+echo "{ i = 1; do { print \$0; i++ } while (i <= 3) }" > test.awk
+testing "awk -f test30.awk" "awk -f test.awk input" "$L1$L2$L3$L4" "$FILE1" ""
+
+echo "{ for (i = 1; i <= 3; i++) print \$i }" > test.awk
+testing "awk -f test31.awk" "awk -f test.awk input" \
+  "abc\ndef\nghi\nghi\njkl\nmno\nmno\npqr\nstu\nstu\nvwx\nabc\n" "$FILE1" ""
+
+echo "{ num = \$1; for (div = 2; div*div <= num; div++) { if (num % div == 0) {
+  break } } if (num % div == 0) { printf \"divisor of %d is %d\n\", num, div }
+  else { printf \"%d is prime\n\", num } }" > test.awk
+testing "awk -f test32.awk" "awk -f test.awk input" \
+  "divisor of 10 is 2\ndivisor of 15 is 3\n17 is prime\n" "10\n15\n17\n" ""
+
+echo "BEGIN { for (i = 0; i < ARGC; i++) { print ARGV[i] } }" > test.awk
+testing "awk -f test33.awk" "awk -f test.awk input1 input2 input3 input4" \
+  "awk\ninput1\ninput2\ninput3\ninput4\n" "$FILE1" ""
+
+echo "NR == 2 { NR = 17 } { print NR }" > test.awk
+testing "awk -f test34.awk" "awk -f test.awk input" "1\n17\n18\n19\n" \
+  "$FILE1" ""
+
+echo "BEGIN{n=0;}/abc/{++n;}END{print \"abc appears\",n,\"times\"}" > test.awk
+testing "awk -f test35.awk" "awk -f test.awk input" "abc appears 2 times\n" \
+  "$FILE1" ""
+
+echo "{ print \"Square root of\", \$1, \"is\", sqrt(\$1) }" > test.awk
+testing "awk -f test36.awk" "awk -f test.awk input" \
+  "Square root of 25 is 5\n" "25" ""
+
+FILE5="foo bar 2500\nabc def 2400\n"
+echo "\$1 == \"foo\" { print \$2 }" > test.awk
+testing "awk -f test37.awk" "awk -f test.awk input" "bar\n" "$FILE5" ""
+
+echo "/2400/ && /foo/" > test.awk
+testing "awk -f test38.awk" "awk -f test.awk input" "" "$FILE5" ""
+
+echo "/2400/ || /foo/" > test.awk
+testing "awk -f test39.awk" "awk -f test.awk input" "$FILE5" "$FILE5" ""
+
+echo "! /foo/" > test.awk
+testing "awk -f test40.awk" "awk -f test.awk input" "abc def 2400\n" "$FILE5" ""
+
+echo "\$1 ~ /foo/ { print \$2 }" > test.awk
+testing "awk -f test41.awk" "awk -f test.awk input" "bar\n" "$FILE5" ""
+
+echo "{ if (! (\$0 ~ /foo/)) print }" > test.awk
+testing "awk -f test42.awk" "awk -f test.awk input" "abc def 2400\n" "$FILE5" ""
+
+FILE6="Pat 100 97 58\nSandy 84 72 93\nChris 72 92 89\n"
+
+echo "{ print \"F1:\", \$1 }" > test.awk
+testing "awk -f test43.awk" "awk -f test.awk input" "F1: foo\nF1: abc\n" \
+  "$FILE5" ""
+
+echo "{ sum = \$2 + \$3 + \$4 ; avg = sum / 3; print \$1, avg }" > test.awk
+testing "awk -f test44.awk" "awk -f test.awk input" \
+  "Pat 85\nSandy 83\nChris 84.3333\n" "$FILE6" ""
+
+echo "{ print \$1 > \"list1\"; print \$2 > \"list2\" }" > test.awk
+testing "awk -f test45.awk" "awk -f test.awk input && cat list1 && cat list2" \
+  "Pat\nSandy\nChris\n100\n84\n72\n" "$FILE6" ""
+rm -f list1 list2
+
+echo "{ print \$(2*2) }" > test.awk
+testing "awk -f test46.awk" "awk -f test.awk input" "58\n93\n89\n" "$FILE6" ""
+
+echo "{ sub(/a+/,\"<A>\"); print }" > test.awk
+testing "awk -f test47.awk" "awk -f test.awk input" \
+  "P<A>t 100 97 58\nS<A>ndy 84 72 93\nChris 72 92 89\n" "$FILE6" ""
+
+echo "{ l[lines] = \$0; ++lines } END { for (i = lines-1; i >= 0; --i) {
+  print l[i]} }" > test.awk
+testing "awk -f test48.awk" "awk -f test.awk input" \
+  "Chris 72 92 89\nSandy 84 72 93\n\n" "$FILE6" ""
+
+FILE7="Pat 100 97 58 77 89 11 45\nSandy 84 729\nChris 92 89\nsagar 22 2213\n"
+L1="Pat 100 97 58 77 89 11 45"
+L2="sagar 22 2213"
+L3="dd 335566778856"
+testing "awk Print line longer than 12" "awk 'length(\$0) > 12' input" \
+  "$L1\n$L2\n" "$FILE7" ""
+
+FILE8="red apple blue berry green thumb"
+testing "awk Print first two field opposite order" "awk '{ print \$2, \$1 }' input" \
+  "apple red\n" "$FILE8" ""
+
+FILE9="1, Justin Timberlake, Title 545, Price $7.30\n2, Taylor Swift, Title 723, Price $7.90\n3, Mick Jagger, Title 610, Price $7.90\n4, Lady Gaga, Title 118, Price $7.30\n5, Johnny Cash, Title 482, Price $6.50\n6, Elvis Presley, Title 335, Price $7.30\n7, John Lennon, Title 271, Price $7.90\n8, Michael Jackson, Title 373, Price $5.50\n"
+testing "awk filter data" "awk '{ print \$5 }' input" \
+  "545,\n723,\n610,\n118,\n482,\n335,\n271,\n373,\n" "$FILE9" ""
+
+FILE10="abcd efgh ijkl mnop\nqrst uvwx yzab cdef\nghij klmn opqr stuv\nwxyz abcd efgh ijkl\nmnop qrst uvwx yz\n"
+L1="abcd efgh ijkl mnop"
+L2="wxyz abcd efgh ijkl"
+testing "awk print selected lines" "awk '/abcd/' input" \
+   "$L1\n$L2\n" "$FILE10" ""
+L1="efgh mnop"
+L2="uvwx cdef"
+L3="klmn stuv"
+L4="abcd ijkl"
+L5="qrst yz"
+testing "awk print selected fields" "awk '{print \$2, \$4}' input" \
+   "$L1\n$L2\n$L3\n$L4\n$L5\n" "$FILE10" ""
+
+FILE11="abcd efgh ijkl mnop 4\nqrst uvwx yzab cdef 6\nghij klmn opqr stuv 0\nwxyz abcd efgh ijkl 1\nmnop qrst uvwx yz 2\n"
+FILE12="abcd\efgh\ijkl\mnop\4\nqrst\uvwx\yzab\cdef\6\nghij\klmn\opqr\stuv\0\nwxyz\abcd\efgh\ijkl\1\nmnop\qrst\uvwx\yz\2\n"
+testing "awk FS" "awk 'BEGIN {FS=k;lksa;lkf;l} {print \$2}' input" "b\nr\nh\nx\nn\n" "$FILE11" ""
+
+echo "{ if (\$1 == \"#START\") { FS=\":\"; } else if (\$1 == \"#STOP\") {
+  FS=\" \"; } else { print \$3 } }" > test.awk
+testing "awk -v var=val -f test.awk" "awk -v var=2 -f test.awk input" \
+  "ghi\nmno\nstu\nabc\nghi\nmno\nstu\nabc\n" "$FILE1$FILE4" ""
+
+echo -e "abc def ghi 5\nghi jkl mno 10\nmno pqr stu 15\nstu vwx abc 20\n" > testfile1.txt
+echo -e "abc,def,ghi,5\nghi,jkl,mno,10\nmno,pqr,stu,15\nstu,vwx,abc,20\n" > testfile2.txt
+echo "{ if (\$1 == \"#START\") { FS=\":\"; } else if (\$1 == \"#STOP\") {
+  FS=\" \"; } else { print \$3 } }" > test.awk
+testing "awk -v myvar=val -f file1 file" "awk -v myvar=$2 -f test.awk testfile1.txt testfile2.txt" "ghi\nmno\nstu\nabc\n\n\n\n\n\n\n" "" ""
+
+### The -e option is non-standard. gawk and bbawk accept it; mawk and goawk do not, bwk awk says unknown option -e ignored but continues
+### bbawk does nothing useful with it: accepts -f and -e but runs the -e code out of order.
+
+###testing "awk -e print print ARGC file1 file2" "awk -e '{ print \$1; print ARGC }' testfile1.txt testfile2.txt" "abc\n3\nghi\n3\nmno\n3\nstu\n3\n\n3\nabc,def,ghi,5\n3\nghi,jkl,mno,10\n3\nmno,pqr,stu,15\n3\nstu,vwx,abc,20\n3\n\n3\n" "" ""
+###testing "awk -e print ARGC file" "awk -e '{ print ARGC }' testfile1.txt" "2\n2\n2\n2\n2\n" "$FILE1" ""
+###testing "awk -e print print ARGC input" "awk -e '{ print \$1; print ARGC }' input" "abc\n2\nghi\n2\nmno\n2\nstu\n2\n" "$FILE1" ""
+
+testing "awk -e print print ARGC file1 file2" "awk '{ print \$1; print ARGC }' testfile1.txt testfile2.txt" "abc\n3\nghi\n3\nmno\n3\nstu\n3\n\n3\nabc,def,ghi,5\n3\nghi,jkl,mno,10\n3\nmno,pqr,stu,15\n3\nstu,vwx,abc,20\n3\n\n3\n" "" ""
+testing "awk -e print ARGC file" "awk '{ print ARGC }' testfile1.txt" "2\n2\n2\n2\n2\n" "$FILE1" ""
+testing "awk -e print print ARGC input" "awk '{ print \$1; print ARGC }' input" "abc\n2\nghi\n2\nmno\n2\nstu\n2\n" "$FILE1" ""
+
+rm test.awk testfile1.txt testfile2.txt
