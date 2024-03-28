@@ -55,7 +55,6 @@ void inotifyd_main(void)
 
     if (!masks) mask = 0xfff; // default to all
     else{
-      *masks++ = 0;
       for (*masks++ = 0; *masks; masks++) {
         i = stridx(masklist, *masks);;
         if (i == -1) error_exit("bad mask '%c'", *masks);
