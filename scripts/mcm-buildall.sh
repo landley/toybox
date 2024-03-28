@@ -29,7 +29,8 @@ TARGETS=(i686:: aarch64:eabi:
   "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie"
   armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie"
   i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: or1k:: powerpc::
-  powerpc64:: powerpc64le:: riscv64:: s390x:: sh2eb:fdpic:--with-cpu=mj2
+  powerpc64:: powerpc64le:: riscv32:: riscv64:: s390x::
+  sh2eb:fdpic:--with-cpu=mj2
   sh4::--enable-incomplete-targets sh4eb::--enable-incomplete-targets
   x86_64::--with-mtune=nocona x86_64@x32:x32:
 )
@@ -173,13 +174,13 @@ patch_mcm()
   # and doesn't even use the latest musl release by default, so fix it up.
 
   # Select newer package versions and don't use dodgy mirrors
-  sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.6/;s/\(GCC_VER =\).*/\1 11.2.0/' \
+  sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.8/;s/\(GCC_VER =\).*/\1 11.2.0/' \
     Makefile &&
-  echo 'c8dbfa8285f1a90596a227690653d84b9eb2debe  linux-6.6.tar.xz' > \
-    hashes/linux-6.6.tar.xz.sha1 &&
+  echo 'c9ab5b95c0b8e9e41290d3fc53b4e5cb2e8abb75  linux-6.8.tar.xz' > \
+    hashes/linux-6.8.tar.xz.sha1 &&
   # mcm redundantly downloads tarball if hash file has newer timestamp,
   # and it whack-a-moles how to download kernels by version for some reason.
-  touch -d @1 hashes/linux-6.6.tar.xz.sha1 &&
+  touch -d @1 hashes/linux-6.8.tar.xz.sha1 &&
   sed -i 's/\(.*linux-\)3\(.*\)v3.x/\16\2v6.x/' Makefile &&
 
   # nommu toolchains need to vfork()+pipe, and or1k has different kernel arch
