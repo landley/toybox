@@ -25,11 +25,11 @@ Bootable system images created by:
   mkroot/mkroot.sh LINUX=~/linux CROSS=allnonstop
 
 Each system image is built from two packages: toybox and linux.
-Run the ./qemu-*.sh script in each tarball to boot the system
-to a shell prompt under qemu. Run the "exit" command to shut down the
-virtual system and exit the emulator.
+The run-qemu.sh script in each tarball should boot the system
+to a shell prompt under qemu, exit from that shell to shut down the
+virtual system and stop the emulator.
 
-See https://landley.net/toybox/FAQ.html#mkroot for details.
+See https://landley.net/toybox/faq.html#mkroot for details.
 
 Built from mkroot $(git describe --tags), and Linux $KVERS with patches in linux-patches/
 EOF
