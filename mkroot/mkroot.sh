@@ -152,7 +152,10 @@ root:x:0:0:root:/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
-echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
+echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group &&
+: ${VERSION:=$(toybox --version)} &&
+# Optional file, basically a comment
+echo $'NAME="mkroot"\nVERSION="'${VERSION#* }$'"\nHOME_URL="https://landley.net/toybox"' > "$ROOT"/etc/os-release || exit 1
 
 # Build any packages listed on command line
 for i in ${PKG:+plumbing $PKG}; do
