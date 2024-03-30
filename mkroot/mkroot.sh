@@ -180,6 +180,7 @@ fi
 
 # Convert comma separated values in $1 to CONFIG=$2 lines
 csv2cfg() { sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1\n/g' <<< "$1" | sed '/^$/!{/=/!s/.*/&='"$2/}";}
+be2csv() { eval "echo $*" | tr ' ' ,; } # brace expansion to csv
 
 # Set variables from $CROSS, die on unrecognized target:
 # BUILTIN - if set, statically link initramfs into kernel image
@@ -229,6 +230,10 @@ get_target_config()
   elif [ "$CROSS" == m68k ]; then
     QEMU="m68k -M q800" KARCH=m68k
     KCONF=MMU,M68040,M68KFPU_EMU,MAC,SCSI,SCSI_LOWLEVEL,BLK_DEV_SD,SCSI_MAC_ESP,MACINTOSH_DRIVERS,NET_VENDOR_NATSEMI,MACSONIC,SERIAL_PMACZILOG,SERIAL_PMACZILOG_TTYS,SERIAL_PMACZILOG_CONSOLE
+  elif [ "$CROSS" == microblaze ]; then
+    QEMU="microblaze -M petalogix-s3adsp1800" KARCH=microblaze KARGS=ttyUL0
+    KCONF=MMU,CPU_BIG_ENDIAN,$(be2csv SERIAL_UARTLITE{,_CONSOLE} \
+      XILINX_{EMACLITE,MICROBLAZE0_{FAMILY="spartan3adsp",USE_{{MSR,PCMP}_INSTR,BARREL,HW_MUL}=1}})
   elif [ "$CROSS" == mips ] || [ "$CROSS" == mipsel ]; then
     QEMU="mips -M malta" KARCH=mips
     KCONF=MIPS_MALTA,CPU_MIPS32_R2,SERIAL_8250,SERIAL_8250_CONSOLE,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,NET_VENDOR_AMD,PCNET32,POWER_RESET,POWER_RESET_SYSCON
