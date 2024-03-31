@@ -16,13 +16,11 @@ if [ ! -x "$WRAPDIR/logpath" ]
 then
   mkdir -p "$WRAPDIR" || exit 1
   [ -e "$(which logpath)" ] && cp -H "$(which logpath)" "$WRAPDIR/logpath" ||
-    mkdir -p "$WRAPDIR" && PREFIX="$WRAPDIR/" scripts/single.sh logpath ||
-    exit 1
-  find $(tr : '\n' <<< "$PATH") -type f,l -maxdepth 1 -executable \
-    -exec basename {} \; | while read FILE
-    do
-      ln -s logpath "$WRAPDIR/$FILE" 2>/dev/null
-    done
+    PREFIX="$WRAPDIR/" scripts/single.sh logpath || exit 1
+  tr : '\n' <<< "$PATH" | while read i; do
+    find "$i" -type f,l -maxdepth 1 -executable -exec basename {} \; | \
+      while read FILE; do ln -s logpath "$WRAPDIR/$FILE" 2>/dev/null; done
+  done
 fi
 
 # Delete old log (if any)
@@ -34,8 +32,7 @@ if [ ${#BASH_SOURCE[@]} -lt 2 ]
 then
   "$@"
   X=$?
-
-  [ ! -z "$RM" ] && "$RM" -rf "$WRAPDIR"
+  [ -n "$RM" ] && "$RM" -rf "$WRAPDIR"
 
   exit $X
 fi
