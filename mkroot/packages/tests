@@ -10,6 +10,5 @@ download 6694284723e034f0c564e81a30879939d5ef8b7e \
 
 cp "$DOWNLOAD"/{usb,pci}.ids "$ROOT/etc/" || exit 1
 
-# Enable module support in the kernel and add a couple test modules
-KEXTRA=MODULES,MODULE_UNLOAD,"$KEXTRA"
+# add a couple test modules
 MODULES+=FSCACHE,CACHEFILES
