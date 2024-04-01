@@ -317,7 +317,6 @@ static void xfree(void *p)
 
 static double str_to_num(char *s)
 {
-  setlocale(LC_NUMERIC, "");
   return atof(s);
 }
 
@@ -2466,7 +2465,6 @@ static void check_numeric_string(struct zvalue *v)
     // Significant speed gain with this test:
     // num string must begin space, +, -, ., or digit.
     if (strchr("+-.1234567890 ", *s)) {
-      setlocale(LC_NUMERIC, "");
       double num = strtod(s, &end);
       if (s == end || end[strspn(end, " ")]) return;
       v->num = num;
@@ -4471,6 +4469,7 @@ static int awk(char *sepstring, char *progstring, struct arg_list *prog_args,
   struct scanner_state ss = {0};
   TT.scs = &ss;
 
+  setlocale(LC_NUMERIC, "");
   progfiles_init(progstring, prog_args);
   compile();
 
