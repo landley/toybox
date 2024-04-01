@@ -279,7 +279,7 @@ get_target_config()
       INOTIFY_USER SPI{,_JCORE} SERIAL_UARTLITE{,_CONSOLE} PWRSEQ_SIMPLE \
       MMC{,_BLOCK,_SPI} UIO{,_PDRV_GENIRQ} MTD{,_SPI_NOR,_SST25L,_OF_PARTS} \
       BINFMT_{ELF_FDPIC,MISC} I2C{,_HELPER_AUTO})"
-    KCONF+=,CMDLINE=\"console=ttyUL0 earlycon\"
+    KCONF+=,CMDLINE=\"console=ttyUL0\ earlycon\"
   elif [ "$CROSS" == sh4 ] || [ "$CROSS" == sh4eb ]; then
     QEMU="$CROSS -M r2d -serial null -serial mon:stdio" KARCH=sh
     KARGS="ttySC1 noiotrap" VMLINUX=arch/sh/boot/zImage
@@ -293,6 +293,14 @@ get_target_config()
   fi
 }
 
+# Linux kernel .config symbols common to all architectures
+: ${GENERIC_KCONF:=$(be2csv PANIC_TIMEOUT=1 NO_HZ HIGH_RES_TIMERS RD_GZIP \
+  BINFMT_{ELF,SCRIPT} BLK_DEV{,_INITRD,_LOOP} EXT4_{FS,USE_FOR_EXT2} \
+  VFAT_FS FAT_DEFAULT_UTF8 MISC_FILESYSTEMS NLS_{CODEPAGE_437,ISO8859_1} \
+  SQUASHFS{,_XATTR,_ZLIB} TMPFS{,_POSIX_ACL} DEVTMPFS{,_MOUNT} \
+  NET{,DEVICES,_CORE,CONSOLE} PACKET UNIX INET IPV6 ETHERNET \
+  COMPAT_32BIT_TIME EARLY_PRINTK IKCONFIG{,_PROC})}
+
 # ----- Build kernel for target
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
@@ -304,8 +312,9 @@ else
   get_target_config
 
   # Write the qemu launch script
+  INITRAMFS=initramfs.cpio.gz
   if [ -n "$QEMU" ]; then
-    [ -z "$BUILTIN" ] && INITRD='-initrd "$DIR"/initramfs.cpio.gz'
+    [ -z "$BUILTIN" ] && INITRD='-initrd "$DIR"/'"$INITRAMFS"
     { echo DIR='"$(dirname $0)";' qemu-system-"$QEMU" -m 256 '"$@"' $QEMU_MORE \
         -nographic -no-reboot -kernel '"$DIR"'/linux-kernel $INITRD \
         ${DTB:+-dtb '"$DIR"'/linux.dtb} \
@@ -318,13 +327,6 @@ else
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
-
-  GENERIC_KCONF="$(be2csv PANIC_TIMEOUT=1 NO_HZ HIGH_RES_TIMERS RD_GZIP \
-    BINFMT_{ELF,SCRIPT} BLK_DEV{,_INITRD,_LOOP} EXT4_{FS,USE_FOR_EXT2} \
-    VFAT_FS FAT_DEFAULT_UTF8 MISC_FILESYSTEMS NLS_{CODEPAGE_437,ISO8859_1} \
-    SQUASHFS{,_XATTR,_ZLIB} TMPFS{,_POSIX_ACL} DEVTMPFS{,_MOUNT} \
-    NET{,DEVICES,_CORE,CONSOLE} PACKET UNIX INET IPV6 ETHERNET \
-    COMPAT_32BIT_TIME EARLY_PRINTK IKCONFIG{,_PROC})"
 
   # Write microconfig (minimal symbol name/value list in CSV format)
   mkdir -p "$OUTDOC" &&
@@ -369,12 +371,11 @@ else
 fi
 
 # clean up and package root filesystem for initramfs.
-if [ -z "$BUILTIN" ]; then
-  announce initramfs
-  { (cd "$ROOT" && find . -printf '%P\n' | cpio -o -H newc -R +0:+0 ) || exit 1
-    ! test -e "$OUTDOC/modules.cpio.gz" || zcat $_;} | gzip \
-    > "$OUTPUT"/initramfs.cpio.gz || exit 1
-fi
+announce initramfs
+[ -z "$BUILTIN" ] && DIR="$OUTPUT" || DIR="$OUTDOC"
+{ (cd "$ROOT" && find . -printf '%P\n' | cpio -o -H newc -R +0:+0 ) || exit 1
+  ! test -e "$OUTDOC/modules.cpio.gz" || zcat $_;} | gzip \
+  > "$DIR/$INITRAMFS" || exit 1
 
 mv "$LOG".{n,y} && echo "Output is in $OUTPUT"
 rmdir "$TEMP" 2>/dev/null || exit 0 # remove if empty, not an error
