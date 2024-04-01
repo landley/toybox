@@ -4244,7 +4244,7 @@ static int interpx(int start, int *status)
         // WEXITSTATUS is in sys/wait.h, but I'm not including that.
         // It seems to also be in stdlib.h in gcc and musl-gcc.
         // No idea how portable this is!
-        r = r >= 256 ? WEXITSTATUS(r) : r + 256;
+        if (WIFEXITED(r)) r = WEXITSTATUS(r);
 #endif
         drop();
         push_int_val(r);
