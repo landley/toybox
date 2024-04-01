@@ -555,8 +555,9 @@ static int zstring_match(struct zstring *a, struct zstring *b)
 static int zstring_hash(struct zstring *s)
 {   // djb2 -- small, fast, good enough for this
   unsigned h = 5381;
-  for (size_t k = 0; k < s->size; k++)
-    h = ((h << 5) + h) + s->str[k];
+  char *p = s->str, *lim = p + s->size;
+  while (p < lim)
+    h = (h << 5) + h + *p++;
   return h;
 }
 
@@ -565,17 +566,16 @@ enum { PSHIFT = 5 };  // "perturb" shift -- see find_mapslot() below
 static struct zmap_slot *find_mapslot(struct zmap *m, struct zstring *key, int *hash, int *probe)
 {
   struct zmap_slot *x = 0;
-  *hash = zstring_hash(key);
-  unsigned perturb = *hash;
+  unsigned perturb = *hash = zstring_hash(key);
   *probe = *hash & m->mask;
-  int n;
+  int n, first_deleted = -1;
   while ((n = m->hash[*probe])) {
     if (n > 0) {
       x = &MAPSLOT[n-1];
       if (*hash == x->hash && zstring_match(key, x->key)) {
         return x;
       }
-    }
+    } else if (first_deleted < 0) first_deleted = *probe;
     // Based on technique in Python dict implementation. Comment there
     // (https://github.com/python/cpython/blob/3.10/Objects/dictobject.c)
     // says
@@ -589,6 +589,7 @@ static struct zmap_slot *find_mapslot(struct zmap *m, struct zstring *key, int *
     // the Python dict implementation for more details.
     *probe = (*probe * 5 + 1 + (perturb >>= PSHIFT)) & m->mask;
   }
+  if (first_deleted >= 0) *probe = first_deleted;
   return 0;
 }
 
