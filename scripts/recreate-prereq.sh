@@ -6,7 +6,7 @@
 
 mkroot/record-commands make clean defconfig toybox
 sed -i 's/default y/default n/' generated/Config.probed
-CMDLIST="$(echo toybox; ./toybox cut -DF 1 log.txt | sort -u)"
+CMDLIST="$(echo toybox; ./toybox cut -DF 1 log.txt | sort -u | grep -v nproc)"
 {
   for i in $(tr '[:lower:]' '[:upper:]' <<<"$CMDLIST")
   do

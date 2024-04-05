@@ -348,16 +348,6 @@
 #undef FLAG_f
 #endif
 
-// taskset   <1^pa
-#undef OPTSTR_taskset
-#define OPTSTR_taskset "<1^pa"
-#ifdef CLEANUP_taskset
-#undef CLEANUP_taskset
-#undef FOR_taskset
-#undef FLAG_a
-#undef FLAG_p
-#endif
-
 // tee ia ia
 #undef OPTSTR_tee
 #define OPTSTR_tee "ia"
@@ -751,15 +741,6 @@
 #define FLAG_f (1LL<<4)
 #endif
 
-#ifdef FOR_taskset
-#define CLEANUP_taskset
-#ifndef TT
-#define TT this.taskset
-#endif
-#define FLAG_a (FORCED_FLAG<<0)
-#define FLAG_p (FORCED_FLAG<<1)
-#endif
-
 #ifdef FOR_tee
 #define CLEANUP_tee
 #ifndef TT
@@ -840,8 +821,6 @@
 #define OPTSTR_gitremote "<1"
 #undef OPTSTR_makedevs
 #define OPTSTR_makedevs "<1>1d:"
-#undef OPTSTR_nproc
-#define OPTSTR_nproc "(all)"
 #undef OPTSTR_toybox
 #define OPTSTR_toybox 0
 #undef OPTSTR_which

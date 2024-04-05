@@ -18,7 +18,6 @@
 #define HELP_ls ""
 #define HELP_make ""
 #define HELP_mkdir ""
-#define HELP_nproc ""
 #define HELP_od ""
 #define HELP_readlink ""
 #define HELP_rm ""
