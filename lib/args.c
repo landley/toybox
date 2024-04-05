@@ -206,12 +206,13 @@ static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
     while (*list) list=&((*list)->next);
     *list = xzalloc(sizeof(struct arg_list));
     (*list)->arg = arg;
-  } else if (type == '#' || type == '-') {
-    long long l = atolx(arg);
+  } else if (type == '#' || type == '-' || type == '%') {
+    long long l = (type == '%') ? xparsemillitime(arg) : atolx(arg);
 
+    arg = (type == '%') ? "ms" : "";
     if (type == '-' && !ispunct(*arg)) l*=-1;
-    if (l < opt->val[0].l) help_exit("-%c < %ld", opt->c, opt->val[0].l);
-    if (l > opt->val[1].l) help_exit("-%c > %ld", opt->c, opt->val[1].l);
+    if (l < opt->val[0].l) help_exit("-%c < %ld%s", opt->c, opt->val[0].l, arg);
+    if (l > opt->val[1].l) help_exit("-%c > %ld%s", opt->c, opt->val[1].l, arg);
 
     *(opt->arg) = l;
   } else if (CFG_TOYBOX_FLOAT && type == '.') {
@@ -222,7 +223,7 @@ static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
       help_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
     if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
       help_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
-  } else if (type=='%') *(opt->arg) = xparsemillitime(arg);
+  }
 }
 
 // Parse this command's options string into struct getoptflagstate, which
