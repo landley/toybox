@@ -147,9 +147,9 @@ fi
 
 # Rebuild config.h from .config
 $SED -En $KCONFIG_CONFIG > "$GENDIR"/config.h \
-  -e 's/^# CONFIG_(.*) is not set.*/#define CFG_\1 0\n#define USE_\1(...)/p' \
-  -e 's/^CONFIG_(.*)=y.*/#define CFG_\1 1\n#define USE_\1(...) __VA_ARGS__/p'\
-  || exit 1
+  -e 's/^# CONFIG_(.*) is not set.*/#define CFG_\1 0\n#define USE_\1(...)/p;t' \
+  -e 's/^CONFIG_(.*)=y.*/#define CFG_\1 1\n#define USE_\1(...) __VA_ARGS__/p;t'\
+  -e 's/^CONFIG_(.*)=/#define CFG_\1 /p' || exit 1
 
 # Process config.h and newtoys.h to generate FLAG_x macros. Note we must
 # always #define the relevant macro, even when it's disabled, because we
