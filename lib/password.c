@@ -56,6 +56,7 @@ int read_password(char *buf, int buflen, char *mesg)
   int i, tty = tty_fd(), ret = 1;
 
   // Set NOP signal handler to return from the read.
+  fflush(0);
   sigaction(SIGINT, &sa, &oldsa);
   tcflush(tty, TCIFLUSH);
   xset_terminal(tty, 1, 0, &oldtermio);
@@ -77,6 +78,7 @@ int read_password(char *buf, int buflen, char *mesg)
   tcsetattr(0, TCSANOW, &oldtermio);
   sigaction(SIGINT, &oldsa, 0);
   xputc('\n');
+  fflush(0);
   buf[i*!ret] = 0;
 
   return ret;
