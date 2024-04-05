@@ -112,7 +112,7 @@ void watch_main(void)
         if (pad>0) draw_trim(cmd, -pad, pad);
         printf("%c", pad<cmdlen ? '*' : ' ');
         if (width) xputs(ss+(width>ctimelen ? 0 : width-1));
-        if (yy>=3) xprintf("\r\n");
+        if (height>=3) xprintf("\r\n");
         xx = 0;
         yy = 2;
       }
