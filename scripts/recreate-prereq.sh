@@ -24,10 +24,11 @@ cat > scripts/prereq/build.sh << 'EOF'
 BUILD='cc -funsigned-char -I scripts/prereq -I . -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing -DTOYBOX_VERSION=""'
 LINK=''
 EOF
+grep -A999 FILES= generated/build.sh >> scripts/prereq/build.sh
+sed -i 's/ toybox$/&-prereq/' scripts/prereq/build.sh
 
 # harvest stripped down headers
 
-grep -A999 FILES= generated/build.sh >> scripts/prereq/build.sh
 echo > scripts/prereq/generated/tags.h
 sed 's/.*/#define HELP_& ""/' <<<"$CMDLIST" > scripts/prereq/generated/help.h
 egrep "($(xargs <<<"$CMDLIST"|tr ' [:lower:]' '|[:upper:]'))" \
