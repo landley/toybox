@@ -303,6 +303,7 @@ get_target_config()
 
 # ----- Build kernel for target
 
+INITRAMFS=initramfs.cpio.gz
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
   echo 'No $LINUX directory, kernel build skipped.'
 else
@@ -312,7 +313,6 @@ else
   get_target_config
 
   # Write the qemu launch script
-  INITRAMFS=initramfs.cpio.gz
   if [ -n "$QEMU" ]; then
     [ -z "$BUILTIN" ] && INITRD='-initrd "$DIR"/'"$INITRAMFS"
     { echo DIR='"$(dirname $0)";' qemu-system-"$QEMU" -m 256 '"$@"' $QEMU_MORE \
