@@ -185,9 +185,11 @@ enum tokens {
 
 // static char *builtins = " atan2     cos       sin       exp       "
 //    "log       sqrt      int       rand      srand     length    "
-//    "tolower   toupper   system    fflush    ";
+//    "tolower   toupper   system    fflush    "
+//    "and       or        xor       lshift    rshift    ";
     tkatan2, tkcos, tksin, tkexp, tklog, tksqrt, tkint, tkrand, tksrand,
     tklength, tktolower, tktoupper, tksystem, tkfflush,
+    tkband, tkbor, tkbxor, tklshift, tkrshift,
 
 // static char *specialfuncs = " close     index     match     split     "
 //    "sub       gsub      sprintf   substr    ";
@@ -341,6 +343,7 @@ static char *keywords = " in        BEGIN     END       if        else      "
 static char *builtins = " atan2     cos       sin       exp       log       "
     "sqrt      int       rand      srand     length    "
     "tolower   toupper   system    fflush    "
+    "and       or        xor       lshift    rshift    "
     "close     index     match     split     "
     "sub       gsub      sprintf   substr    ";
 
@@ -1388,7 +1391,8 @@ static void check_builtin_arg_counts(int tk, int num_args, char *fname)
 {
   static char builtin_1_arg[] = { tkcos, tksin, tkexp, tklog, tksqrt, tkint,
                                   tktolower, tktoupper, tkclose, tksystem, 0};
-  static char builtin_2_arg[] = { tkatan2, tkmatch, tkindex, 0};
+  static char builtin_2_arg[] = { tkatan2, tkmatch, tkindex, tklshift, tkrshift, 0};
+  static char builtin_al_2_arg[] = { tkband, tkbor, tkbxor, 0};
   static char builtin_2_3_arg[] = { tksub, tkgsub, tksplit, tksubstr, 0};
   static char builtin_0_1_arg[] = { tksrand, tklength, tkfflush, 0};
 
@@ -1398,6 +1402,8 @@ static void check_builtin_arg_counts(int tk, int num_args, char *fname)
     XERR("function '%s' expected 1 arg, got %d\n", fname, num_args);
   else if (strchr(builtin_2_arg, tk) && num_args != 2)
     XERR("function '%s' expected 2 args, got %d\n", fname, num_args);
+  else if (strchr(builtin_al_2_arg, tk) && num_args < 2)
+    XERR("function '%s' expected at least 2 args, got %d\n", fname, num_args);
   else if (strchr(builtin_2_3_arg, tk) && num_args != 2 && num_args != 3)
     XERR("function '%s' expected 2 or 3 args, got %d\n", fname, num_args);
   else if (strchr(builtin_0_1_arg, tk) && num_args != 0 && num_args != 1)
@@ -1605,7 +1611,7 @@ static void field_op(void)
 static char exprstartsy[] = {tkvar, tknumber, tkstring, tkregex, tkfunc,
   tkbuiltin, tkfield, tkminus, tkplus, tknot, tkincr, tkdecr, tklparen,
   tkgetline, tkclose, tkindex, tkmatch, tksplit, tksub, tkgsub, tksprintf,
-  tksubstr, 0};
+  tksubstr, tkband, tkbor, tkbxor, tkrshift, tklshift, 0};
 
 // Tokens that can end statement
 static char stmtendsy[] = {tknl, tksemi, tkrbrace, 0};
@@ -4210,6 +4216,24 @@ static int interpx(int start, int *status)
         drop();
         drop();
         push_int_val(offs);
+        break;
+
+      case tkband:
+      case tkbor:
+      case tkbxor:
+      case tklshift:
+      case tkrshift:
+        ; size_t acc = val_to_num(STKP);
+        nargs = *ip++;
+        for (int i = 1; i < nargs; i++) switch (opcode) {
+          case tkband: acc &= (size_t)val_to_num(STKP-i); break;
+          case tkbor:  acc |= (size_t)val_to_num(STKP-i); break;
+          case tkbxor: acc ^= (size_t)val_to_num(STKP-i); break;
+          case tklshift: acc = (size_t)val_to_num(STKP-i) << acc; break;
+          case tkrshift: acc = (size_t)val_to_num(STKP-i) >> acc; break;
+        }
+        drop_n(nargs);
+        push_int_val(acc);
         break;
 
       case tktolower:
