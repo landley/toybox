@@ -3537,38 +3537,6 @@ static long millinow(void)
   return ts.tv_sec*1000+ts.tv_nsec/1000000;
 }
 
-static void math_builtin(int opcode, int nargs)
-{
-  double (*mathfunc[])(double) = {cos, sin, exp, log, sqrt};
-  double d;
-  switch (opcode) {
-    case tkint:
-      STKP->num = trunc(val_to_num(STKP));
-      break;
-    case tkatan2:
-      d = atan2(val_to_num(STKP-1), val_to_num(STKP));
-      drop();
-      STKP->num = d;
-      break;
-    case tkrand:
-      push_int_val(0);
-      // Get all 53 mantissa bits in play:
-      // (upper 26 bits * 2^27 + upper 27 bits) / 2^53
-      STKP->num = 
-        ((random() >> 5) * 134217728.0 + (random() >> 4)) / 9007199254740992.0;
-      break;
-    case tksrand:
-      if (nargs == 1) {
-        STKP->num = seedrand(val_to_num(STKP));
-      } else push_int_val(seedrand(millinow()));
-      break;
-    default:
-      if (tkcos <= opcode && opcode <= tksqrt) {
-        STKP->num = mathfunc[opcode-tkcos](val_to_num(STKP));
-      }
-  }
-}
-
 // Initially set stackp_needmore at MIN_STACK_LEFT before limit.
 // When stackp > stackp_needmore, then expand and reset stackp_needmore
 static void add_stack(struct zvalue **stackp_needmore)
@@ -3589,7 +3557,8 @@ static int interpx(int start, int *status)
   int *ip = &ZCODE[start];
   int opcode, op2, k, r, nargs, nsubscrs, range_num, parmbase = 0;
   int field_num;
-  double nleft, nright;
+  double nleft, nright, d;
+  double (*mathfunc[])(double) = {cos, sin, exp, log, sqrt, trunc};
   struct zvalue *v, vv,
         *stackp_needmore = (struct zvalue*)TT.stack.limit - MIN_STACK_LEFT;
   while ((opcode = *ip++)) {
@@ -4298,11 +4267,33 @@ static int interpx(int start, int *status)
         push_val(&vv);
         break;
 
+      // Math builtins -- move here (per Oliver Webb suggestion)
+      case tkatan2:
+        nargs = *ip++;
+        d = atan2(val_to_num(STKP-1), val_to_num(STKP));
+        drop();
+        STKP->num = d;
+        break;
+      case tkrand:
+        nargs = *ip++;
+        push_int_val(0);
+        // Get all 53 mantissa bits in play:
+        // (upper 26 bits * 2^27 + upper 27 bits) / 2^53
+        STKP->num = 
+          ((random() >> 5) * 134217728.0 + (random() >> 4)) / 9007199254740992.0;
+        break;
+      case tksrand:
+        nargs = *ip++;
+        if (nargs == 1) {
+          STKP->num = seedrand(val_to_num(STKP));
+        } else push_int_val(seedrand(millinow()));
+        break;
+      case tkcos: case tksin: case tkexp: case tklog: case tksqrt: case tkint:
+        nargs = *ip++;
+        STKP->num = mathfunc[opcode-tkcos](val_to_num(STKP));
+        break;
+        
       default:
-        if (tkatan2 <= opcode && opcode <= tksrand) {
-          math_builtin(opcode, *ip++);  // 2nd arg is number of args in call
-          break;
-        }
         // This should never happen:
         error_exit("!!! Unimplemented opcode %d", opcode);
     }
