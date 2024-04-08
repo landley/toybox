@@ -350,13 +350,6 @@ else
 
   # Expand miniconfig to full .config
   make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTDOC/linux-miniconfig" &&
-
-  # Second config pass to remove stupid kernel defaults
-  # See http://lkml.iu.edu/hypermail/linux/kernel/1912.3/03493.html
-  sed -e 's/# CONFIG_EXPERT .*/CONFIG_EXPERT=y/' -e "$(sed -E -e '/^$/d' \
-    -e 's@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set\n@g' \
-       <<< VT,SCHED_DEBUG,DEBUG_MISC,X86_DEBUG_FPU)" -i .config &&
-  yes "" | make ARCH=$KARCH oldconfig > /dev/null &&
   cp .config "$OUTDOC/linux-fullconfig" &&
 
   # Build kernel. Copy config, device tree binary, and kernel binary to output
