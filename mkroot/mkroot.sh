@@ -197,7 +197,7 @@ get_target_config()
   # Each target needs board config, serial console, RTC, ethernet, block device.
 
   KARGS=ttyS0 VMLINUX=vmlinux
-  if [ "$CROSS" == armv5l ]; then
+  if [ "$CROSS" == armv5l ] || [ "$CROSS" == armv4l ]; then
     # This could use the same VIRT board as armv7, but let's demonstrate a
     # different one requiring a separate device tree binary.
     KARCH=arm KARGS=ttyAMA0 VMLINUX=arch/arm/boot/zImage
