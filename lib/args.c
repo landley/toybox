@@ -209,8 +209,8 @@ static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
   } else if (type == '#' || type == '-' || type == '%') {
     long long l = (type == '%') ? xparsemillitime(arg) : atolx(arg);
 
-    arg = (type == '%') ? "ms" : "";
     if (type == '-' && !ispunct(*arg)) l*=-1;
+    arg = (type == '%') ? "ms" : "";
     if (l < opt->val[0].l) help_exit("-%c < %ld%s", opt->c, opt->val[0].l, arg);
     if (l > opt->val[1].l) help_exit("-%c > %ld%s", opt->c, opt->val[1].l, arg);
 
