@@ -135,7 +135,7 @@ if [ $$ -eq 1 ]; then
   [ -z "$HANDOFF" ] && [ -e /mnt/init ] && HANDOFF=/mnt/init
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo -e '\e[?7hType exit when done.'
 
-  setsid -c <>/dev/$(sed '$s@.*/@@' /sys/class/tty/console/active) >&0 2>&1 \
+  setsid -c <>/dev/$(sed '$s@.*[ /]@@' /sys/class/tty/console/active) >&0 2>&1 \
     $HANDOFF
   reboot -f &
   sleep 5
@@ -246,32 +246,32 @@ get_target_config()
     QEMU="microblaze -M petalogix-s3adsp1800" KARCH=microblaze KARGS=ttyUL0
     KCONF="$(be2csv MMU CPU_BIG_ENDIAN SERIAL_UARTLITE{,_CONSOLE} \
       XILINX_{EMACLITE,MICROBLAZE0_{FAMILY="spartan3adsp",USE_{{MSR,PCMP}_INSTR,BARREL,HW_MUL}=1}})"
-  elif [ "$CROSS" == mips ] || [ "$CROSS" == mipsel ]; then
-    QEMU="mips -M malta" KARCH=mips
+  elif [ "${CROSS#mips}" != "$CROSS" ]; then # mips mipsel mips64 mips64el
+    QEMU="$CROSS -M malta" KARCH=mips
     KCONF="$(be2csv MIPS_MALTA CPU_MIPS32_R2 BLK_DEV_SD NET_VENDOR_AMD PCNET32 \
       PCI SERIAL_8250{,_CONSOLE} ATA{,_SFF,_BMDMA,_PIIX} POWER_RESET{,_SYSCON})"
-    [ "$CROSS" == mipsel ] && KCONF+=,CPU_LITTLE_ENDIAN &&
-      QEMU="mipsel -M malta"
+    [ "${CROSS/64/}" == "$CROSS" ] && KCONF+=,CPU_MIPS32_R2 ||
+      KCONF+=,64BIT,CPU_MIPS64_R1,MIPS32_O32
+    [ "${CROSS%el}" != "$CROSS" ] && KCONF+=,CPU_LITTLE_ENDIAN
   elif [ "$CROSS" == or1k ]; then
     KARCH=openrisc QEMU="or1k -M or1k-sim" KARGS=FIXME BUILTIN=1
-    KCONF="$(be2csv OPENRISC_BUILTIN_DTB=\\\"or1ksim\\\" ETHOC SERIO \
-      SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE})"
+    KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE})"
+    KCONF+=,OPENRISC_BUILTIN_DTB=\"or1ksim\"
   elif [ "$CROSS" == powerpc ]; then
     KARCH=powerpc QEMU="ppc -M g3beige"
     KCONF="$(be2csv ALTIVEC PATA_MACIO BLK_DEV_SD MACINTOSH_DRIVERS SERIO \
-      NET_VENDOR_8390 NE2K_PCI BOOTX_TEXT PPC_{PMAC,OF_BOOT_TRAMPOLINE} \
-      ATA{,_SFF,_BMDMA} ADB{,_CUDA} SERIAL_PMACZILOG{,_TTYS,_CONSOLE})"
+      NET_VENDOR_{8390,NATSEMI} NE2K_PCI SERIAL_PMACZILOG{,_TTYS,_CONSOLE} \
+      ATA{,_SFF,_BMDMA} ADB{,_CUDA} BOOTX_TEXT PPC_{PMAC,OF_BOOT_TRAMPOLINE})"
   elif [ "$CROSS" == powerpc64 ] || [ "$CROSS" == powerpc64le ]; then
     KARCH=powerpc QEMU="ppc64 -M pseries -vga none" KARGS=hvc0
     KCONF="$(be2csv PPC64 BLK_DEV_SD ATA NET_VENDOR_IBM IBMVETH HVC_CONSOLE \
       PPC_{PSERIES,OF_BOOT_TRAMPOLINE,TRANSACTIONAL_MEM,DISABLE_WERROR} \
       SCSI_{LOWLEVEL,IBMVSCSI})"
-#SECTION_MISMATCH_WARN_ONLY
     [ "$CROSS" == powerpc64le ] && KCONF=$KCONF,CPU_LITTLE_ENDIAN
   elif [ "$CROSS" = s390x ]; then
     QEMU="s390x" KARCH=s390 VMLINUX=arch/s390/boot/bzImage
     KCONF="$(be2csv MARCH_Z900 PACK_STACK S390_GUEST VIRTIO_{NET,BLK} \
-      SCLP_{TTY,CONSOLE,VT220_{TTY,CONSOLE}})"
+      SCLP_VT220_{TTY,CONSOLE})"
   elif [ "$CROSS" == sh2eb ]; then
     BUILTIN=1 KARCH=sh
     KCONF="$(be2csv CPU_{SUBTYPE_J2,BIG_ENDIAN} SH_JCORE_SOC SMP JCORE_EMAC \
@@ -287,7 +287,7 @@ get_target_config()
       RTS7751R2D_PLUS SERIAL_SH_SCI{,_CONSOLE} NET_VENDOR_REALTEK 8139CP \
       BLK_DEV_SD ATA{,_SFF,_BMDMA} PATA_PLATFORM BINFMT_ELF_FDPIC \
       MEMORY_START=0x0c000000)"
-#see also SPI SPI_SH_SCI MFD_SM501 RTC_CLASS RTC_DRV_R9701 RTC_DRV_SH RTC_HCTOSYS
+#see also SPI{,_SH_SCI} MFD_SM501 RTC_{CLASS,DRV_{R9701,SH},HCTOSYS}
     [ "$CROSS" == sh4eb ] && KCONF+=,CPU_BIG_ENDIAN
   else die "Unknown \$CROSS=$CROSS"
   fi
