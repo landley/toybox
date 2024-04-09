@@ -37,6 +37,304 @@ bootable under QEMU (built using a <a href=https://github.com/landley/linux/tree
 <u>Build</u>:
 -->
 
+<a name="08-04-2024" /><a href="#08-04-2024"><hr><h2><b>April 8, 2024</b></h2></a>
+<blockquote>
+<p>Another thing that got forgotten was the fact that against all probability a
+sperm whale had suddenly been called into existence several miles above the
+surface of an alien planet. And since this is not a naturally tenable position
+for a whale, this poor innocent creature had very little time to come to terms
+with its identity as a whale before it then had to come to terms with not being
+a whale any more.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.11.tar.gz>Toybox 0.8.11</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.11>git commit</a>)
+is out, with prebuilt <a href=/bin/toybox/0.8.11>static binaries</a> and
+<a href=/bin/mkroot/0.8.11>mkroot images</a>
+bootable under QEMU (built using a <a href=/bin/mkroot/0.8.11/linux-patches>lightly patched</a> linux-6.8).</p>
+
+<p>Highlights include a new <a href=quickstart.html>quickstart</a>
+web page, shorter <a href=/bin>/bin</a> links to prebuilt binaries,
+lots of work on mkroot, and a new "canned" toybox build to reduce
+dependencies.</p>
+
+<p><u>New commands</u>:
+Rob added <b>tsort</b>, and promoted <b>fold</b> and <b>getopt</b>.
+Oliver Webb added <b>ts</b> and <b>csplit</b>, and 
+Elliott added <b>memeater</b>.</p>
+
+<p>And one command got temporarily de-promoted: <b>passwd</b> is "default n"
+(disabled in defconfig) this release due to the ongoing lib/passwd.c
+infrastructure rewrite that isn't quite done yet. (See the Library section.)</p>
+
+<u>Features</u>:
+The new "<a href=https://github.com/landley/toybox/commit/d1acc6e88be5>canned</a>"
+toybox build in <b>scripts/prereq/build.sh</b> lets toybox provide its own
+build prerequisites by compiling a minimal toybox against saved headers (ala
+"cc -I scripts/prereq/generated file1.c file2.c..."). This provides
+most of the commands toybox needs to configure and build itself (except make,
+bash, and the compiler toolchain). This may help <a href=https://github.com/landley/toybox/commit/3bbc31c78b41>bootstrap</a> toybox on systems
+that don't provide a modern Linux command line out of the box: install
+toybox-prereq at the start of the $PATH, add
+a .config file, and run <b>scripts/make.sh</b>.</p>
+
+<p>New <b>mv -x</b> option to atomically swap two files,
+<b>env -e FILE</b> executes a different command than argv[0] on the command
+line, the <b>reset</b> command now puts raw terminals back into "cooked" mode,
+negative offsets in <b>sort -k</b> count right to left,
+<b>setsid</b> grabs the tty more forcefully (removing the need for getty)
+and the -cc option will try to steal it,
+<b>mount</b> now shows file= when displaying loopback mounts,
+<b>wc -L</b> shows longest line length,
+<b>tar -h</b> now detects a lot more hardlinks,
+<b>cp</b> now copies xattrs for directories (not just files).</p>
+
+<p>Elliott taught <b>file</b> to recognize wasm binary modules and
+display JPEG width/height, added the LOWER_UP, DORMANT, and ECHO
+flags to <b>ifconfig</b>, added PAC and BTI decoding to <b>readelf</b>,
+cache size querying to <b>sysconf</b> (supported by glibc and bionic but
+not musl-libc), and added a "paste" menu to <b>microcom</b>. Kalesh Singh
+taught <b>readelf</b> to decode a new note type (NT_ANDROID_TYPE_PAD_SEGMENT).
+Christopher Ferris improved <b>readelf</b> section flags handling,
+with test. Oliver Webb suggested <b>count -l</b>.
+Aditya submitted <b>netcat -z</b>.</p>
+
+<u>Bugfixes</u>:
+Fixed <b>printf \0</b> and <b>grep -w</b> (which never quite worked right),
+<b>ls -k</b> now switches off --block-size,
+<b>install -dm 02750</b> works (sticky bit support for -d),
+<b>tar</b> is better at following symlinks and extracting records with broken
+metadata, <b>gzip</b> now knows
+knows how to rename between "tgz/tar" extensions,
+<b>mkpasswd -m sha*</b> salt length can now range from 8-16, not just 16,
+<b>ps</b> can now handle an session ID of 0 (which is what PID 1 starts with
+before the first call to setsid()),
+<b>pwgen</b> can now use ~ in output,
+<b>xargs</b> now stops when a child exits with 255,
+<b>iconv</b> now exits with error if any characters failed to convert with -c,
+things like <b>truncate -s 1e2</b> were saying "too large" and now correctly
+say "not integer" (it's not scientific notation, it's exabyte suffix with
+trailing garbage),
+<b>timeout</b> now takes its exit code from SIGCHLD instead of wait()
+to fix a race condition (SIGCHLD can happen before calling wait and the
+kernel won't deliver status twice, so you can't wait AND have the
+signal handler). The usual round of gcc warnings got tracked down, confirmed
+to be useless, and removed, but despite gcc constantly warning "variable is
+not actually used uninitialized" there were some uninitialized variables in
+<b>dd</b> it DIDN'T warn about: found and fixed.</p>
+
+<p>Elliott added an error message to catch <b>xxd -r</b> receiving -p format
+input without -p,
+fixed <b>readelf -n</b> for x86-64 ibt/shstk notes
+(<a href=https://github.com/landley/toybox/commit/6c23ff0168c1>whatever those
+are</a>),
+and fixed <b>blkid</b> not to check filesystem signatures that would continue
+past the end of the loaded buffer.
+Michael Shavit pointed out that <b>devmem</b> command line number parsing
+wasn't unsigned (although fixing that means it no longer parses the kmg unit
+suffixes).
+Peter Collingbourne fixed <b>inotifyd</b> skipping the first mask character.
+Taisuke Matsushiro fixed a fencepost error preventing <b>stty</b> from
+setting serial baud rate to 57600.
+Askar Safin fixed a typo in mkroot/packages/busybox.</p>
+
+<u>Library</u>:
+The in-progress rewrite of <b>lib/password.c</b> no longer uses shadow.h
+(which lets it build against bionic),
+and a new <b>lib/hash.c</b> where toybox implements its own crypt() using
+the md5/sha1/sha3 etc hash functions we've already got (to work around glibc's
+ongoing deprecation of posix features), but neither are quite finished yet.
+New <b>lib/elf.c</b> with plumbing shared by <b>file</b> and <b>readelf</b>, with
+additional arm and riscv flag decoding,
+the <b>peek()</b> family of functions now return long long instead of
+int64_t so the base types are consistent on 32/64 bit,
+<b>lib/args.c</b> now handles the high bit octal escape sequences in trailing
+[-abc] blocks, so you can have punctuation participate in option groups,
+switching off an option via grouping now sets it back to its default
+value (not to zero), and numeric and date parsing report out of range numeric
+or millisecond values.</p>
+
+<u>Mkroot</u>:
+There's a <b>README</b> in the mkroot directory now. (Microsoft Github was
+picking up the README.root file used by the tar-for-web.sh script
+and showing that instead.)
+Extended <b>run-qemu.sh</b> so it can be run from other directories
+(prepending $(dirname $0)/ to linux-kernel and initramfs.cpio.gz when
+loading them into qemu).
+The initramfs now has <b>/etc/os-release</b> with the toybox $VERSION.
+The big if/else staircase of linux kernel target configurations
+moved into its own <b>get_target_config()</b> shell function, with
+a big comment block right before it explaining what all the variables
+it sets mean, and the generic kconfig symbol list got moved out to
+a <b>GENERIC_KCONF</b> variable assignment right after that function.
+The <b>microconfig</b> format got compressed slightly more
+by use of bash brace expansion, decoded to comma separated values by
+the be2csv function ala KCONF="$(be2csv SPI{,_BITBANG} IOMMU_SUPPORT)" .
+The init script no longer calls <b>oneit</b>, instead doing the work in the
+init script. (Redirect stdin/out/err to the "real" console device on
+the last line of /sys/class/tty/console/active, call setsid, trap SIGCHLD,
+reboot when the shell exits. This (and the setsid tty stealing upgrades) also
+fixed <b>ps</b> not showing any processes in mkroot because stdin/stdout weren't
+properly claimed as the controlling tty.
+The base kernel config now uses <b>CONFIG_PANIC_TIMEOUT=1</b> so
+we don't have to say panic=1 on the kernel command line anymore.
+The baseconfig now automatically adds CONFIG_MODULES and
+CONFIG_MODULES_UNLOAD when any <b>$MODULES</b> are listed.
+Moved the kernel modules archive into the "docs" directory.
+New <b>$NOTOYBOX</b> variable skips the toybox build if set.
+The <b>$DTB</b> files no longer have a path, instead using "find"
+to install them.
+The build now creates the externally loadable cpio.gz file even when
+building initramfs into the kernel, but sticks it in the docs/ subdirectory
+when it's not used.</p>
+
+<p>Several new <b>mcm-buildall.sh</b> targets (or1k, riscv32, riscv64, sh4eb)
+taking advantage of upstream musl-cross-make updating itself to use
+musl-1.2.5. The target list in mcm-buildall.sh moved into a <b>TARGETS=()</b>
+array with a big comment before it explaining the format, and the script
+is better about building host toolchains
+to build other cross compilers with: it tries to autodetect the host
+type (moving the relevant one to the front of the build list), and
+will also build a missing host toolchain when given targets on the
+command line. Added microblaze and or1k kernel configs, neither of which
+know how to exit qemu yet. (If Linux has got a reboot mechanism it knows
+how to poke that qemu is listening for on either virtual board, I haven't
+found it yet.) Also added sh4eb with FDPIC support (see kernel patch, which
+allows qemu-system-sh4eb to run the sh2eb nommu root filesystem), and armv4l
+(the 486 of arm).</p>
+
+<u>Pending</u>:
+Elliott fixed and improved <b>strace</b>, translating more system calls.
+Rob enabled command recursion in <b>toysh</b> (so it can call non-builtins as
+builtins), fixed calling "exec" on NOFORK commands (which MUST run
+in the shell's process context), redid the code to handle trailing
+backslashes gluing lines together, and it no longer leaks script
+filehandles into child processes.
+Oliver Webb noticed that OLDTOY(MAYFORK) aliases didn't become shell
+builtins, added <b>tr -t</b>, in <b>vi</b> added line gotos in ex mode,
+'g', 'v', 'j' commands, and backwards search, cleaned up stuff in
+<b>xzcat</b>, <b>getopt</b>, <b>bc</b>, and removed a bunch of useless autogenerated
+<b>bc</b> tests. Jarno Mäkipää added the list of supported commands to <b>vi</b>'s
+help text.
+Mathieu Anquetin fixed <b>ip link set</b> parsing, and NUL byte handling
+in <b>hexdump</b>.
+General cleanup passes on <b>expr</b> (which now uses 64 bit comparisons),
+<b>tr</b>, and <b>dhcpd</b>.</p>
+
+<u>Cleanup</u>:
+pass over <b>lsattr</b>, <b>getconf</b>, <b>acpi</b>, and <b>blkid</b>.
+Use FLAG() macros in <b>ifconfig</b> and <b>restorecon</b>. Removed TODO block
+from <b>nbd-client</b>.
+More error_msg("%s", str) converted to error_msg_raw(str).
+Trimmed the GLOBALS() sizes (using <b>scripts/probes/GLOBALS</b>):
+removed 1k of global data from <b>cksum</b> and switched a 2k global
+in <b>grep</b> to a malloc. Simplified scripts/probes/bloatcheck and
+mkroot/record-commands.</p>
+
+<u>Portability</u>:
+Fixed <b>truncate -s 8g</b> on 32 bit hosts,
+updated <b>mcm-buildall.sh</b> to autodetect host type and automatically
+select newer package versions,
+and moved the <b>linux32</b> command to its own file because BSD can't
+build it.
+MacOS had a use-after-free with the getpwuid() return value being recycled
+a more aggressively than Linux.
+Elliott fixed diff.test to work with mksh, and posix_fallocate()
+to work with MacOS.
+More commands enabled in <b>make bsd_defconfig</b> and <b>make
+macos_defconfig</b>.
+Added some (void) typecasts to netstat, oneit, and watchdog to try to
+shut up compilers that insist on responding to uncorrectable failures.
+(Such as fgets() reading known /proc data from the kernel, writes to
+the watchdog timer that will reboot the system if they fail, or PID 1 calling
+dup() on stdin to create stdout and stderr after closing the old ones.
+If any of that goes wrong, what are we supposed to do about it?)</p>
+
+<u>Documentation</u>:
+The website now has a <a href=quick.html>quickstart</a> page,
+and the site now defaults to the about page (updated index.html symlink).
+The "current release" is now in the common header displayed by most pages.
+The mkroot dir has a
+<a href=https://github.com/landley/toybox/blob/0.8.11/mkroot/README>README</a>, and its <a href=faq.html#mkroot>faq entry</a>
+has been updated.
+New option to compress help text with <b>gzip</b>, and help text size now shows
+up in <b>make bloatcheck</b>.
+Fix <b>sed --help</b> to show full help, <b>patch -F</b> is now mentioned
+in the help text, tweaks to help text in <b>cut</b>, <b>grep</b>,
+<b>blkdiscard</b>.
+Elliott did a cleanup pass over "usage:" lines and alphabetized more help text
+options.
+Christian Koestlin fixed a typo in the <b>dmesg</b> docs.
+The <a href=release.txt>release
+procedure checklist</a> has been updated, and the README generated
+by <b>mkroot/tar-for-web.sh</b> got updated.
+New faq entry explaining why toybox doesn't have (or need) cttyhack,
+and the architecture list got updated to match mcm-buildall.sh.
+The usual roadmap updates.</p>
+
+<p>New <b>scripts/probes/cmd2dpkg</b> script shows what
+debian package (if any) each toybox command lives in, but only checks
+installed packages (dpkg-query -S "$(which $COMMAND)") and debian breaks
+up source packages strangely, so did not used it to redo the roadmap section
+listing packages (created using Linux From Scratch's list of commands
+installed by each source package).</p>
+
+<u>Plumbing</u>:
+The <b>yes</b> command now uses writev() to go way faster, mostly to
+prove it can.
+The default <b>stdout</b> buffer type switched to block buffering to make
+Elliott happy, which is a rich source of bugs (many of which Elliott
+has already whack-a-moled) and means among other things
+that mixing write() and fwrite() calls now requires manual flushing.
+Meanwhile xflush() became xferror() because it usually
+wasn't flushing anyway, and now that's more noticeable.
+Removed <b>TOYFLAG_LOCALE</b> and just set utf8 locale for all commands.
+The dirtree code now sets <b>DIRTREE_SYMFOLLOW</b> in "again" when we followed
+a symlink to get to this node, callers checking <b>DIRTREE_COMEAGAIN</b> need
+to mask out the bit they're interested in.
+Improved <b>scripts/probes/findglobals</b> output to be more legible.</p>
+
+<u>Test suite</u>:
+Added <b>make test_help test_install</b> targets. (The standalone
+command targets conflict with the help/install make targets, but you
+can still build them via scripts/single.sh and there's no reason not
+to be able to individually test them.)
+New <b>utf8locale</b> shell function attempts to enable a UTF8 locale for
+TEST_HOST, which was used to fix <b>wc.test</b>.
+Colin Cross fixed <b>pidof.test</b> when stdout is a socket.
+Something called "ecryptfs" has a maximum filename length of 143 bytes,
+so our <b>tar.test</b> for long filenames support needs to be skipped there
+because the filesystem can't handle it. Similarly, our <b>truncate.test</b>
+was failing because storing nothing on ecryptfs wasts more space than expected.
+The <b>tar</b> tests now fetch user/group names with "stat" because
+between Linux, Android, FreeBSD, and MacOS, there aren't really consistent
+user and group names for any existing files. Added nbd-client.test
+Thiébaud Weksteen fixed the <b>getfattr</b>/<b>setfattr</b> tests on
+filesystems using selinux. Oliver Webb added <b>sha3sum</b> tests.
+Elliott stabilized another slightly racy <b>ifconfig</b> test (big test
+farm, hits the weird corner cases).</p>
+
+<u>Build</u>:
+Lots of changes to <b>scripts/make.sh</b> and friends to speed up and parallelize
+header generation. The build now figures out which toys/*/*.c files
+to compile by searching for unindented USE() macros wrapping NEW(commandname),
+which among other things fixes enabling the builtins when selecting just
+CONFIG_SH in menuconfig (instead of doing a "make sh" single command build).
+It also probes for optional shared libraries in parallel.
+New <b>scripts/probes</b> directory to collect scripts that aren't actually
+used by the build, with a README in it.
+Updated .gitignore so it doesn't complain about spurious name collisions in
+subdirectories. Elliott shut up a
+<a href=https://github.com/landley/toybox/commit/2c36636377e1>truly sad</a>
+warning where despite sizeof(ptrdiff_t) always being sizeof(long), gcc
+nevertheless warns if you printf("%ld", ptr-ptr) and wants a magic invented
+"%td" type on 32 bit systems (but is just fine on 64 bit). (Or we could add a
+literally NOP typecast to long.) And silenced a spurious gcc 13.2 warning
+in date.c. And Rob shut up <a href=https://github.com/landley/toybox/commit/a17fee778851>more broken gcc warnings</a>.
+Updated .gitignore so it doesn't complain about spurious name collisions in
+subdirectories.</p>
+
 <a name="30-07-2023" /><a href="#30-07-2023"><hr><h2><b>July 30, 2023</b></h2></a>
 <blockquote>
 <p>The way it functioned was very interesting. When the Drink button was
