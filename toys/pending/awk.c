@@ -376,6 +376,31 @@ static void get_token_text(char *op, int tk)
 }
 
 ////////////////////
+/// UTF-8
+////////////////////
+
+static unsigned *strtowc(char *str, size_t len, int *newlen)
+{
+  size_t ai = 0, ui = 0;
+  unsigned *ret = xzalloc(sizeof(int) * len);
+  while (ai < len) {
+    int isvalid = utf8towc(ret+(ui++), str+ai, len-ai);
+    if (!isvalid) ai++; // Null byte
+    else if (isvalid < 0) ret[ui] = '?', ai+=(+isvalid);
+    else ai += isvalid;
+  }
+  *newlen = ui;
+  return ret;
+}
+
+static size_t wctostr(unsigned *old, char *ret, size_t len)
+{
+  size_t ai = 0, ui = 0;
+  while (ui < len) ai += wctoutf8(ret+ai, old[ui++]);
+  return ai;
+}
+
+////////////////////
 ////   zlist
 ////////////////////
 
@@ -442,13 +467,6 @@ static void zstring_release(struct zstring **s)
 static void zstring_incr_refcnt(struct zstring *s)
 {
   if (s) s->refcnt++;
-}
-
-static struct zstring *new_zstring_cap(int capacity)
-{
-  struct zstring *z = xzalloc(sizeof(*z) + capacity);
-  z->capacity = capacity;
-  return z;
 }
 
 // !! Use only if 'to' is NULL or its refcnt is 0.
@@ -3139,7 +3157,7 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
           val_to_str(&STACK[k]);
           s = STACK[k++].vst->str;
         } else if (fmtc == 'c' && !IS_NUM(&STACK[k])) {
-          n = STACK[k++].vst ? STACK[k-1].vst->str[0] : '!';
+          n = STACK[k++].vst ? STACK[k-1].vst->str[0] : '\0';
         } else {
           val_to_num(&STACK[k]);
           n = STACK[k++].num;
@@ -3454,7 +3472,9 @@ static void gsub(int opcode, int nargs, int parmbase)
   }
 
   if (so >= 0) {  // at least one hit
-    struct zstring *z = new_zstring_cap(need);
+    struct zstring *z = xzalloc(sizeof(*z) + need);
+    z->capacity = need;
+
     char *e = z->str; // result destination pointer
     p = s;
     eflags = 0;
@@ -4051,13 +4071,10 @@ static int interpx(int start, int *status)
         r = popnumval();
         if (r != NO_EXIT_STATUS) *status = (int)r & 255;
         // TODO FIXME do we need NO_EXIT_STATUS at all? Just use 0?
-        return tkexit;
-
+        ATTR_FALLTHROUGH_INTENDED;
       case tknext:
-        return tknext;
-
       case tknextfile:
-        return tknextfile;
+        return opcode;
 
       case tkgetline:
         nargs = *ip++;
@@ -4130,7 +4147,11 @@ static int interpx(int start, int *status)
         val_to_num(&STACK[RSTART]);
         val_to_num(&STACK[RLENGTH]);
         if (k) STACK[RSTART].num = 0, STACK[RLENGTH].num = -1;
-        else STACK[RSTART].num = rso + 1, STACK[RLENGTH].num = reo - rso;
+        else {
+          xfree(strtowc(STKP[-1].vst->str, reo, &reo));
+          xfree(strtowc(STKP[-1].vst->str, rso, &rso));
+          STACK[RSTART].num = rso + 1, STACK[RLENGTH].num = reo - rso;
+        }
         drop();
         drop();
         push_int_val(k ? 0 : rso + 1);
@@ -4144,10 +4165,16 @@ static int interpx(int start, int *status)
       case tksubstr:
         nargs = *ip++;
         struct zstring *zz = val_to_str(STKP - nargs + 1)->vst;
+        unsigned *zu = strtowc(zz->str, zz->size, &k);
         // Offset of start of string; convert 1-based to 0-based
-        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, zz->size);
-        ssize_t nn = zz->size - mm;   // max possible substring length
+        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, k);
+        ssize_t nn = k - mm;   // max possible substring length
         if (nargs == 3) nn = CLAMP(trunc(val_to_num(STKP)), 0, nn);
+        // UTF8 index -> ASCII one
+        char *tmp = xzalloc(zz->size);
+        nn = wctostr(zu, tmp, nn);
+        mm = wctostr(zu, tmp, mm);
+        free(tmp); free(zu);
         struct zstring *zzz = new_zstring(zz->str + mm, nn);
         zstring_release(&(STKP - nargs + 1)->vst);
         (STKP - nargs + 1)->vst = zzz;
@@ -4158,7 +4185,8 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         char *s1 = val_to_str(STKP-1)->vst->str;
         char *s3 = strstr(s1, val_to_str(STKP)->vst->str);
-        ptrdiff_t offs = s3 ? s3 - s1 + 1 : 0;
+        if (s3) free(strtowc(s1, s3 - s1, &k));
+        ptrdiff_t offs = s3 ? k + 1 : 0;
         drop();
         drop();
         push_int_val(offs);
@@ -4185,13 +4213,16 @@ static int interpx(int start, int *status)
       case tktolower:
       case tktoupper:
         nargs = *ip++;
-        int (*f)(int) = opcode == tktolower ? (tolower) : (toupper);
         val_to_str(STKP);
         // Need to dup the string to not modify original.
         zvalue_dup_zstring(STKP);
         struct zstring *z = STKP->vst;
-        char *p = z->str, *e = z->str + z->size;
-        for (; p < e; p++) *p = f(*p);
+        unsigned *widestr = strtowc(z->str, z->size, &k);
+        int i = 0;
+        for (; i < k; i++)
+          widestr[i] = (opcode == tktolower ? towlower : towupper)(widestr[i]);
+        wctostr(widestr, z->str, k);
+        xfree(widestr);
         break;
 
       case tklength:
@@ -4199,7 +4230,10 @@ static int interpx(int start, int *status)
         v = nargs ? STKP : &FIELD[0];
         force_maybemap_to_map(v);
         if (IS_MAP(v)) k = v->map->count - v->map->deleted;
-        else k = val_to_str(v)->vst->size;
+        else {
+          val_to_str(v);
+          xfree(strtowc(v->vst->str, v->vst->size, &k));
+        }
         if (nargs) drop();
         push_int_val(k);
         break;
