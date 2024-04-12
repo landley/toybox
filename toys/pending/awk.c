@@ -380,26 +380,30 @@ static void get_token_text(char *op, int tk)
 /// UTF-8
 ////////////////////
 
-static unsigned *strtowc(char *str, size_t len, int *newlen)
+// Return number of bytes in 'cnt' utf8 codepoints
+static int bytesinutf8(char *str, size_t len, size_t cnt)
 {
-  size_t ai = 0, ui = 0;
-  unsigned *ret = xzalloc(sizeof(int) * len);
-  while (ai < len) if (FLAG(b)) ret[ui++] = str[ai++];
-  else {
-    int isvalid = utf8towc(ret+(ui++), str+ai, len-ai);
-    if (!isvalid) ai++; // Null byte
-    else if (isvalid < 0) ret[ui] = '?', ai+=(+isvalid);
-    else ai += isvalid;
+  unsigned wch;
+  char *lim = str + len, *s0 = str;
+  while (cnt-- && str < lim) {
+    int r = utf8towc(&wch, str, lim - str);
+    str += r > 0 ? r : 1;
   }
-  *newlen = ui;
-  return ret;
+  return str - s0;
 }
 
-static size_t wctostr(unsigned *old, char *ret, size_t len)
+// Return number of utf8 codepoints in str
+static int utf8cnt(char *str, size_t len)
 {
-  size_t ai = 0, ui = 0;
-  while (ui < len) ai += wctoutf8(ret+ai, old[ui++]);
-  return ai;
+  unsigned wch;
+  int cnt = 0;
+  char *lim;
+  if (!len || FLAG(b)) return len;
+  for (lim = str + len; str < lim; cnt++) {
+    int r = utf8towc(&wch, str, lim - str);
+    str += r > 0 ? r : 1;
+  }
+  return cnt;
 }
 
 ////////////////////
@@ -3899,16 +3903,16 @@ static int interpx(int start, int *status)
       case tkrbracket:    // concat multiple map subscripts
         nsubscrs = *ip++;
         while (--nsubscrs) {
-        swap();
-        val_to_str(STKP);
-        push_val(&STACK[SUBSEP]);
-        val_to_str(STKP);
-        STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
-        drop();
-        swap();
-        val_to_str(STKP);
-        STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
-        drop();
+          swap();
+          val_to_str(STKP);
+          push_val(&STACK[SUBSEP]);
+          val_to_str(STKP);
+          STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
+          drop();
+          swap();
+          val_to_str(STKP);
+          STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
+          drop();
         }
         break;
 
@@ -4142,7 +4146,7 @@ static int interpx(int start, int *status)
         if (!(IS_RX(STKP))) val_to_str(STKP);
         regex_t rx_pat, *rxp = &rx_pat;
         rx_zvalue_compile(&rxp, STKP);
-        regoff_t rso, reo;
+        regoff_t rso = 0, reo = 0;  // shut up warning (may be uninit)
         k = rx_find(rxp, STKP[-1].vst->str, &rso, &reo, 0);
         rx_zvalue_free(rxp, STKP);
         // Force these to num before setting.
@@ -4150,8 +4154,8 @@ static int interpx(int start, int *status)
         val_to_num(&STACK[RLENGTH]);
         if (k) STACK[RSTART].num = 0, STACK[RLENGTH].num = -1;
         else {
-          xfree(strtowc(STKP[-1].vst->str, reo, &reo));
-          xfree(strtowc(STKP[-1].vst->str, rso, &rso));
+          reo = utf8cnt(STKP[-1].vst->str, reo);
+          rso = utf8cnt(STKP[-1].vst->str, rso);
           STACK[RSTART].num = rso + 1, STACK[RLENGTH].num = reo - rso;
         }
         drop();
@@ -4167,16 +4171,13 @@ static int interpx(int start, int *status)
       case tksubstr:
         nargs = *ip++;
         struct zstring *zz = val_to_str(STKP - nargs + 1)->vst;
-        unsigned *zu = strtowc(zz->str, zz->size, &k);
-        // Offset of start of string; convert 1-based to 0-based
-        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, k);
-        ssize_t nn = k - mm;   // max possible substring length
+        int nchars = utf8cnt(zz->str, zz->size);  // number of utf8 codepoints
+        // Offset of start of string (in chars not bytes); convert 1-based to 0-based
+        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, nchars);
+        ssize_t nn = nchars - mm;   // max possible substring length (chars)
         if (nargs == 3) nn = CLAMP(trunc(val_to_num(STKP)), 0, nn);
-        // UTF8 index -> ASCII one
-        char *tmp = xzalloc(zz->size);
-        nn = wctostr(zu, tmp, nn);
-        mm = wctostr(zu, tmp, mm);
-        free(tmp); free(zu);
+        mm = bytesinutf8(zz->str, zz->size, mm);
+        nn = bytesinutf8(zz->str + mm, zz->size - mm, nn);
         struct zstring *zzz = new_zstring(zz->str + mm, nn);
         zstring_release(&(STKP - nargs + 1)->vst);
         (STKP - nargs + 1)->vst = zzz;
@@ -4187,8 +4188,7 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         char *s1 = val_to_str(STKP-1)->vst->str;
         char *s3 = strstr(s1, val_to_str(STKP)->vst->str);
-        if (s3) free(strtowc(s1, s3 - s1, &k));
-        ptrdiff_t offs = s3 ? k + 1 : 0;
+        ptrdiff_t offs = s3 ? utf8cnt(s1, s3 - s1) + 1 : 0;
         drop();
         drop();
         push_int_val(offs);
@@ -4215,16 +4215,31 @@ static int interpx(int start, int *status)
       case tktolower:
       case tktoupper:
         nargs = *ip++;
-        val_to_str(STKP);
-        // Need to dup the string to not modify original.
-        zvalue_dup_zstring(STKP);
-        struct zstring *z = STKP->vst;
-        unsigned *widestr = strtowc(z->str, z->size, &k);
-        int i = 0;
-        for (; i < k; i++)
-          widestr[i] = (opcode == tktolower ? towlower : towupper)(widestr[i]);
-        wctostr(widestr, z->str, k);
-        xfree(widestr);
+        struct zstring *z = val_to_str(STKP)->vst;
+        unsigned zzlen = z->size + 4; // Allow for expansion
+        zz = zstring_update(0, zzlen, "", 0);
+        char *p = z->str, *e = z->str + z->size, *q = zz->str;
+        // Similar logic to toybox strlower(), but fixed.
+        while (p < e) {
+          unsigned wch;
+          int len = utf8towc(&wch, p, e-p);
+          if (len < 1) {  // nul byte, error, or truncated code
+            *q++ = *p++;
+            continue;
+          }
+          p += len;
+          wch = (opcode == tktolower ? towlower : towupper)(wch);
+          len = wctoutf8(q, wch);
+          q += len;
+          // Need realloc here if overflow possible
+          if ((len = q - zz->str) + 4 < (int)zzlen) continue;
+          zz = zstring_update(zz, zzlen = len + 16, "", 0);
+          q = zz->str + len;
+        }
+        *q = 0;
+        zz->size = q - zz->str;
+        zstring_release(&z);
+        STKP->vst = zz;
         break;
 
       case tklength:
@@ -4234,7 +4249,7 @@ static int interpx(int start, int *status)
         if (IS_MAP(v)) k = v->map->count - v->map->deleted;
         else {
           val_to_str(v);
-          xfree(strtowc(v->vst->str, v->vst->size, &k));
+          k = utf8cnt(v->vst->str, v->vst->size);
         }
         if (nargs) drop();
         push_int_val(k);
@@ -4292,7 +4307,7 @@ static int interpx(int start, int *status)
         push_int_val(0);
         // Get all 53 mantissa bits in play:
         // (upper 26 bits * 2^27 + upper 27 bits) / 2^53
-        STKP->num = 
+        STKP->num =
           ((random() >> 5) * 134217728.0 + (random() >> 4)) / 9007199254740992.0;
         break;
       case tksrand:
@@ -4305,7 +4320,7 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         STKP->num = mathfunc[opcode-tkcos](val_to_num(STKP));
         break;
-        
+
       default:
         // This should never happen:
         error_exit("!!! Unimplemented opcode %d", opcode);
