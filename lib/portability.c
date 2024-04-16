@@ -65,7 +65,7 @@ struct mtab_list *xgetmountlist(char *path)
   int i, count;
 
   if (path) error_exit("xgetmountlist");
-  if ((count = getmntinfo(&entries, 0)) == 0) perror_exit("getmntinfo");
+  if (!(count = getmntinfo(&entries, MNT_WAIT))) perror_exit("getmntinfo");
 
   // The "test" part of the loop is done before the first time through and
   // again after each "increment", so putting the actual load there avoids
