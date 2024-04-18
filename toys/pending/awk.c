@@ -904,6 +904,19 @@ static void get_string_or_regex(int endchar)
           }
           append_this_char(c);
         } else append_this_char('x');
+      } else if (TT.scs->ch == 'u') {
+        gch();
+        if (isxdigit(TT.scs->ch)) {
+          int i = 0, j = 0, c = 0;
+          char codep[9] = {0};
+          do {
+            codep[j++] = TT.scs->ch;
+            gch();
+          } while (j < 8 && isxdigit(TT.scs->ch));
+          c = strtol(codep, 0, 16);
+          for (i = wctoutf8(codep, c), j = 0; j < i; j++)
+            append_this_char(codep[j]);
+        } else append_this_char('u');
       } else if (isdigit(TT.scs->ch)) {
         if (TT.scs->ch < '8') {
           int k, c = 0;
@@ -3102,6 +3115,7 @@ static int fsprintf(FILE *ignored, const char *fmt, ...)
   va_copy(args2, args);
   int len = vsnprintf(0, 0, fmt, args); // size needed
   va_end(args);
+  if (len < 0) FATAL("Bad sprintf format");
 
   // Unfortunately we have to mess with zstring internals here.
   if (len > (int)(TT.rgl.zspr->capacity - TT.rgl.zspr->size) - 1) {
@@ -3123,8 +3137,7 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
   double n = 0;
   char *s;
   regoff_t offs = -1, e = -1;
-  val_to_str(STKP-nargs+1);
-  char *fmt = (STKP-nargs+1)->vst->str;
+  char *pfmt, *fmt = val_to_str(STKP-nargs+1)->vst->str;
   k = stkn(nargs - 2);
   while (*fmt) {
     nn = strcspn(fmt, "%");
@@ -3135,7 +3148,7 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
       fmt[nn] = holdc;
     }
     fmt += nn;
-    if (!*fmt) break;
+    if (!*(pfmt = fmt)) break;
     nnc = strcspn(fmt+1, "aAdiouxXfFeEgGcs%");
     fmtc = fmt[nnc+1];
     if (!fmtc) FFATAL("bad printf format '%s'", fmt);
@@ -3169,24 +3182,35 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
           val_to_num(&STACK[k]);
           n = STACK[k++].num;
         }
+        if (strchr("cdiouxX", fmtc)) {
+          pfmt = strcpy(TT.pbuf, fmt);
+          if (pfmt[nnc] != 'l') {
+            strcpy(pfmt+nnc+1, "l_");
+            pfmt[nnc+2] = fmtc;
+          }
+        }
+        if (fmtc == 'c' && n > 0x10ffff) n = 0xfffd;  // musl won't take larger "wchar"
         switch (nargsneeded) {
           case 1:
-            if (fmtc == 's') fpvar(outfp, fmt, s);
-            else if (strchr("cdi", fmtc)) fpvar(outfp, fmt, (int)n);
-            else if (strchr("ouxX", fmtc)) fpvar(outfp, fmt, (unsigned)n);
-            else fpvar(outfp, fmt, n);
+            if (fmtc == 's') fpvar(outfp, pfmt, s);
+            else if (fmtc == 'c') fpvar(outfp, pfmt, (wint_t)n);
+            else if (strchr("di", fmtc)) fpvar(outfp, pfmt, (long)n);
+            else if (strchr("ouxX", fmtc)) fpvar(outfp, pfmt, (unsigned long)n);
+            else fpvar(outfp, pfmt, n);
             break;
           case 2:
-            if (fmtc == 's') fpvar(outfp, fmt, cnt2, s);
-            else if (strchr("cdi", fmtc)) fpvar(outfp, fmt, cnt2, (int)n);
-            else if (strchr("ouxX", fmtc)) fpvar(outfp, fmt, cnt2, (unsigned)n);
-            else fpvar(outfp, fmt, cnt2, n);
+            if (fmtc == 's') fpvar(outfp, pfmt, cnt2, s);
+            else if (fmtc == 'c') fpvar(outfp, pfmt, cnt2, (wint_t)n);
+            else if (strchr("di", fmtc)) fpvar(outfp, pfmt, cnt2, (long)n);
+            else if (strchr("ouxX", fmtc)) fpvar(outfp, pfmt, cnt2, (unsigned long)n);
+            else fpvar(outfp, pfmt, cnt2, n);
             break;
           case 3:
-            if (fmtc == 's') fpvar(outfp, fmt, cnt1, cnt2, s);
-            else if (strchr("cdi", fmtc)) fpvar(outfp, fmt, cnt1, cnt2, (int)n);
-            else if (strchr("ouxX", fmtc)) fpvar(outfp, fmt, cnt1, cnt2, (unsigned)n);
-            else fpvar(outfp, fmt, cnt1, cnt2, n);
+            if (fmtc == 's') fpvar(outfp, pfmt, cnt1, cnt2, s);
+            else if (fmtc == 'c') fpvar(outfp, pfmt, cnt1, cnt2, (wint_t)n);
+            else if (strchr("di", fmtc)) fpvar(outfp, pfmt, cnt1, cnt2, (long)n);
+            else if (strchr("ouxX", fmtc)) fpvar(outfp, pfmt, cnt1, cnt2, (unsigned long)n);
+            else fpvar(outfp, pfmt, cnt1, cnt2, n);
             break;
         }
         break;
@@ -4468,7 +4492,7 @@ static void free_literal_regex(void)
 static void run(int optind, int argc, char **argv, char *sepstring,
     struct arg_list *assign_args)
 {
-  char *printf_fmt_rx = "%[-+ #0']*([*]|[0-9]*)([.]([*]|[0-9]*))?[aAdiouxXfFeEgGcs%]";
+  char *printf_fmt_rx = "%[-+ #0']*([*]|[0-9]*)([.]([*]|[0-9]*))?l?[aAdiouxXfFeEgGcs%]";
   init_globals(optind, argc, argv, sepstring, assign_args);
   TT.cfile = xzalloc(sizeof(struct zfile));
   xregcomp(&TT.rx_default, "[ \t\n]+", REG_EXTENDED);
