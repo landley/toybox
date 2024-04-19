@@ -16,6 +16,7 @@
 
 #include "toys.h"
 
+// Check stdout, stderr, stdin (in that order) and if none open /dev/tty
 int tty_fd(void)
 {
   int i, j;
@@ -72,19 +73,38 @@ int terminal_probesize(unsigned *xx, unsigned *yy)
   return 0;
 }
 
-void xsetspeed(struct termios *tio, int speed)
-{
-  int i, speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400,
-                    4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
-                    500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
-                    2500000, 3000000, 3500000, 4000000};
+// This table skips both B0 and BOTHER
+static const int speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800,
+  2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 500000, 576000,
+  921600, 1000000, 1152000, 1500000, 2000000, 2500000, 3000000,3500000,4000000};
 
-  // Find speed in table, adjust to constant
-  for (i = 0; i < ARRAY_LEN(speeds); i++) if (speeds[i] == speed) break;
-  if (i == ARRAY_LEN(speeds)) error_exit("unknown speed: %d", speed);
-  cfsetspeed(tio, i+1+4081*(i>15));
+// Show bits per second for cfspeed value. Assumes we have a valid speed
+unsigned cfspeed2bps(unsigned speed)
+{
+  if (!(speed&15)) return 0;
+  if (speed>15) speed = (speed&15)+15;
+
+  return speeds[--speed];
 }
 
+// Convert bits per second to cfspeed value. Returns 0 for unknown bps
+unsigned bps2cfspeed(unsigned baud)
+{
+  int i = 0;
+
+  while (i<ARRAY_LEN(speeds))
+    if (speeds[i++]==baud) return i+(i>15)*(4096-16+1);
+
+  return 0;
+}
+
+void xsetspeed(struct termios *tio, int bps)
+{
+  int i = bps2cfspeed(bps);
+
+  if (!i) error_exit("unknown speed: %d", bps);
+  cfsetspeed(tio, i);
+}
 
 // Reset terminal to known state, saving copy of old state if old != NULL.
 int set_terminal(int fd, int raw, int speed, struct termios *old)

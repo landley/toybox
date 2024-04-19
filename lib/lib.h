@@ -333,6 +333,8 @@ int terminal_probesize(unsigned *xx, unsigned *yy);
 #define KEY_ALT (1<<18)
 int scan_key(char *scratch, int timeout_ms);
 int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy);
+unsigned cfspeed2bps(unsigned speed);
+unsigned bps2cfspeed(unsigned baud);
 void xsetspeed(struct termios *tio, int speed);
 int set_terminal(int fd, int raw, int speed, struct termios *old);
 void xset_terminal(int fd, int raw, int speed, struct termios *old);
