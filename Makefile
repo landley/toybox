@@ -64,7 +64,7 @@ root_clean:
 	@echo root cleaned
 
 clean::
-	@chmod -fR 700 generated || true
+	@chmod -fR 700 generated 2>/dev/null || true
 	@rm -rf toybox generated change install .singleconfig*
 	@echo cleaned
 
