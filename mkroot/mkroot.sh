@@ -82,7 +82,7 @@ if [ -z "$NOLOGPATH" ]; then
     CROSS_COMPILE=${CROSS_COMPILE##*/}
   export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG"-commands.txt
   rm -rf "$WRAPDIR" "$LOGPATH" generated/obj &&
-  WRAPDIR="$WRAPDIR" CROSS_COMPILE= NOSTRIP=1 source mkroot/record-commands ||
+  eval "$(WRAPDIR="$WRAPDIR" CROSS_COMPILE= NOSTRIP=1 mkroot/record-commands)"||
     exit 1
 fi
 

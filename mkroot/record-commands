@@ -5,23 +5,15 @@
 [ -z "$WRAPDIR" ] && WRAPDIR="$PWD"/record-commands && RM=$(which rm)
 [ -z "$LOGPATH" ] && export LOGPATH="$PWD"/log.txt
 
-if [ ${#BASH_SOURCE[@]} -lt 2 ] && [ $# -eq 0 ]
-then
-  echo "usage: WRAPDIR=dir LOGPATH=log.txt record-commands COMMAND..."
-  echo 'Then examine log.txt. "record-commands echo" to just setup $WRAPDIR'
-  exit 1
-fi
-
 if [ ! -x "$WRAPDIR/logpath" ]
 then
   LOG="$(which logpath)"
   mkdir -p "$WRAPDIR" || exit 1
-  [ -e "$(which logpath)" ] || { cd "$(dirname $0)/.." &&
-    PREFIX="$WRAPDIR/" scripts/single.sh logpath && LOG=$(readlink -f logpath)||
-      exit 1; }
-  cp -H "$LOG" "$WRAPDIR/logpath" || exit 1
+  [ -e "$LOG" ] && cp -H "$LOG" "$WRAPDIR/logpath" || { cd "$(dirname $0)/.." &&
+    PREFIX="$WRAPDIR/" scripts/single.sh logpath >/dev/null &&
+    LOG="$PWD/logpath" || exit 1; }
   tr : '\n' <<< "$PATH" | while read i; do
-    find "$i" -type f,l -maxdepth 1 -executable -exec basename {} \; | \
+    find "$i" \( -type f -o -type l \) -maxdepth 1 -executable -exec basename {} \; | \
       while read FILE; do ln -s logpath "$WRAPDIR/$FILE" 2>/dev/null; done
   done
 fi
@@ -30,13 +22,14 @@ fi
 rm -f "$LOGPATH"
 
 # When sourced, set up wrapper for current context.
-export PATH="$WRAPDIR:$PATH"
-if [ ${#BASH_SOURCE[@]} -lt 2 ]
+if [ $# -gt 0 ]
 then
-  "$@"
+  PATH="$WRAPDIR:$PATH" "$@"
   X=$?
   [ -n "$RM" ] && "$RM" -rf "$WRAPDIR"
 
   exit $X
+else
+  echo export LOGPATH=${LOGPATH@Q} PATH=${WRAPDIR@Q}:${PATH@Q}
 fi
 
