@@ -41,17 +41,18 @@ GLOBALS(
 
 static void do_xxd(int fd, char *name)
 {
+  FILE *fp = xfdopen(xdup(fd), "r");
   long long pos = 0;
   long long limit = TT.l;
   int i, j, k, len, space, c = TT.c ? : sizeof(toybuf);
 
   if (FLAG(s)) {
-    xlseek(fd, TT.s, SEEK_SET);
+    if (fseek(fp, TT.s, SEEK_SET)) perror_exit("seek %ld", TT.s);
     pos = TT.s;
     if (limit) limit += TT.s;
   }
 
-  while (0<(len = readall(fd, toybuf, (limit && limit-pos<c) ? limit-pos : c))){
+  while ((len=fread(toybuf, 1, (limit && limit-pos<c) ? limit-pos : c, fp))>0){
     if (!FLAG(p)) printf("%08llx: ", TT.o + pos);
     pos += len;
     space = 2*TT.c;
@@ -84,6 +85,7 @@ static void do_xxd(int fd, char *name)
   }
   if (!TT.c && FLAG(p)) putchar('\n');
   if (len<0) perror_exit("read");
+  fclose(fp);
 }
 
 static void do_xxd_include(int fd, char *name)
