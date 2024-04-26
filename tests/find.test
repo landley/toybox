@@ -156,4 +156,7 @@ touch -d @12345 dir/one
 touch -d @12346 dir/two
 testing 'newerat' 'find dir -type f -newerat @12345' 'dir/two\n' '' ''
 testing 'newer nano' 'find dir -type f -newerat @12345.67890' 'dir/two\n' '' ''
+ln -s one dir/three
+testing '-size implies -type f' 'find dir -size -1M | sort' \
+  'dir/one\ndir/two\n' '' ''
 rm -rf dir
