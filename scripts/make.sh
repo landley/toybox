@@ -69,6 +69,8 @@ LIBRARIES=$(
       echo -l$i &
   done | sort | xargs
 )
+# Actually resolve dangling dependencies in extra libraries when static linking
+[ -n "$LIBRARIES" ] && LIBRARIES="-Wl,--start-group $LIBRARIES -Wl,--end-group"
 
 [ -z "$VERSION" ] && [ -d ".git" ] && [ -n "$(which git 2>/dev/null)" ] &&
   VERSION="$(git describe --tags --abbrev=12 2>/dev/null)"
