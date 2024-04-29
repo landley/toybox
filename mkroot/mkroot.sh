@@ -17,7 +17,7 @@ done
 : ${TOP:=$PWD/root} ${BUILD:=$TOP/build} ${LOG:=$BUILD/log}
 : ${AIRLOCK:=$BUILD/airlock} ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/mkroot/packages}
 
-announce() { printf "\033]2;$CROSS $*\007" >/dev/tty; printf "\n=== $*\n";}
+announce() { printf "\033]2;$CROSS $*\007" 2>/dev/null >/dev/tty; printf "\n=== $*\n";}
 die() { echo "$@" >&2; exit 1; }
 
 # ----- Are we cross compiling (via CROSS_COMPILE= or CROSS=)
