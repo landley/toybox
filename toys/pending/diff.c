@@ -14,33 +14,33 @@ config DIFF
   bool "diff"
   default n
   help
-  usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] [-F REGEX ] FILE1 FILE2
+    usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] [-F REGEX ] FILE1 FILE2
 
-  -a	Treat all files as text
-  -b	Ignore changes in the amount of whitespace
-  -B	Ignore changes whose lines are all blank
-  -d	Try hard to find a smaller set of changes
-  -F 	Show the most recent line matching the regex
-  -i	Ignore case differences
-  -L	Use LABEL instead of the filename in the unified header
-  -N	Treat absent files as empty
-  -q	Output only whether files differ
-  -r	Recurse
-  -S	Start with FILE when comparing directories
-  -s	Report when two files are the same
-  -T	Make tabs line up by prefixing a tab when necessary
-  -t	Expand tabs to spaces in output
-  -u	Unified diff
-  -U	Output LINES lines of context
-  -w	Ignore all whitespace
+    -a	Treat all files as text
+    -b	Ignore changes in the amount of whitespace
+    -B	Ignore changes whose lines are all blank
+    -d	Try hard to find a smaller set of changes
+    -F 	Show the most recent line matching the regex
+    -i	Ignore case differences
+    -L	Use LABEL instead of the filename in the unified header
+    -N	Treat absent files as empty
+    -q	Output only whether files differ
+    -r	Recurse
+    -S	Start with FILE when comparing directories
+    -s	Report when two files are the same
+    -T	Make tabs line up by prefixing a tab when necessary
+    -t	Expand tabs to spaces in output
+    -u	Unified diff
+    -U	Output LINES lines of context
+    -w	Ignore all whitespace
 
-  --color     Color output   --strip-trailing-cr   Strip '\r' from input lines
-  --TYPE-line-format=FORMAT  Display TYPE (unchanged/old/new) lines using FORMAT
-    FORMAT uses printf integer escapes (ala %-2.4x) followed by LETTER: FELMNn
-  Supported format specifiers are:
-  * %l, the contents of the line, without the trailing newline
-  * %L, the contents of the line, including the trailing newline
-  * %%, the character '%'
+    --color     Color output   --strip-trailing-cr   Strip '\r' from input lines
+    --TYPE-line-format=FORMAT  Display TYPE (unchanged/old/new) lines using FORMAT
+      FORMAT uses printf integer escapes (ala %-2.4x) followed by LETTER: FELMNn
+    Supported format specifiers are:
+    * %l, the contents of the line, without the trailing newline
+    * %L, the contents of the line, including the trailing newline
+    * %%, the character '%'
 */
 
 #define FOR_diff

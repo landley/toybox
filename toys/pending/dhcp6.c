@@ -9,9 +9,9 @@ config DHCP6
   bool "dhcp6"
   default n
   help
-  usage: dhcp6 [-fbnqvR] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
+      usage: dhcp6 [-fbnqvR] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
 
-        Configure network dynamically using DHCP.
+      Configure network dynamically using DHCP.
 
       -i Interface to use (default eth0)
       -p Create pidfile
