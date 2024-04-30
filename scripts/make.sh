@@ -212,12 +212,18 @@ fi
   echo "} this;"
 } > "$GENDIR"/globals.h || exit 1
 
-hostcomp mktags
-if isnewer tags.h toys
-then
-  $SED -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
-    toys/*/*.c lib/*.c | "$UNSTRIPPED"/mktags > "$GENDIR"/tags.h
-fi
+# Recreate tags.h
+$SED -ne '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/p' \
+  -e 's/[^{]*{"\([^"]*\)"[^{]*/ _\1/gp}' toys/*/*.c | tr '[:punct:]' _ | \
+while read i; do
+  [ "$i" = "${i#_}" ] && { HEAD="$i"; X=0; LL=; continue;}
+  for j in $i; do
+    [ $X -eq 32 ] && LL=LL
+    NAME="$HEAD$j"
+    printf "#define $NAME %*s%s\n#define _$NAME %*s%s\n" \
+      $((32-${#NAME})) "" "$X" $((31-${#NAME})) "" "(1$LL<<$((X++)))" || exit 1
+  done
+done > "$GENDIR"/tags.h || exit 1
 
 # Create help.h, and zhelp.h if zcat enabled
 hostcomp config2help
