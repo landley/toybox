@@ -11,11 +11,11 @@ config SYSCTL
   bool "sysctl"
   default y
   help
-    usage: sysctl [-aAeNnqw] [-p [FILE] | KEY[=VALUE]...]
+    usage: sysctl [-aeNnqw] [-p [FILE] | KEY[=VALUE]...]
 
     Read/write system control data (under /proc/sys).
 
-    -a,A	Show all values
+    -a	Show all values
     -e	Don't warn about unknown keys
     -N	Don't print key values
     -n	Don't print key names
