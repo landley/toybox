@@ -37,7 +37,7 @@ GLOBALS(
 void mknod_main(void)
 {
   mode_t modes[] = {S_IFIFO, S_IFCHR, S_IFCHR, S_IFBLK};
-  int major=0, minor=0, type;
+  int major = 0, minor = 0, type;
   int mode = TT.m ? string_to_mode(TT.m, 0777) : 0660;
 
   type = stridx("pcub", *toys.optargs[1]);
@@ -49,9 +49,8 @@ void mknod_main(void)
     minor = atoi(toys.optargs[3]);
   }
 
-  if (toys.optflags & FLAG_Z)
-    if (-1 == lsm_set_create(TT.Z))
-      perror_exit("-Z '%s' failed", TT.Z);
+  if (FLAG(Z) && lsm_set_create(TT.Z)==-1)
+    perror_exit("-Z '%s' failed", TT.Z);
   if (mknod(*toys.optargs, mode|modes[type], dev_makedev(major, minor)))
     perror_exit_raw(*toys.optargs);
 }

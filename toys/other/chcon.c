@@ -28,12 +28,12 @@ static int do_chcon(struct dirtree *try)
   if (!dirtree_notdotdot(try)) return 0;
 
   path = dirtree_path(try, 0);
-  if (toys.optflags & FLAG_v) printf("chcon '%s' to %s\n", path, con);
-  if (-1 == ((toys.optflags & FLAG_h) ? lsetfilecon : setfilecon)(path, con))
+  if (FLAG(v)) printf("chcon '%s' to %s\n", path, con);
+  if (-1 == (FLAG(h) ? lsetfilecon : setfilecon)(path, con))
     perror_msg("'%s' to %s", path, con);
   free(path);
 
-  return (toys.optflags & FLAG_R)*DIRTREE_RECURSE;
+  return FLAG(R)*DIRTREE_RECURSE;
 }
 
 void chcon_main(void)

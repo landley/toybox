@@ -25,12 +25,10 @@ GLOBALS(
 
 void swapon_main(void)
 {
-  // 0x70000 = SWAP_FLAG_DISCARD|SWAP_FLAG_DISCARD_ONCE|SWAP_FLAG_DISCARD_PAGES
-  int flags = (toys.optflags&FLAG_d)*0x70000;
+  // SWAP_FLAG_DISCARD|SWAP_FLAG_DISCARD_ONCE|SWAP_FLAG_DISCARD_PAGES
+  int flags = FLAG(d)*0x70000;
 
-  if (toys.optflags)
-    flags |= SWAP_FLAG_PREFER | (TT.p << SWAP_FLAG_PRIO_SHIFT);
-
+  if (FLAG(p)) flags |= SWAP_FLAG_PREFER | (TT.p << SWAP_FLAG_PRIO_SHIFT);
   if (swapon(*toys.optargs, flags))
     perror_exit("Couldn't swapon '%s'", *toys.optargs);
 }

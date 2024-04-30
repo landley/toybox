@@ -40,7 +40,7 @@ void mkdir_main(void)
   char **s;
   mode_t mode = (0777&~toys.old_umask);
 
-  if (CFG_MKDIR_Z && (toys.optflags&FLAG_Z))
+  if (CFG_MKDIR_Z && FLAG(Z))
     if (0>lsm_set_create(TT.Z))
       perror_exit("-Z '%s' failed", TT.Z);
 

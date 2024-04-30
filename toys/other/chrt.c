@@ -57,7 +57,7 @@ void chrt_main(void)
   int pol, pri;
 
   // Show min/maxes?
-  if (toys.optflags&FLAG_m) {
+  if (FLAG(m)) {
     for (pol = 0; pol<ARRAY_LEN(polnames); pol++) if (polnames[pol])
       printf("%s min/max priority\t: %d/%d\n", polnames[pol],
         sched_get_priority_min(pol), sched_get_priority_max(pol));
@@ -81,14 +81,13 @@ void chrt_main(void)
   }
 
   if (!*toys.optargs) help_exit("no PRIORITY");
-  if (!toys.optargs[1] == !(toys.optflags&FLAG_p))
-    help_exit("need 1 of -p or COMMAND");
+  if (!toys.optargs[1] == !FLAG(p)) help_exit("need 1 of -p or COMMAND");
 
   // Set policy and priority
-  if (-1==(pol = highest_bit(toys.optflags&0x2f))) pol = SCHED_RR;
+  if (-1==(pol = highest_bit(toys.optflags&(FLAG_p-1)))) pol = SCHED_RR;
   pri = atolx_range(*toys.optargs, sched_get_priority_min(pol),
     sched_get_priority_max(pol));
-  if (toys.optflags&FLAG_R) pol |= SCHED_RESET_ON_FORK;
+  if (FLAG(R)) pol |= SCHED_RESET_ON_FORK;
 
   if (sched_setscheduler(TT.p, pol, (void *)&pri))
     perror_exit("sched_setscheduler");

@@ -32,7 +32,7 @@ static int do_rm(struct dirtree *try)
 
   // Intentionally fail non-recursive attempts to remove even an empty dir
   // (via wrong flags to unlinkat) because POSIX says to.
-  if (dir && !(toys.optflags & (FLAG_r|FLAG_R))) goto skip;
+  if (dir && !FLAG(r) && !FLAG(R)) goto skip;
 
   // This is either the posix section 2(b) prompt or the section 3 prompt.
   if (!FLAG(f)

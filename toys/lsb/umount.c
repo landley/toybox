@@ -76,17 +76,16 @@ static void do_umount(char *dir, char *dev, int flags)
   }
 
   if (!umount2(dir, flags)) {
-    if (toys.optflags & FLAG_v) xprintf("%s unmounted\n", dir);
+    if (FLAG(v)) xprintf("%s unmounted\n", dir);
 
     // Attempt to disassociate loopback device. This ioctl should be ignored
     // for anything else, because lanana allocated ioctl range 'L' to loopback
-    if (dev && !(toys.optflags & FLAG_D)) {
+    if (dev && !FLAG(D)) {
       int lfd = open(dev, O_RDONLY);
 
       if (lfd != -1) {
         // This is LOOP_CLR_FD, fetching it from headers is awkward
-        if (!ioctl(lfd, 0x4C01) && (toys.optflags & FLAG_v))
-          xprintf("%s cleared\n", dev);
+        if (!ioctl(lfd, 0x4C01) && FLAG(v)) xprintf("%s cleared\n", dev);
         close(lfd);
       }
     }
@@ -94,9 +93,9 @@ static void do_umount(char *dir, char *dev, int flags)
     return;
   }
 
-  if (toys.optflags & FLAG_r) {
+  if (FLAG(r)) {
     if (!mount("", dir, "", MS_REMOUNT|MS_RDONLY, "")) {
-      if (toys.optflags & FLAG_v) xprintf("%s remounted ro\n", dir);
+      if (FLAG(v)) xprintf("%s remounted ro\n", dir);
       return;
     }
   }
@@ -110,19 +109,18 @@ void umount_main(void)
   struct mtab_list *mlsave = 0, *mlrev = 0, *ml;
   int flags=0;
 
-  if (!toys.optc && !(toys.optflags & FLAG_a))
-    error_exit("Need 1 arg or -a");
+  if (!toys.optc && !FLAG(a)) error_exit("Need 1 arg or -a");
 
-  if (toys.optflags & FLAG_f) flags |= MNT_FORCE;
-  if (toys.optflags & FLAG_l) flags |= MNT_DETACH;
+  if (FLAG(f)) flags |= MNT_FORCE;
+  if (FLAG(l)) flags |= MNT_DETACH;
 
   // Load /proc/mounts and get a reversed list (newest first)
   // We use the list both for -a, and to umount /dev/name or do losetup -d
-  if (!(toys.optflags & FLAG_n) && !access(pm, R_OK))
+  if (!FLAG(n) && !access(pm, R_OK))
     mlrev = dlist_terminate(mlsave = xgetmountlist(pm));
 
   // Unmount all: loop through mounted filesystems, skip -t, unmount the rest
-  if (toys.optflags & FLAG_a) {
+  if (FLAG(a)) {
     char *typestr = 0;
     struct arg_list *tal;
 

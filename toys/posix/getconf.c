@@ -200,14 +200,14 @@ static void show_conf(int i, struct config *c, const char *path)
 void getconf_main(void)
 {
   struct config *configs[] = {sysconfs, pathconfs, confstrs, limits, others},
-    *c = NULL;
+    *c = 0;
   int i, j, lens[] = {ARRAY_LEN(sysconfs), ARRAY_LEN(pathconfs),
     ARRAY_LEN(confstrs), ARRAY_LEN(limits), ARRAY_LEN(others)};
   char *name, *path = (toys.optc==2) ? toys.optargs[1] : "/",
     *config_names[] = {"sysconf(3)", "pathconf(3)", "confstr(3)",
     "<limits.h>", "Misc"};
 
-  if (toys.optflags&FLAG_a) {
+  if (FLAG(a)) {
     for (i = 0; i<5; i++) {
       for (j = 0; j<lens[i]; j++) {
         c = &configs[i][j];
@@ -218,7 +218,7 @@ void getconf_main(void)
     return;
   }
 
-  if (toys.optflags&FLAG_l) {
+  if (FLAG(l)) {
     for (i = 0; i<5; i++) {
       printf("%s\n", config_names[i]);
       for (j = 0; j<lens[i]; j++) printf("  %s\n", configs[i][j].name);

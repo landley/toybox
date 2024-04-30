@@ -158,8 +158,7 @@ void du_main(void)
 
   // Loop over command line arguments, recursing through children
   for (args = toys.optc ? toys.optargs : noargs; *args; args++)
-    dirtree_flagread(*args, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
-      do_du);
+    dirtree_flagread(*args, DIRTREE_SYMFOLLOW*(FLAG(H)|FLAG(L)), do_du);
   if (FLAG(c)) print(FLAG(b) ? TT.total : TT.total*512, 0);
 
   if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);

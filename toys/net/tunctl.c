@@ -42,11 +42,11 @@ void tunctl_main(void)
   int fd = xopen("/dev/net/tun", O_RDWR);
 
   // Associate filehandle with device
-  ifr->ifr_flags = ((toys.optflags&FLAG_T) ? IFF_TUN : IFF_TAP)|IFF_NO_PI;
+  ifr->ifr_flags = (FLAG(T) ? IFF_TUN : IFF_TAP)|IFF_NO_PI;
   strncpy(ifr->ifr_name, *toys.optargs, sizeof(ifr->ifr_name));
   xioctl(fd, TUNSETIFF, toybuf);
 
-  if (toys.optflags&FLAG_t) {
+  if (FLAG(t)) {
     xioctl(fd, TUNSETPERSIST, (void *)1);
     xioctl(fd, TUNSETOWNER, (void *)(long)u);
   } else xioctl(fd, TUNSETPERSIST, (void *)0);

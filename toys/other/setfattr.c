@@ -29,13 +29,12 @@ GLOBALS(
 
 void setfattr_main(void)
 {
-  int h = toys.optflags & FLAG_h, rc;
+  int h = FLAG(h), rc;
   char **s;
 
-  for (s=toys.optargs; *s; s++) {
-    if (TT.x) rc = (h?lremovexattr:removexattr)(*s, TT.x);
-    else rc = (h?lsetxattr:setxattr)(*s, TT.n, TT.v, TT.v?strlen(TT.v):0, 0);
-
+  for (s = toys.optargs; *s; s++) {
+    if (TT.x) rc = (h ? lremovexattr : removexattr)(*s, TT.x);
+    else rc = (h ? lsetxattr : setxattr)(*s, TT.n, TT.v, TT.v ? strlen(TT.v) : 0, 0);
     if (rc) perror_msg_raw(*s);
   }
 }

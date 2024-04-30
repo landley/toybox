@@ -34,7 +34,7 @@ config BLOCKDEV
 #include <linux/fs.h>
 
 GLOBALS(
-  long setbsz, setra;
+  long setra, setbsz;
 )
 
 void blockdev_main(void)
@@ -50,20 +50,19 @@ void blockdev_main(void)
     int fd = xopenro(*ss), i;
 
     // Command line order discarded so perform multiple operations in flag order
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i<32; i++) {
       long flag = toys.optflags & (1<<i);
 
       if (!flag) continue;
 
-      if (flag & FLAG_setbsz) val = TT.setbsz;
-      else val = !!(flag & FLAG_setro);
-
-      if (flag & FLAG_setra) val = TT.setra;
+      if (FLAG(setbsz)) val = TT.setbsz;
+      else if (FLAG(setra)) val = TT.setra;
+      else val = FLAG(setro);
 
       xioctl(fd, cmds[i], &val);
 
       flag &= FLAG_setbsz|FLAG_setro|FLAG_flushbufs|FLAG_rereadpt|FLAG_setrw|FLAG_setbsz;
-      if (!flag) printf("%lld\n", (toys.optflags & FLAG_getsz) ? val >> 9: val);
+      if (!flag) printf("%lld\n", val>>(9*FLAG(getsz)));
     }
     xclose(fd);
   }

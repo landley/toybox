@@ -51,7 +51,7 @@ static void do_cat(int fd, char *name)
         if (c<32) {
           if (c == 10) {
             if (FLAG(e)) xputc('$');
-          } else if (toys.optflags & (c==9 ? FLAG_t : FLAG_v)) {
+          } else if (c==9 ? FLAG(t) : FLAG(v)) {
             printf("^%c", c+'@');
             continue;
           }

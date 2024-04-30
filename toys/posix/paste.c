@@ -35,7 +35,7 @@ static void paste_files(void)
 {
   FILE **fps = (void *)toybuf;
   char *dpos, *dstr, *buf, c;
-  int i, any, dcount, dlen, len, seq = toys.optflags&FLAG_s;
+  int i, any, dcount, dlen, len, seq = FLAG(s);
 
   // Loop through lines until no input left
   for (;;) {
@@ -114,7 +114,7 @@ static void do_paste(int fd, char *name)
 
   if (!(fps[TT.files++] = (fd ? fdopen(fd, "r") : stdin))) perror_exit(0);
   if (TT.files >= sizeof(toybuf)/sizeof(FILE *)) perror_exit("tilt");
-  if (toys.optflags&FLAG_s) {
+  if (FLAG(s)) {
     paste_files();
     xputc('\n');
     TT.files = 0;
@@ -123,8 +123,8 @@ static void do_paste(int fd, char *name)
 
 void paste_main(void)
 {
-  if (!(toys.optflags&FLAG_d)) TT.d = "\t";
+  if (!FLAG(d)) TT.d = "\t";
 
   loopfiles_rw(toys.optargs, O_RDONLY, 0, do_paste);
-  if (!(toys.optflags&FLAG_s)) paste_files();
+  if (!FLAG(s)) paste_files();
 }

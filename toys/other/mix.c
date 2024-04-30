@@ -41,15 +41,15 @@ void mix_main(void)
     if ((1<<channel) & mask) {
       if (TT.c) {
         if (!strcmp(channels[channel], TT.c)) break;
-      } else if (toys.optflags & FLAG_l) break;
+      } else if (FLAG(l)) break;
       else printf("%s\n", channels[channel]);
     }
   }
 
-  if (!(toys.optflags & (FLAG_c|FLAG_l))) return;
+  if (!FLAG(c) && !FLAG(l)) return;
   else if (channel == SOUND_MIXER_NRDEVICES) error_exit("bad -c '%s'", TT.c);
 
-  if (!(toys.optflags & FLAG_l)) {
+  if (!FLAG(l)) {
     xioctl(fd, MIXER_READ(channel), &level);
     if (level > 0xFF)
       xprintf("%s:%s = left:%d\t right:%d\n",
@@ -57,7 +57,7 @@ void mix_main(void)
     else xprintf("%s:%s = %d\n", TT.d, channels[channel], level);
   } else {
     level = TT.l;
-    if (!(toys.optflags & FLAG_r)) level = TT.r | (level<<8);
+    if (!FLAG(r)) level = TT.r | (level<<8);
 
     xioctl(fd, MIXER_WRITE(channel), &level);
   }
