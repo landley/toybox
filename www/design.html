@@ -436,7 +436,7 @@ you can't fix a bug in the old system if you can't build in the old
 environment.</p>
 
 <p>Partly because toybox's maintainer has his own corollary to Moore's law:
-50% of what you know about programming the hardware is obsolete every 18
+50% of what you know about programming is obsolete every 18
 months, but the advantage of C &amp; Unix it's usually the same 50% cycling
 out over and over.</p>
 
@@ -563,7 +563,7 @@ feeding the compiler -funsigned-char.</p>
 <p>The reason to pick "unsigned" is that way char strings are 8-bit clean by
 default, which makes UTF-8 support easier.</p>
 
-<p><h3>Error messages and internationalization:</h3></p>
+<p><h3>Error messages and internationalization</h3></p>
 
 <p>Error messages are extremely terse not just to save bytes, but because we
 don't use any sort of _("string") translation infrastructure. (We're not
@@ -601,6 +601,18 @@ of it.)</p>
 
 <p>Someday we should probably have translated --help text, but that's a
 post-1.0 issue.</p>
+
+<p><h3>Help text</h3></p>
+
+<p>Each command's help text tries to briefly answer the questions "what does
+this command do" and "how do I use it". There's a usage: line, basic
+description, list of command line options (mostly in alphabetical order),
+and sometimes additional explanation at the end. Default values and --longopts
+are usually in parentheses on the end of an option's explanation line.</p>
+
+<p>Toybox silently accepts a lot of compatibility flags like <b>patch -u</b>
+that aren't in the help text to work with existing scripts, but may not
+mention options that don't help write new scripts (mostly synonyms and NOPs).</p>
 
 <p><h3>Shared Libraries</h3></p>
 
