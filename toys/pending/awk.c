@@ -3116,17 +3116,16 @@ static int fsprintf(FILE *ignored, const char *fmt, ...)
   int len = vsnprintf(0, 0, fmt, args); // size needed
   va_end(args);
   if (len < 0) FATAL("Bad sprintf format");
-
   // Unfortunately we have to mess with zstring internals here.
-  if (len > (int)(TT.rgl.zspr->capacity - TT.rgl.zspr->size) - 1) {
-    size_t cap = 2 * TT.rgl.zspr->capacity + len;
-    TT.rgl.zspr = xrealloc(TT.rgl.zspr, sizeof(*TT.rgl.zspr) + cap);
-    TT.rgl.zspr->capacity = cap;
-  }
+  if (TT.rgl.zspr->size + len + 1 > TT.rgl.zspr->capacity) {
+      // This should always work b/c capacity > size
+      unsigned cap = 2 * TT.rgl.zspr->capacity + len;
+      TT.rgl.zspr = xrealloc(TT.rgl.zspr, sizeof(*TT.rgl.zspr) + cap);
+      TT.rgl.zspr->capacity = cap;
+    }
   vsnprintf(TT.rgl.zspr->str + TT.rgl.zspr->size, len+1, fmt, args2);
   TT.rgl.zspr->size += len;
   TT.rgl.zspr->str[TT.rgl.zspr->size] = 0;
-
   va_end(args2);
   return 0;
 }
@@ -3134,12 +3133,12 @@ static int fsprintf(FILE *ignored, const char *fmt, ...)
 static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int nargs)
 {
   int k, nn, nnc, fmtc, holdc, cnt1 = 0, cnt2 = 0;
-  double n = 0;
-  char *s;
+  char *s = 0;  // to shut up spurious warning
   regoff_t offs = -1, e = -1;
   char *pfmt, *fmt = val_to_str(STKP-nargs+1)->vst->str;
   k = stkn(nargs - 2);
   while (*fmt) {
+    double n = 0;
     nn = strcspn(fmt, "%");
     if (nn) {
       holdc = fmt[nn];
@@ -3177,7 +3176,10 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
           val_to_str(&STACK[k]);
           s = STACK[k++].vst->str;
         } else if (fmtc == 'c' && !IS_NUM(&STACK[k])) {
-          n = STACK[k++].vst ? STACK[k-1].vst->str[0] : '\0';
+          unsigned wch;
+          struct zvalue *z = &STACK[k++];
+          if (z->vst && z->vst->str[0])
+            n = utf8towc(&wch, z->vst->str, z->vst->size) < 1 ? 0xfffd : wch;
         } else {
           val_to_num(&STACK[k]);
           n = STACK[k++].num;
