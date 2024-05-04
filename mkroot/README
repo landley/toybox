@@ -18,7 +18,7 @@ and one or more musl cross compiler toolchain(s) in the "ccc" directory:
   $ git clone https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux
   $ wget https://landley.net/bin/toolchains/latest/i686-linux-musl-cross.tar.xz
   $ mkdir ccc
-  $ tar xvJCf ccc i686-linux-musl-cross-tar.xz
+  $ tar xvJCf ccc i686-linux-musl-cross.tar.xz
 
 Then invoke mkroot like:
 
@@ -128,7 +128,7 @@ support.
 --- Environment variables
 
 Any "name=value" argument provided on the mkroot.sh command line will set
-an environment variable, and any string that without an = indicates a package
+an environment variable, and any string without an = indicates a package
 script to run before building toybox (explained below). This is why CROSS=
 CROSS_COMPILE= and LINUX= were all set on the command line above.
 
