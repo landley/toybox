@@ -305,9 +305,6 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 ssize_t getdelim(char ** restrict lineptr, size_t * restrict n, int delimiter, FILE *stream);
 
 
-// Forward ref declarations
-static struct zvalue *val_to_str(struct zvalue *v);
-
 
 ////////////////////
 //// lib
@@ -316,11 +313,6 @@ static struct zvalue *val_to_str(struct zvalue *v);
 static void xfree(void *p)
 {
   free(p);
-}
-
-static double str_to_num(char *s)
-{
-  return atof(s);
 }
 
 static int hexval(int c)
@@ -2562,12 +2554,57 @@ static char *escape_str(char *s, int is_regex)
   return s0;
 }
 
+static void force_maybemap_to_scalar(struct zvalue *v)
+{
+  if (!(v->flags & ZF_ANYMAP)) return;
+  if (v->flags & ZF_MAP || v->map->count)
+    FATAL("array in scalar context");
+  v->flags = 0;
+  v->map = 0; // v->flags = v->map = 0 gets warning
+}
+
+static void force_maybemap_to_map(struct zvalue *v)
+{
+  if (v->flags & ZF_MAYBEMAP) v->flags = ZF_MAP;
+}
+
+// fmt_offs is either CONVFMT or OFMT (offset in stack to zvalue)
+static struct zvalue *to_str_fmt(struct zvalue *v, int fmt_offs)
+{
+  force_maybemap_to_scalar(v);
+  // TODO: consider handling numstring differently
+  if (v->flags & ZF_NUMSTR) v->flags = ZF_STR;
+  if (IS_STR(v)) return v;
+  else if (!v->flags) { // uninitialized
+    v->vst = new_zstring("", 0);
+  } else if (IS_NUM(v)) {
+    zvalue_release_zstring(v);
+    if (!IS_STR(&STACK[fmt_offs])) {
+      zstring_release(&STACK[fmt_offs].vst);
+      STACK[fmt_offs].vst = num_to_zstring(STACK[fmt_offs].num, "%.6g");
+      STACK[fmt_offs].flags = ZF_STR;
+    }
+    v->vst = num_to_zstring(v->num, STACK[fmt_offs].vst->str);
+  } else {
+    FATAL("Wrong or unknown type in to_str_fmt\n");
+  }
+  v->flags = ZF_STR;
+  return v;
+}
+
+static struct zvalue *to_str(struct zvalue *v)
+{
+  return to_str_fmt(v, CONVFMT);
+}
+
+// TODO FIXME Is this needed? (YES -- investigate) Just use to_str()?
+#define ENSURE_STR(v) (IS_STR(v) ? (v) : to_str(v))
+
 static void rx_zvalue_compile(regex_t **rx, struct zvalue *pat)
 {
   if (IS_RX(pat)) *rx = pat->rx;
   else {
-    val_to_str(pat);
-    zvalue_dup_zstring(pat);
+    zvalue_dup_zstring(to_str(pat));
     escape_str(pat->vst->str, 1);
     xregcomp(*rx, pat->vst->str, REG_EXTENDED);
   }
@@ -2583,9 +2620,8 @@ static int match(struct zvalue *zvsubject, struct zvalue *zvpat)
 {
   int r;
   regex_t rx, *rxp = &rx;
-  val_to_str(zvsubject);
   rx_zvalue_compile(&rxp, zvpat);
-  if ((r = regexec(rxp, zvsubject->vst->str, 0, 0, 0)) != 0) {
+  if ((r = regexec(rxp, to_str(zvsubject)->vst->str, 0, 0, 0)) != 0) {
     if (r != REG_NOMATCH) {
       char errbuf[256];
       regerror(r, &rx, errbuf, sizeof(errbuf));
@@ -2638,7 +2674,7 @@ static int rx_find_FS(regex_t *rx, char *s, regoff_t *start, regoff_t *end, int 
 static int get_int_val(struct zvalue *v)
 {
   if (IS_NUM(v)) return (int)v->num;
-  if (IS_STR(v) && v->vst) return (int)str_to_num(v->vst->str);
+  if (IS_STR(v) && v->vst) return (int)atof(v->vst->str);
   return 0;
 }
 
@@ -2707,7 +2743,7 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
 {
   regex_t *rx;
   regoff_t offs, end;
-  if (!IS_RX(zvfs)) val_to_str(zvfs);
+  if (!IS_RX(zvfs)) to_str(zvfs);
   char *fs = IS_STR(zvfs) ? zvfs->vst->str : "";
   int nf = 0, r = 0, eflag = 0;
   // Empty string or empty fs (regex).
@@ -2743,11 +2779,10 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
 
 static void build_fields(void)
 {
-  val_to_str(&STACK[FS]);
   char *rec = FIELD[0].vst->str;
   // TODO test this -- why did I not want to split empty $0?
   // Maybe don't split empty $0 b/c non-default FS gets NF==1 with splitter()?
-  set_nf(*rec ? splitter(set_field, 0, rec, &STACK[FS]) : 0);
+  set_nf(*rec ? splitter(set_field, 0, rec, to_str(&STACK[FS])) : 0);
 }
 
 static void rebuild_field0(void)
@@ -2756,13 +2791,12 @@ static void rebuild_field0(void)
   int nf = TT.nf_internal;
   // uninit value needed for eventual reference to .vst in zstring_release()
   struct zvalue tempv = uninit_zvalue;
-  zvalue_copy(&tempv, &STACK[OFS]);
-  val_to_str(&tempv);
+  zvalue_copy(&tempv, to_str(&STACK[OFS]));
   for (int i = 1; i <= nf; i++) {
     if (i > 1) {
       s = s ? zstring_extend(s, tempv.vst) : zstring_copy(s, tempv.vst);
     }
-    if (FIELD[i].flags) val_to_str(&FIELD[i]);
+    if (FIELD[i].flags) to_str(&FIELD[i]);
     if (FIELD[i].vst) {
       if (i > 1) s = zstring_extend(s, FIELD[i].vst);
       else s = zstring_copy(s, FIELD[i].vst);
@@ -2828,7 +2862,7 @@ static void fixup_fields(int fnum)
   // fnum is # of field that was just updated.
   // If it's 0, need to rebuild the TT.fields 1... n.
   // If it's non-0, need to rebuild field 0.
-  val_to_str(&FIELD[fnum]);
+  to_str(&FIELD[fnum]);
   if (fnum) check_numeric_string(&FIELD[fnum]);
   if (fnum) rebuild_field0();
   else build_fields();
@@ -2881,20 +2915,6 @@ static void swap(void)
   STKP[0] = tmp;
 }
 
-static void force_maybemap_to_scalar(struct zvalue *v)
-{
-  if (!(v->flags & ZF_ANYMAP)) return;
-  if (v->flags & ZF_MAP || v->map->count)
-    FATAL("array in scalar context");
-  v->flags = 0;
-  v->map = 0; // v->flags = v->map = 0 gets warning
-}
-
-static void force_maybemap_to_map(struct zvalue *v)
-{
-  if (v->flags & ZF_MAYBEMAP) v->flags = ZF_MAP;
-}
-
 // Set and return logical (0/1) val of top TT.stack value; flag value as NUM.
 static int get_set_logical(void)
 {
@@ -2909,58 +2929,18 @@ static int get_set_logical(void)
   return r;
 }
 
-static struct zvalue *val_to_str_fmt(struct zvalue *v, char *fmt)
-{
-  force_maybemap_to_scalar(v);
-  // TODO: consider handling numstring differently
-  // if string and ONLY string (not numstring)
-  if (v->flags & ZF_NUMSTR) v->flags = ZF_STR;
-  if (IS_STR(v)) return v;
-  else if (!v->flags) { // uninitialized
-    v->vst = new_zstring("", 0);
-  } else if (IS_NUM(v)) {
-    zvalue_release_zstring(v);
-    v->vst = num_to_zstring(v->num, fmt);
-  } else {
-    FATAL("Wrong or unknown type in val_to_str_fmt\n");
-  }
-  v->flags = ZF_STR;
-  return v;
-}
 
-static struct zvalue *val_to_str(struct zvalue *v)
-{
-  force_maybemap_to_scalar(v);
-  // chicken-egg problem here. Need to convert CONVFMT to string
-  // but need it to be a string. So use default format.
-  // Should only happen when user sets CONVFMT to not-a-string.
-  if (!IS_STR(&STACK[CONVFMT])) {
-    zstring_release(&STACK[CONVFMT].vst);
-    STACK[CONVFMT].vst = num_to_zstring(STACK[CONVFMT].num, "%.6g");
-    STACK[CONVFMT].flags = ZF_STR;
-  }
-  return val_to_str_fmt(v, STACK[CONVFMT].vst->str);
-}
-#define ENSURE_STR(v) (IS_STR(v) ? (v) : val_to_str(v))
-
-static double val_to_num(struct zvalue *v)
+static double to_num(struct zvalue *v)
 {
   force_maybemap_to_scalar(v);
   if (v->flags & ZF_NUMSTR) zvalue_release_zstring(v);
-  else if (!(IS_NUM(v))) {
+  else if (!IS_NUM(v)) {
     v->num = 0.0;
-    if (IS_STR(v) && v->vst) v->num = str_to_num(v->vst->str);
+    if (IS_STR(v) && v->vst) v->num = atof(v->vst->str);
     zvalue_release_zstring(v);
   }
   v->flags = ZF_NUM;
   return v->num;
-}
-
-static void set_string(struct zvalue *v, struct zstring *zs)
-{
-  zstring_release(&v->vst);
-  v->vst = zs;
-  v->flags = ZF_STR;
 }
 
 static void set_num(struct zvalue *v, double n)
@@ -2972,7 +2952,7 @@ static void set_num(struct zvalue *v, double n)
 
 static void incr_zvalue(struct zvalue *v)
 {
-  v->num = trunc(val_to_num(v)) + 1;
+  v->num = trunc(to_num(v)) + 1;
 }
 
 static void push_int_val(ptrdiff_t n)
@@ -2983,8 +2963,7 @@ static void push_int_val(ptrdiff_t n)
 
 static struct zvalue *get_map_val(struct zvalue *v, struct zvalue *key)
 {
-  val_to_str(key); // FIXME does this work always?
-  struct zmap_slot *x = zmap_find_or_insert_key(v->map, key->vst);
+  struct zmap_slot *x = zmap_find_or_insert_key(v->map, to_str(key)->vst);
   return &x->val;
 }
 
@@ -3040,7 +3019,7 @@ static int fflush_file(int nargs)
 {
   if (!nargs) return fflush_all();
 
-  val_to_str(STKP);   // filename at top of TT.stack
+  to_str(STKP);   // filename at top of TT.stack
   // Null string means flush all
   if (!STKP[0].vst->str[0]) return fflush_all();
 
@@ -3079,7 +3058,7 @@ static struct zfile badfile_obj, *badfile = &badfile_obj;
 // in whatever mode it's already in; i.e. > after >> still appends.
 static struct zfile *setup_file(char file_or_pipe, char *mode)
 {
-  val_to_str(STKP);   // filename at top of TT.stack
+  to_str(STKP);   // filename at top of TT.stack
   char *fn = STKP[0].vst->str;
   // is it already open in file table?
   for (struct zfile *p = TT.zfiles; p; p = p->next)
@@ -3104,7 +3083,7 @@ static struct zfile *setup_file(char file_or_pipe, char *mode)
 static int getcnt(int k)
 {
   if (k >= stkn(0)) FATAL("too few args for printf\n");
-  return (int)val_to_num(&STACK[k]);
+  return (int)to_num(&STACK[k]);
 }
 
 static int fsprintf(FILE *ignored, const char *fmt, ...)
@@ -3135,7 +3114,7 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
   int k, nn, nnc, fmtc, holdc, cnt1 = 0, cnt2 = 0;
   char *s = 0;  // to shut up spurious warning
   regoff_t offs = -1, e = -1;
-  char *pfmt, *fmt = val_to_str(STKP-nargs+1)->vst->str;
+  char *pfmt, *fmt = to_str(STKP-nargs+1)->vst->str;
   k = stkn(nargs - 2);
   while (*fmt) {
     double n = 0;
@@ -3173,16 +3152,14 @@ static void varprint(int(*fpvar)(FILE *, const char *, ...), FILE *outfp, int na
       case 1:
         if (k > stkn(0)) FATAL("too few args for printf\n");
         if (fmtc == 's') {
-          val_to_str(&STACK[k]);
-          s = STACK[k++].vst->str;
+          s = to_str(&STACK[k++])->vst->str;
         } else if (fmtc == 'c' && !IS_NUM(&STACK[k])) {
           unsigned wch;
           struct zvalue *z = &STACK[k++];
           if (z->vst && z->vst->str[0])
             n = utf8towc(&wch, z->vst->str, z->vst->size) < 1 ? 0xfffd : wch;
         } else {
-          val_to_num(&STACK[k]);
-          n = STACK[k++].num;
+          n = to_num(&STACK[k++]);
         }
         if (strchr("cdiouxX", fmtc)) {
           pfmt = strcpy(TT.pbuf, fmt);
@@ -3287,13 +3264,13 @@ static char *nextfilearg(void)
 {
   char *arg;
   do {
-    if (++TT.rgl.narg >= (int)val_to_num(&STACK[ARGC])) return 0;
+    if (++TT.rgl.narg >= (int)to_num(&STACK[ARGC])) return 0;
     struct zvalue *v = &STACK[ARGV];
     struct zvalue zkey = ZVINIT(ZF_STR, 0,
-        num_to_zstring(TT.rgl.narg, val_to_str(&STACK[CONVFMT])->vst->str));
+        num_to_zstring(TT.rgl.narg, to_str(&STACK[CONVFMT])->vst->str));
     arg = "";
     if (zmap_find(v->map, zkey.vst)) {
-      zvalue_copy(&TT.rgl.cur_arg, val_to_str(get_map_val(v, &zkey)));
+      zvalue_copy(&TT.rgl.cur_arg, to_str(get_map_val(v, &zkey)));
       arg = TT.rgl.cur_arg.vst->str;
     }
     zvalue_release_zstring(&zkey);
@@ -3451,7 +3428,9 @@ static int awk_getline(int source, struct zfile *zfp, struct zvalue *v)
   if (is_stream && !zfp->fp) return -1;
   if (v) {
     if ((k = is_stream ? getrec_f(zfp) : getrec()) < 0) return 0;
-    set_string(v, new_zstring(TT.rgl.recptr, k));
+    zstring_release(&v->vst);
+    v->vst = new_zstring(TT.rgl.recptr, k);
+    v->flags = ZF_STR;
     if (!is_stream) {
       incr_zvalue(&STACK[NR]);
       incr_zvalue(&STACK[FNR]);
@@ -3484,8 +3463,8 @@ static void gsub(int opcode, int nargs, int parmbase)
   struct zvalue *repl = STKP-1;
   regex_t rx, *rxp = &rx;
   rx_zvalue_compile(&rxp, ere);
-  val_to_str(repl);
-  val_to_str(v);
+  to_str(repl);
+  to_str(v);
 
 #define SLEN(zvalp) ((zvalp)->vst->size)
   char *p, *rp0 = repl->vst->str, *rp = rp0, *s = v->vst->str;
@@ -3606,8 +3585,7 @@ static int interpx(int start, int *status)
         break;
 
       case opnegate:
-        val_to_num(STKP);
-        STKP->num = -STKP->num;
+        STKP->num = -to_num(STKP);
         break;
 
       case tkpow:         // FALLTHROUGH intentional here
@@ -3616,8 +3594,8 @@ static int interpx(int start, int *status)
       case tkmod:         // FALLTHROUGH intentional here
       case tkplus:        // FALLTHROUGH intentional here
       case tkminus:
-        nleft = val_to_num(STKP-1);
-        nright = val_to_num(STKP);
+        nleft = to_num(STKP-1);
+        nright = to_num(STKP);
         switch (opcode) {
           case tkpow: nleft = pow(nleft, nright); break;
           case tkmul: nleft *= nright; break;
@@ -3632,8 +3610,8 @@ static int interpx(int start, int *status)
 
       // FIXME REDO REDO ?
       case tkcat:
-        val_to_str(STKP-1);
-        val_to_str(STKP);
+        to_str(STKP-1);
+        to_str(STKP);
         STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP[0].vst);
         drop();
         break;
@@ -3654,7 +3632,6 @@ static int interpx(int start, int *status)
         //
         // The value of the comparison expression shall be 1 if the relation is
         // true, or 0 if the relation is false.
-#define CMPSTR(a, b)  (strcmp(a.vst->str, b.vst->str))
       case tklt:          // FALLTHROUGH intentional here
       case tkle:          // FALLTHROUGH intentional here
       case tkne:          // FALLTHROUGH intentional here
@@ -3676,9 +3653,7 @@ static int interpx(int start, int *status)
             case tkge: cmp = STKP[-1].num >= STKP[0].num; break;
           }
         } else {
-          val_to_str(STKP-1);
-          val_to_str(STKP);
-          cmp = CMPSTR(STKP[-1], STKP[0]);
+          cmp = strcmp(to_str(STKP-1)->vst->str, to_str(STKP)->vst->str);
           switch (opcode) {
             case tklt: cmp = cmp < 0; break;
             case tkle: cmp = cmp <= 0; break;
@@ -3717,8 +3692,8 @@ static int interpx(int start, int *status)
         // or ... subscript_val map_ref value_to_op_by
         // or ... fieldref value_to_op_by
         v = setup_lvalue(1, parmbase, &field_num);
-        val_to_num(v);
-        val_to_num(STKP);
+        to_num(v);
+        to_num(STKP);
         switch (opcode) {
           case tkpowasgn:
             // TODO
@@ -3768,8 +3743,7 @@ static int interpx(int start, int *status)
         // or ... subscript_val map_ref
         // or ... fieldnum fieldref
         v = setup_lvalue(0, parmbase, &field_num);
-        val_to_num(v);
-        v->flags = ZF_NUM;
+        to_num(v);
         switch (opcode) {
           case tkincr: case tkdecr:
             // Must be done in this order because push_val(v) may move v,
@@ -3813,18 +3787,17 @@ static int interpx(int start, int *status)
           break;
         }
         if (!nargs) {
-          val_to_str(&FIELD[0]);
-          fprintf(outfp->fp, "%s", FIELD[0].vst->str);
+          fprintf(outfp->fp, "%s", to_str(&FIELD[0])->vst->str);
         } else {
           struct zvalue tempv = uninit_zvalue;
           zvalue_copy(&tempv, &STACK[OFS]);
-          val_to_str(&tempv);
+          to_str(&tempv);
           for (int k = 0; k < nargs; k++) {
             if (k) fprintf(outfp->fp, "%s", tempv.vst->str);
             int sp = stkn(nargs - 1 - k);
             ////// FIXME refcnt -- prob. don't need to copy from TT.stack?
             v = &STACK[sp];
-            val_to_str_fmt(v, val_to_str(&STACK[OFMT])->vst->str);
+            to_str_fmt(v, OFMT);
             struct zstring *zs = v->vst;
             fprintf(outfp->fp, "%s", zs ? zs->str : "");
           }
@@ -3931,13 +3904,13 @@ static int interpx(int start, int *status)
         nsubscrs = *ip++;
         while (--nsubscrs) {
           swap();
-          val_to_str(STKP);
+          to_str(STKP);
           push_val(&STACK[SUBSEP]);
-          val_to_str(STKP);
+          to_str(STKP);
           STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
           drop();
           swap();
-          val_to_str(STKP);
+          to_str(STKP);
           STKP[-1].vst = zstring_extend(STKP[-1].vst, STKP->vst);
           drop();
         }
@@ -3953,8 +3926,7 @@ static int interpx(int start, int *status)
           zmap_delete_map(v->map);
         } else {
           drop();
-          val_to_str(STKP);
-          zmap_delete(v->map, STKP->vst);
+          zmap_delete(v->map, to_str(STKP)->vst);
         }
         drop();
         break;
@@ -3971,9 +3943,8 @@ static int interpx(int start, int *status)
         break;
 
       case tkin:
-        val_to_str(STKP-1);
         if (!(STKP->flags & ZF_ANYMAP)) FATAL("scalar in array context");
-        v = zmap_find(STKP->map, STKP[-1].vst);
+        v = zmap_find(STKP->map, to_str(STKP-1)->vst);
         drop();
         drop();
         push_int_val(v ? 1 : 0);
@@ -4011,8 +3982,8 @@ static int interpx(int start, int *status)
         // tkfield op has "dummy" 2nd word so that convert_push_to_reference(void)
         // can find either tkfield or tkvar at same place (ZCODE[TT.zcode_last-1]).
         ip++; // skip dummy "operand" instruction field
-        val_to_num(STKP);
-        push_field((int)((STKP)->num));
+        push_field((int)(to_num(STKP)));
+
         swap();
         drop();
         break;
@@ -4068,14 +4039,13 @@ static int interpx(int start, int *status)
         break;
 
       case opfldref:
-        val_to_num(STKP);
+        to_num(STKP);
         (STKP)->flags |= ZF_FIELDREF;
         ip++; // skip dummy "operand" instruction field
         break;
 
       case opprintrec:
-        val_to_str(&FIELD[0]);
-        puts(FIELD[0].vst->str);
+        puts(to_str(&FIELD[0])->vst->str);
         break;
 
       case oprange1:
@@ -4157,7 +4127,7 @@ static int interpx(int start, int *status)
       case tksplit:
         nargs = *ip++;
         if (nargs == 2) push_val(&STACK[FS]);
-        struct zstring *s = val_to_str(STKP-2)->vst;
+        struct zstring *s = to_str(STKP-2)->vst;
         force_maybemap_to_map(STKP-1);
         struct zvalue *a = STKP-1;
         struct zvalue *fs = STKP;
@@ -4169,16 +4139,15 @@ static int interpx(int start, int *status)
 
       case tkmatch:
         nargs = *ip++;
-        val_to_str(STKP-1);
-        if (!(IS_RX(STKP))) val_to_str(STKP);
+        if (!IS_RX(STKP)) to_str(STKP);
         regex_t rx_pat, *rxp = &rx_pat;
         rx_zvalue_compile(&rxp, STKP);
         regoff_t rso = 0, reo = 0;  // shut up warning (may be uninit)
-        k = rx_find(rxp, STKP[-1].vst->str, &rso, &reo, 0);
+        k = rx_find(rxp, to_str(STKP-1)->vst->str, &rso, &reo, 0);
         rx_zvalue_free(rxp, STKP);
         // Force these to num before setting.
-        val_to_num(&STACK[RSTART]);
-        val_to_num(&STACK[RLENGTH]);
+        to_num(&STACK[RSTART]);
+        to_num(&STACK[RLENGTH]);
         if (k) STACK[RSTART].num = 0, STACK[RLENGTH].num = -1;
         else {
           reo = utf8cnt(STKP[-1].vst->str, reo);
@@ -4197,12 +4166,12 @@ static int interpx(int start, int *status)
 
       case tksubstr:
         nargs = *ip++;
-        struct zstring *zz = val_to_str(STKP - nargs + 1)->vst;
+        struct zstring *zz = to_str(STKP - nargs + 1)->vst;
         int nchars = utf8cnt(zz->str, zz->size);  // number of utf8 codepoints
         // Offset of start of string (in chars not bytes); convert 1-based to 0-based
-        ssize_t mm = CLAMP(trunc(val_to_num(STKP - nargs + 2)) - 1, 0, nchars);
+        ssize_t mm = CLAMP(trunc(to_num(STKP - nargs + 2)) - 1, 0, nchars);
         ssize_t nn = nchars - mm;   // max possible substring length (chars)
-        if (nargs == 3) nn = CLAMP(trunc(val_to_num(STKP)), 0, nn);
+        if (nargs == 3) nn = CLAMP(trunc(to_num(STKP)), 0, nn);
         mm = bytesinutf8(zz->str, zz->size, mm);
         nn = bytesinutf8(zz->str + mm, zz->size - mm, nn);
         struct zstring *zzz = new_zstring(zz->str + mm, nn);
@@ -4213,8 +4182,8 @@ static int interpx(int start, int *status)
 
       case tkindex:
         nargs = *ip++;
-        char *s1 = val_to_str(STKP-1)->vst->str;
-        char *s3 = strstr(s1, val_to_str(STKP)->vst->str);
+        char *s1 = to_str(STKP-1)->vst->str;
+        char *s3 = strstr(s1, to_str(STKP)->vst->str);
         ptrdiff_t offs = s3 ? utf8cnt(s1, s3 - s1) + 1 : 0;
         drop();
         drop();
@@ -4226,14 +4195,14 @@ static int interpx(int start, int *status)
       case tkbxor:
       case tklshift:
       case tkrshift:
-        ; size_t acc = val_to_num(STKP);
+        ; size_t acc = to_num(STKP);
         nargs = *ip++;
         for (int i = 1; i < nargs; i++) switch (opcode) {
-          case tkband: acc &= (size_t)val_to_num(STKP-i); break;
-          case tkbor:  acc |= (size_t)val_to_num(STKP-i); break;
-          case tkbxor: acc ^= (size_t)val_to_num(STKP-i); break;
-          case tklshift: acc = (size_t)val_to_num(STKP-i) << acc; break;
-          case tkrshift: acc = (size_t)val_to_num(STKP-i) >> acc; break;
+          case tkband: acc &= (size_t)to_num(STKP-i); break;
+          case tkbor:  acc |= (size_t)to_num(STKP-i); break;
+          case tkbxor: acc ^= (size_t)to_num(STKP-i); break;
+          case tklshift: acc = (size_t)to_num(STKP-i) << acc; break;
+          case tkrshift: acc = (size_t)to_num(STKP-i) >> acc; break;
         }
         drop_n(nargs);
         push_int_val(acc);
@@ -4242,7 +4211,7 @@ static int interpx(int start, int *status)
       case tktolower:
       case tktoupper:
         nargs = *ip++;
-        struct zstring *z = val_to_str(STKP)->vst;
+        struct zstring *z = to_str(STKP)->vst;
         unsigned zzlen = z->size + 4; // Allow for expansion
         zz = zstring_update(0, zzlen, "", 0);
         char *p = z->str, *e = z->str + z->size, *q = zz->str;
@@ -4275,7 +4244,7 @@ static int interpx(int start, int *status)
         force_maybemap_to_map(v);
         if (IS_MAP(v)) k = v->map->count - v->map->deleted;
         else {
-          val_to_str(v);
+          to_str(v);
           k = utf8cnt(v->vst->str, v->vst->size);
         }
         if (nargs) drop();
@@ -4286,7 +4255,7 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         fflush(stdout);
         fflush(stderr);
-        r = system(val_to_str(STKP)->vst->str);
+        r = system(to_str(STKP)->vst->str);
 #ifdef WEXITSTATUS
         // WEXITSTATUS is in sys/wait.h, but I'm not including that.
         // It seems to also be in stdlib.h in gcc and musl-gcc.
@@ -4306,8 +4275,7 @@ static int interpx(int start, int *status)
 
       case tkclose:
         nargs = *ip++;
-        val_to_str(STKP);   // filename at top of TT.stack
-        r = close_file(STKP->vst->str);
+        r = close_file(to_str(STKP)->vst->str);
         drop();
         push_int_val(r);
         break;
@@ -4325,7 +4293,7 @@ static int interpx(int start, int *status)
       // Math builtins -- move here (per Oliver Webb suggestion)
       case tkatan2:
         nargs = *ip++;
-        d = atan2(val_to_num(STKP-1), val_to_num(STKP));
+        d = atan2(to_num(STKP-1), to_num(STKP));
         drop();
         STKP->num = d;
         break;
@@ -4340,12 +4308,12 @@ static int interpx(int start, int *status)
       case tksrand:
         nargs = *ip++;
         if (nargs == 1) {
-          STKP->num = seedrand(val_to_num(STKP));
+          STKP->num = seedrand(to_num(STKP));
         } else push_int_val(seedrand(millinow()));
         break;
       case tkcos: case tksin: case tkexp: case tklog: case tksqrt: case tkint:
         nargs = *ip++;
-        STKP->num = mathfunc[opcode-tkcos](val_to_num(STKP));
+        STKP->num = mathfunc[opcode-tkcos](to_num(STKP));
         break;
 
       default:
