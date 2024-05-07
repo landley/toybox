@@ -2,7 +2,7 @@
 
 # Original found at http://lists.landley.net/pipermail/toybox-landley.net/2015-March/015201.html
 
-# Copyright 2015 Divya Kothari <divya.s.kothari@gmail.com>                    
+# Copyright 2015 Divya Kothari <divya.s.kothari@gmail.com>
 
 # 2023: A few mods by Ray Gardner <raygard@gmail.com>
 #   See "awk -f test04.awk" near line 170
@@ -120,7 +120,7 @@ testcmd "awk SUBSTR input" "'{if (substr(\$0,1,3) == \"abc\") { print \$3 }
 testcmd "awk SEARCH {PRINT} input" "'/ghi/ {print \$1,\$2,\$3,\$4}' input" \
   "abc def ghi 5\nghi jkl mno 10\n" "$FILE1" ""
 
-testcmd "awk SEARCH {PRINTF} input" "'/ghi/ { printf \$1 \$2 \$3 \$4 
+testcmd "awk SEARCH {PRINTF} input" "'/ghi/ { printf \$1 \$2 \$3 \$4
    }' input" "abcdefghi5ghijklmno10" "$FILE1" ""
 
 testcmd "awk {PRINT with TAB} input" "'{print \$2,\"\t\",\$4}' input" \
@@ -231,14 +231,14 @@ testcmd "awk -f test16.awk" "-f test.awk input" \
 echo "BEGIN { number_of_users=0; } { if (NF>7) {
   user=0; for (i=1; i<=number_of_users; i++) { if (username[i] == \$3) { user=i;
   } } if (user == 0) { username[++number_of_users]=\$3; user=number_of_users; }
-  count[user]++; } } END { for (i=1; i<=number_of_users; i++) { 
+  count[user]++; } } END { for (i=1; i<=number_of_users; i++) {
   print count[i], username[i] } } " > test.awk
 testcmd "awk -f test17.awk" "-f test.awk input" "1 $USER\n" "$LLDATA" ""
 
 echo "{ usrname[\$3]++;}END{for(i in usrname){print usrname[i],i;} }" > test.awk
 testcmd "awk -f test18.awk" "-f test.awk input" "1 \n1 $USER\n" "$LLDATA" ""
 
-echo "{ if (NF>7) { username[\$3]++; } } END { for (i in username) { 
+echo "{ if (NF>7) { username[\$3]++; } } END { for (i in username) {
   print username[i], i; } }" > test.awk
 testcmd "awk -f test19.awk" "-f test.awk input" "1 $USER\n" "$LLDATA" ""
 
@@ -423,7 +423,7 @@ testcmd "awk -v myvar=val -f file1 file" "-v myvar=$2 -f test.awk testfile1.txt 
 testcmd "lshift()" "'BEGIN{print lshift(3,2)}'" "12\n" "" ""
 testcmd "lshift() 64 bit" "'BEGIN{print lshift(1,40)}'" "1099511627776\n" "" ""
 testcmd "rshift()" "'BEGIN{print rshift(12, 1)}'" "6\n" "" ""
-testcmd "rshift() 64 bit" "'BEGIN{print rshift(12, 1)}'" "6\n" "" ""
+testcmd "rshift() 64 bit" "'BEGIN{print rshift(1099511627776,39)}'" "2\n" "" ""
 testcmd "and()" "'BEGIN{print and(16, 25)}'" "16\n" "" ""
 testcmd "and(a, b, ...)" "'BEGIN{print and(16, 25, 10+16)}'" "16\n" "" ""
 testcmd "or()" "'BEGIN{print or(256, 16)}'" "272\n" "" ""
@@ -433,13 +433,14 @@ testcmd "tolower()" "'BEGIN{print tolower(\"abABcD\")}'" "ababcd\n" "" ""
 testcmd "substr()" "'BEGIN{print substr(\"abac\", 2, 2)}'" "ba\n" "" ""
 testcmd "atan2()" "'BEGIN{print substr(atan2(0, -1), 1, 5)}'" "3.141\n" "" ""
 testcmd "length()" "'{print length()}'" "1\n2\n0\n4\n" "" "a\n12\n\n6502"
-[ -n "$TEST_HOST" ] &&\
-  export LOCALE=en_US.UTF-8 LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+[ -n "$TEST_HOST" ] && export LC_ALL=en_US.UTF-8
 testcmd "length() utf8" "'{print length()}'< $FILES/utf8/japan.txt" "25\n" "" ""
-testcmd "substr() utf8" "'{print substr(\$0,2,1)}' < $FILES/utf8/arabic.txt" "ل\nأ\n" "" "" 
+testcmd "substr() utf8" "'{print substr(\$0,2,1)}' < $FILES/utf8/arabic.txt" "ل\nأ\n" "" ""
 testcmd "index() utf8" "'{print index(\$0, \"ス\")}' < $FILES/utf8/japan.txt"\
   "5\n" "" ""
 testcmd "tolower() utf8" "'{print tolower(\$0)}'" "ğжþ\n" "" "ĞЖÞ"
+testcmd "tolower() utf8 expand" "'{print tolower(\$0)}'" "ⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥⱥ\n"\
+  "" "ȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺȺ\n"
 testcmd "index() none" "'BEGIN{print index(\"ス\", \"deadbeef\")}'" "0\n" "" ""
 testcmd "index() same" "'BEGIN{print index(\"deadbeef\", \"deadbeef\")}'" "1\n" "" ""
 testcmd "match()" "'BEGIN{print match(\"bcdab\", \"ab\")}'" "4\n" "" ""
