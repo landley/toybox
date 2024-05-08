@@ -160,3 +160,8 @@ ln -s one dir/three
 testing '-size implies -type f' 'find dir -size -1M | sort' \
   'dir/one\ndir/two\n' '' ''
 rm -rf dir
+
+utf8locale
+testing 'strlower edge case' \
+  'touch aaaaaⱥⱥⱥⱥⱥⱥⱥⱥⱥ; find . -iname aaaaaȺȺȺȺȺȺȺȺȺ' './aaaaaⱥⱥⱥⱥⱥⱥⱥⱥⱥ\n' \
+  '' ''

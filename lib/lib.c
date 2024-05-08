@@ -432,7 +432,7 @@ char *strlower(char *s)
 
     // Case conversion can expand utf8 representation, but with extra mlen
     // space above we should basically never need to realloc
-    if (mlen+4 > (len = new-try)) continue;
+    if (mlen > (len = new-try)+4) continue;
     try = xrealloc(try, mlen = len+16);
     new = try+len;
   }
