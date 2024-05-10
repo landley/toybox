@@ -439,7 +439,7 @@ static int do_find(struct dirtree *new)
         }
       } else if (!strcmp(s, "size")) {
         if (check) test = compare_numsign(new->st.st_size, -512, arg) &&
-                          ((new->st.st_mode & S_IFMT) == S_IFREG);
+                          S_ISREG(new->st.st_mode);
       } else if (!strcmp(s, "links")) {
         if (check) test = compare_numsign(new->st.st_nlink, 0, arg);
       } else if (!strcmp(s, "inum")) {
