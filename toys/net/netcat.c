@@ -104,8 +104,11 @@ void netcat_main(void)
   else if (FLAG(6)) family = AF_INET6;
   else if (FLAG(U)) family = AF_UNIX;
 
-  if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
-  else {
+  if (TT.f) {
+    in1 = out2 = xopen(TT.f, O_RDWR);
+    alarm(0);
+    pollinate(in1, in2, out1, out2, TT.W, TT.q);
+  } else {
     // Setup socket
     if (!FLAG(l) && !FLAG(L)) {
       char *host = toys.optargs[0];
