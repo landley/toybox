@@ -162,6 +162,7 @@ testing '-size implies -type f' 'find dir -size -1M | sort' \
 rm -rf dir
 
 utf8locale
+skipnot [ "$(uname)" != "Darwin" ]  # Darwin's towlower() is broken.
 testing 'strlower edge case' \
   'touch aaaaaⱥⱥⱥⱥⱥⱥⱥⱥⱥ; find . -iname aaaaaȺȺȺȺȺȺȺȺȺ' './aaaaaⱥⱥⱥⱥⱥⱥⱥⱥⱥ\n' \
   '' ''
