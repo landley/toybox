@@ -3431,6 +3431,7 @@ static int awk_getline(int source, struct zfile *zfp, struct zvalue *v)
     zstring_release(&v->vst);
     v->vst = new_zstring(TT.rgl.recptr, k);
     v->flags = ZF_STR;
+    check_numeric_string(v);    // bug fix 20240514
     if (!is_stream) {
       incr_zvalue(&STACK[NR]);
       incr_zvalue(&STACK[FNR]);
