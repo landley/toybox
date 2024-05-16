@@ -54,7 +54,8 @@ static void handle_esc(void)
     while (1) {
       xprintf("\r\e[2K\e[1mFilename: \e[0m%s", toybuf);
       if (read(0, &input, 1) <= 0 || input == CTRL('[')) {
-        return;
+        len = 0;
+        break;
       }
       if (input == '\r') break;
       if (input == 0x7f && len > 0) toybuf[--len] = 0;
@@ -62,10 +63,16 @@ static void handle_esc(void)
       else if (input >= ' ' && input <= 0x7f && len < sizeof(toybuf))
         toybuf[len++] = input;
     }
+    xputsn("\r\e[2K");
     toybuf[len] = 0;
     if (!len) return;
+    if ((fd = xopen(toybuf, O_RDONLY | WARN_ONLY)) < 0) {
+      // xopen() warning message ends with a LF without CR, so manually print a
+      // CR here to move the cursor back to the front.
+      fputc('\r', stderr);
+      return;
+    }
     filename = xstrdup(toybuf);
-    fd = xopen(filename, O_RDONLY);
     size = fdlength(fd);
     // The alternative would be to just feed this fd into the usual loop,
     // so we're reading back these characters if they're being echoed, but
