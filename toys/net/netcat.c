@@ -4,7 +4,7 @@
  *
  * TODO: genericize for telnet/microcom/tail-f, fix -t with login_tty()
 
-USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1o:s:f:46uUnz[!tlL][!Lw][!Lu][!46U]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1O:o:s:f:46uUnz[!tlL][!Lw][!Lu][!46U][!oO]", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NETCAT
@@ -23,6 +23,7 @@ config NETCAT
     -l	Listen for one incoming connection, then exit
     -n	No DNS lookup
     -o	Hex dump to FILE (-o- writes hex only to stdout)
+    -O	Hex dump to FILE (collated)
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
@@ -49,7 +50,7 @@ config NETCAT
 #include "toys.h"
 
 GLOBALS(
-  char *f, *s, *o;
+  char *f, *s, *o, *O;
   long q, p, W, w;
 
   unsigned ofd, olast, opos, ocount[2];
@@ -113,7 +114,7 @@ void ohexwrite(int fd, void *buf, size_t len)
       memcpy(TT.obuf+TT.opos, buf+i, j);
       TT.opos += j;
       i += j;
-      if (TT.opos == 16) oflush();
+      if (TT.opos==16 || !TT.O) oflush();
     }
 
     // Don't write data to stdout when -o goes to stdout.
@@ -132,6 +133,7 @@ void netcat_main(void)
   pid_t child;
 
   // -o - disables normal writes to stdout, just gives hex dump.
+  if (TT.O) TT.o = TT.O;
   if (TT.o) {
     if (!strcmp(TT.o, "-")) TT.ofd = 1;
     else TT.ofd = xcreate(TT.o, O_CREAT|O_TRUNC|O_WRONLY, 0666);
