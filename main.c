@@ -154,8 +154,6 @@ void check_help(char **arg)
 // Setup toybox global state for this command.
 void toy_singleinit(struct toy_list *which, char *argv[])
 {
-  char *buf;
-
   toys.which = which;
   toys.argv = argv;
   toys.toycount = ARRAY_LEN(toy_list);
@@ -168,6 +166,9 @@ void toy_singleinit(struct toy_list *which, char *argv[])
 
   // Setup we only want to do once: skip for multiplexer or NOFORK reentry
   if (!(CFG_TOYBOX && which == toy_list) && !(which->flags & TOYFLAG_NOFORK)) {
+    char *buf = 0;
+    int btype = _IOFBF;
+
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 
@@ -178,8 +179,10 @@ void toy_singleinit(struct toy_list *which, char *argv[])
       uselocale(newlocale(LC_CTYPE_MASK, "C.UTF-8", 0) ? :
         newlocale(LC_CTYPE_MASK, "en_US.UTF-8", 0));
 
-    buf = (which->flags & TOYFLAG_LINEBUF) ? 0 : xmalloc(4096);
-    setvbuf(stdout, buf, buf ? _IOFBF : _IOLBF, buf ? 4096 : 0);
+    if (which->flags & TOYFLAG_LINEBUF) btype = _IOLBF;
+    else if (which->flags & TOYFLAG_NOBUF) btype = _IONBF;
+    else buf = xmalloc(4096);
+    setvbuf(stdout, buf, btype, buf ? 4096 : 0);
   }
 }
 

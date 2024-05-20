@@ -2,7 +2,7 @@
  *
  * Copyright 2017 The Android Open Source Project.
 
-USE_MICROCOM(NEWTOY(microcom, "<1>1s#=115200X", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MICROCOM(NEWTOY(microcom, "<1>1s#=115200X", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOBUF))
 
 config MICROCOM
   bool "microcom"
@@ -79,9 +79,8 @@ static void handle_esc(void)
     }
     free(filename);
     close(fd);
-  } else {
-    xprintf("Ignoring unknown command.");
-  }
+  } else xprintf("Ignoring unknown command.");
+
   xprintf("\r\n");
 }
 

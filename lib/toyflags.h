@@ -30,6 +30,7 @@
 
 // Line buffered stdout
 #define TOYFLAG_LINEBUF  (1<<10)
+#define TOYFLAG_NOBUF    (1<<11)
 
 // Error code to return if argument parsing fails (default 1)
 #define TOYFLAG_ARGFAIL(x) (x<<24)
