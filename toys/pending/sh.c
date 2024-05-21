@@ -2886,7 +2886,7 @@ static struct sh_process *run_command(void)
 
     // Is this command a builtin that should run in this process?
     if ((jj&TOYFLAG_NOFORK) || ((jj&TOYFLAG_MAYFORK) && !prefix)) {
-      sigjmp_buf rebound;
+      sigjmp_buf rebound, *prebound = toys.rebound;
       char temp[jj = offsetof(struct toy_context, rebound)];
 
       // This fakes lots of what toybox_main() does.
@@ -2904,7 +2904,7 @@ static struct sh_process *run_command(void)
         tl->toy_main();
         xexit();
       }
-      toys.rebound = 0;
+      toys.rebound = prebound;
       pp->exit = toys.exitval;
       clearerr(stdout);
       if (toys.optargs != toys.argv+1) free(toys.optargs);

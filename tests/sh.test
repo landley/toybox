@@ -630,6 +630,8 @@ shxpect 'set -u' I$'set -u; echo $walrus\n' REwalrus X
 testing 'source file' 'source input' 'hello\n' 'echo hello \\\n' ''
 testing '. file' '. input' 'hello\n' 'echo hello \\\n' ''
 testing 'source no newline' 'source input' 'hello \\\n' 'echo hello \\' ''
+testing 'source returns' 'echo hello; source <(echo false); echo $?' \
+  'hello\n1\n' '' ''
 testing 'source is live' \
   'for i in one two three; do echo "echo $i" > input; source input; done' \
   'one\ntwo\nthree\n' 'x' ''
