@@ -172,7 +172,7 @@ void xputsn(char *s)
   xputsl(s, strlen(s));
 }
 
-// Write string to stdout with newline, flushing and checking for errors
+// Write string to stdout with newline, checking for errors
 void xputs(char *s)
 {
   puts(s);
