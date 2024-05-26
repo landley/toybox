@@ -1385,23 +1385,23 @@ static int run_ex_cmd(char *cmd)
     else if (cmd[1] == 'g' || cmd[1] == 'v') {
       char *rgx = xmalloc(strlen(cmd));
       int el = get_endline(), ln = 0, vorg = (cmd[1] == 'v' ? REG_NOMATCH : 0);
-      regex_t rgxc;
+      if (sscanf(cmd+2, "/%[^/]/%[^\ng]", rgx, cmd+1) == 2) {
+        regex_t rgxc;
+        if (!regcomp(&rgxc, rgx, 0)) {
+          cmd[0] = ':';
 
-      if (!sscanf(cmd+2, "/%[^/]/%[^\ng]", rgx, cmd+1) ||
-          regcomp(&rgxc, rgx, 0)) goto gcleanup;
+          for (; ln < el; ln++) {
+            run_vi_cmd("yy");
+            if (regexec(&rgxc, TT.yank.data, 0, 0, 0) == vorg) run_ex_cmd(cmd);
+            cur_down(1, 1, 0);
+          }
 
-      cmd[0] = ':';
-
-      for (; ln < el; ln++) {
-        run_vi_cmd("yy");
-        if (regexec(&rgxc, TT.yank.data, 0, 0, 0) == vorg) run_ex_cmd(cmd);
-        cur_down(1, 1, 0);
+          // Reset Frame
+          TT.vi_mov_flag |= 0x30000000;
+        }
+        regfree(&rgxc);
       }
-
-      // Reset Frame
-      TT.vi_mov_flag |= 0x30000000;
-gcleanup:
-      regfree(&rgxc); free(rgx);
+      free(rgx);
     }
 
     // Line Ranges
