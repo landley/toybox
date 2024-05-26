@@ -1099,6 +1099,7 @@ static int vi_push(char reg, int count0, int count1)
   //if yank ends with \n push is linemode else push in place+1
   size_t history = TT.cursor;
   char *start = TT.yank.data, *eol = strchr(start, '\n');
+  if (strlen(start) == 0) return 1;
 
   if (start[strlen(start)-1] == '\n') {
     if ((TT.cursor = text_strchr(TT.cursor, '\n')) == SIZE_MAX)
