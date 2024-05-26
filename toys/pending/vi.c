@@ -1747,7 +1747,7 @@ void vi_main(void)
               memset(vi_buf, 0, 16);
               vi_buf_pos = 0;
             }
-            else if (vi_buf_pos == 16) {
+            else if (vi_buf_pos == 15) {
               vi_buf_pos = 0;
               memset(vi_buf, 0, 16);
             }
