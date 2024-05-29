@@ -114,6 +114,8 @@ SKIP=0
 
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 chtest a=r+w+x "drwxrwxrwx\n-rwxrwxrwx\n"
+chtest u+rwX-s,g+rX-ws,o+rX-wt "drwxr-xr-x\n-rw-r--r--\n"
+chtest u+rwX,u-s,g+rX,g-ws,o+rX,o-wt "drwxr-xr-x\n-rw-r--r--\n"
 
 # (chtest starts off with a directory that's +x...)
 testing "+X" \

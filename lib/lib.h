@@ -410,8 +410,8 @@ void exit_signal(int signal);
 void sigatexit(void *handler);
 void list_signals(void);
 
-mode_t string_to_mode(char *mode_str, mode_t base);
-void mode_to_string(mode_t mode, char *buf);
+unsigned string_to_mode(char *mode_str, mode_t base);
+void mode_to_string(unsigned mode, char *buf);
 char *getbasename(char *name);
 char *fileunderdir(char *file, char *dir);
 void *mepcpy(void *from, void *to, unsigned long len);

@@ -950,11 +950,11 @@ void list_signals(void)
 }
 
 // premute mode bits based on posix mode strings.
-mode_t string_to_mode(char *modestr, mode_t mode)
+unsigned string_to_mode(char *modestr, unsigned mode)
 {
   char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu",
        *s, *str = modestr;
-  mode_t extrabits = mode & ~(07777);
+  unsigned extrabits = mode & ~(07777), bit;
 
   // Handle octal mode
   if (isdigit(*str)) {
@@ -966,9 +966,7 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 
   // Gaze into the bin of permission...
   for (;;) {
-    int i, j, dowho, dohow, dowhat, amask;
-
-    dowho = dohow = dowhat = amask = 0;
+    int i, j, dowho = 0, dohow = 0, dowhat, amask = 0;
 
     // Find the who, how, and what stanzas, in that order
     while (*str && (s = strchr(whos, *str))) {
@@ -984,6 +982,7 @@ mode_t string_to_mode(char *modestr, mode_t mode)
     // Repeated "hows" are allowed; something like "a=r+w+s" is valid.
     for (;;) {
       if (-1 == stridx(hows, dohow = *str)) goto barf;
+      dowhat = 0;
       while (*++str && (s = strchr(whats, *str))) dowhat |= 1<<(s-whats);
 
       // Convert X to x for directory or if already executable somewhere
@@ -998,12 +997,12 @@ mode_t string_to_mode(char *modestr, mode_t mode)
       // Loop through what=xwrs and who=ogu to apply bits to the mode.
       for (i=0; i<4; i++) {
         for (j=0; j<3; j++) {
-          mode_t bit = 0;
           int where = 1<<((3*i)+j);
 
           if (amask & where) continue;
 
           // Figure out new value at this location
+          bit = 0;
           if (i == 3) {
             // suid and sticky
             if (!j) bit = dowhat&16; // o+s = t but a+s doesn't set t, hence t
@@ -1031,7 +1030,7 @@ barf:
 }
 
 // Format access mode into a drwxrwxrwx string
-void mode_to_string(mode_t mode, char *buf)
+void mode_to_string(unsigned mode, char *buf)
 {
   char c, d;
   int i, bit;
