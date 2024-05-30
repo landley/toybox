@@ -60,6 +60,7 @@ void ionice_main(void)
   if (toys.optflags == FLAG_p) {
     int p = ioprio_get();
 
+    if (p == -1) perror_exit("read priority");
     xprintf("%s: prio %d\n",
       (char *[]){"unknown", "Realtime", "Best-effort", "Idle"}[(p>>13)&3],
       p&7);
