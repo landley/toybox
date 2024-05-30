@@ -410,7 +410,7 @@ void exit_signal(int signal);
 void sigatexit(void *handler);
 void list_signals(void);
 
-unsigned string_to_mode(char *mode_str, mode_t base);
+unsigned string_to_mode(char *mode_str, unsigned base);
 void mode_to_string(unsigned mode, char *buf);
 char *getbasename(char *name);
 char *fileunderdir(char *file, char *dir);
