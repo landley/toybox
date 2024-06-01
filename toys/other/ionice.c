@@ -42,30 +42,31 @@ GLOBALS(
   long p, n, c;
 )
 
-static int ioprio_get(void)
+static int xioprio_get(void)
 {
-  return syscall(__NR_ioprio_get, 1, (int)TT.p);
+  int p = syscall(__NR_ioprio_get, 1, (int)TT.p);
+
+  if (p==-1) perror_exit("read priority");
+
+  return p;
 }
 
-static int ioprio_set(void)
+static void xioprio_set(void)
 {
-  int prio = ((int)TT.c << 13) | (int)TT.n;
-
-  return syscall(__NR_ioprio_set, 1, (int)TT.p, prio);
+  if (-1 == syscall(__NR_ioprio_set, 1, (int)TT.p, (int)((TT.c<<13)|TT.n)))
+    if (!FLAG(t)) perror_exit("set priority");
 }
 
 void ionice_main(void)
 {
   if (!TT.p && !toys.optc) error_exit("Need -p or COMMAND");
   if (toys.optflags == FLAG_p) {
-    int p = ioprio_get();
+    int p = xioprio_get();
 
-    if (p == -1) perror_exit("read priority");
     xprintf("%s: prio %d\n",
-      (char *[]){"unknown", "Realtime", "Best-effort", "Idle"}[(p>>13)&3],
-      p&7);
+      (char *[]){"unknown", "Realtime", "Best-effort", "Idle"}[(p>>13)&3], p&7);
   } else {
-    if (-1 == ioprio_set() && !FLAG(t)) perror_exit("set");
+    xioprio_set();
     if (!TT.p) xexec(toys.optargs);
   }
 }
@@ -76,12 +77,10 @@ void iorenice_main(void)
 
   TT.p = atolx(*toys.optargs);
   if (toys.optc == 1) {
-    int p = ioprio_get();
+    int p = xioprio_get();
 
-    if (p == -1) perror_exit("read priority");
-    TT.c = (p>>13)&3;
-    p &= 7;
-    xprintf("Pid %ld, class %s (%ld), prio %d\n", TT.p, classes[TT.c], TT.c, p);
+    xprintf("Pid %ld, class %s (%d), prio %d\n", TT.p, classes[(p>>13)&3],
+      (p>>13)&3, p&7);
     return;
   }
 
@@ -91,5 +90,5 @@ void iorenice_main(void)
   else TT.n = 4;
   TT.c &= 3;
 
-  if (-1 == ioprio_set()) perror_exit("set");
+  xioprio_set();
 }
