@@ -4085,17 +4085,23 @@ static void export(char *str)
 
 FILE *fpathopen(char *name)
 {
+  int fd = open(name, O_RDONLY|O_CLOEXEC), ii;
   struct string_list *sl = 0;
-  FILE *f = fopen(name, "r");
   char *pp = getvar("PATH") ? : _PATH_DEFPATH;
 
-  if (!f) {
+  if (fd==-1) {
     for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
-      if ((f = fopen(sl->str, "r"))) break;
+      if (-1==(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
     if (sl) llist_traverse(sl, free);
   }
+  if (fd != -1) {
+    dup2(fd, ii = next_hfd());
+    fcntl(ii, F_SETFD, FD_CLOEXEC);
+    close(fd);
+    fd = ii;
+  }
 
-  return f;
+  return fd==-1 ? 0 : fdopen(fd, "r");
 }
 
 // Read script input and execute lines, with or without prompts
