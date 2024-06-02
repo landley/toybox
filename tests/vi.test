@@ -2,135 +2,30 @@
 
 [ -f testing.sh ] && . testing.sh
 
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/dd_first.in cmd.txt
-cp $FILES/vi/ascii_dd_first.out out.txt
+vitest() {
+  script="$2:wq\n"
+  testcmd "$1" "-s /dev/stdin input 1>/dev/null 2>/dev/null && cat input" "$4" "$3" "$script"
+}
 
-toyonly testing "dd first line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+vitest "w movement" "wxwx" "abc def ghi" "abc ef hi"
+vitest "e movement" "exex" "abc def ghi" "ab de ghi"
+# TODO vitest "b movement" '$bxbx' "abc def ghi" "abc ef hi"
 
-# teardown
-rm in.txt cmd.txt out.txt
+vitest "dd first line ascii" "dd" "abc def\nghi jkl\n" "ghi jkl\n"
+# TODO vitest "dd last line ascii" "Gdd" "abc def\nghi jkl" "abc def\n"
 
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/dd_last.in cmd.txt
-cp $FILES/vi/ascii_dd_last.out out.txt
+vitest "dw first line ascii" "dw" "abc def\nghi" "def\nghi"
+# TODO vitest "dw last line ascii" 'G$bdw' "abc def\nghi jkl\n" "abc def\nghi \n"
 
-toyonly testing "dd last line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+vitest "D first line ascii" "llD" "abc def\nghi jkl" "ab\nghi jkl"
+# TODO vitest "D last line ascii" "GD" "abc def\nghi jkl" "abc def\n"
 
-# teardown
-rm in.txt cmd.txt out.txt
+vitest "yw push ascii" "wyw2ep" "abc def ghi\n" "abc def ghidef \n"
 
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/dw_last.in cmd.txt
-cp $FILES/vi/ascii_dw_last.out out.txt
+vitest "insert start of file ascii" "ihello\x1b" "abc def" "helloabc def"
+# TODO vitest "insert end of file ascii" "GAhello\x1b" "abc\ndef" "abc\ndefhello"
 
-toyonly testing "dw last line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+vitest "insert multiple times ascii" "iab\x1bicd\x1bief\x1b" "xyz" "acefdbxyz"
 
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/dw_first.in cmd.txt
-cp $FILES/vi/ascii_dw_first.out out.txt
-
-toyonly testing "dw first line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/D_first.in cmd.txt
-cp $FILES/vi/ascii_D_first.out out.txt
-
-toyonly testing "D first line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/D_last.in cmd.txt
-cp $FILES/vi/ascii_D_last.out out.txt
-
-toyonly testing "D last line ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/yw_push.in cmd.txt
-cp $FILES/vi/ascii_yw_push.out out.txt
-
-toyonly testing "yw push ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/insert_sof.in cmd.txt
-cp $FILES/vi/ascii_insert_sof.out out.txt
-
-toyonly testing "insert start of file ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/insert_eof.in cmd.txt
-cp $FILES/vi/ascii_insert_eof.out out.txt
-
-toyonly testing "insert end of file ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/insert_after_w.in cmd.txt
-cp $FILES/vi/ascii_insert_after_w.out out.txt
-
-toyonly testing "insert after first word ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/insert_multi.in cmd.txt
-cp $FILES/vi/ascii_insert_multi.out out.txt
-
-toyonly testing "insert multiple times ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
-# setup
-cp $FILES/vi/ascii.txt in.txt
-cp $FILES/vi/insert_multi_yy_push.in cmd.txt
-cp $FILES/vi/ascii_insert_multi_yy_push.out out.txt
-
-toyonly testing "insert multi yank move and push ascii" \
-  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-
-# teardown
-rm in.txt cmd.txt out.txt
-
+vitest "insert multi yank move and push ascii" "ixyz\x1byyjp" \
+  "abc def\nghi jkl\nmno pqr\n" "xyzabc def\nghi jkl\nxyzabc def\nmno pqr\n"
