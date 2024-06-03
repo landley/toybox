@@ -406,7 +406,7 @@ void stty_main(void)
       }
     }
 
-    tcsetattr(TT.fd, TCSAFLUSH, &new);
+    tcsetattr(TT.fd, TCSADRAIN, &new);
     xtcgetattr(&old);
     if (memcmp(&old, &new, sizeof(old)))
       error_exit("unable to perform all requested operations on %s", TT.F);
