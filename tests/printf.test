@@ -7,6 +7,9 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+[ -z "$OD" ] && \
+  OD=$(command -v god || command -v ggod || echo od) # use od from GNU coretutils
+
 # Note: must use "testcmd" not "testing" else it's testing the shell builtin.
 
 testcmd "text" "TEXT" "TEXT" "" ""
@@ -19,11 +22,11 @@ testcmd "escapes" "'one\ntwo\n\v\t\r\f\e\b\athree'" \
 testcmd "%b escapes" "%b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
   "one\ntwo\n\v\t\r\f\x1b\b\athree" "" ""
 
-testcmd "null" "'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
+testcmd "null" "'x\0y' | $OD -An -tx1" ' 78 00 79\n' "" ""
 testcmd "trailing slash" "'abc\'" 'abc\' "" ""
 testcmd "octal" "' \1\002\429\045x'" ' \001\002"9%x' "" ""
 testcmd "not octal" "'\9'" '\9' "" ""
-testcmd "hex" "'A\x1b\x2B\x3Q\xa' | od -An -tx1" ' 41 1b 2b 03 51 0a\n' "" ""
+testcmd "hex" "'A\x1b\x2B\x3Q\xa' | $OD -An -tx1" ' 41 1b 2b 03 51 0a\n' "" ""
 testcmd "%x" "'%x\n' 0x2a" "2a\n" "" ""
 
 testcmd "%d 42" "%d 42" "42" "" ""
@@ -67,7 +70,7 @@ testcmd "corner case" "'\\8'" '\8' '' ''
 # so treating the \0066 in %b like the \0066 not in %b is wrong because posix.
 testcmd "posix inconsistency" "'\\0066-%b' '\\0066'" "\x066-6" "" ""
 
-testcmd '\x' "'A\x1b\x2B\x3Q\xa' | od -An -tx1" " 41 1b 2b 03 51 0a\n" \
+testcmd '\x' "'A\x1b\x2B\x3Q\xa' | $OD -An -tx1" " 41 1b 2b 03 51 0a\n" \
   "" ""
 
 testcmd '\c' "'one\ctwo'" "one" "" ""
