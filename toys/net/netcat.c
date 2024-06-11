@@ -22,8 +22,8 @@ config NETCAT
     -L	Listen and background each incoming connection (server mode)
     -l	Listen for one incoming connection, then exit
     -n	No DNS lookup
-    -o	Hex dump to FILE (-o- writes hex only to stdout)
-    -O	Hex dump to FILE (collated)
+    -o	Hex dump to FILE (show packets, -o- writes hex only to stdout)
+    -O	Hex dump to FILE (streaming mode)
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
