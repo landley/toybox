@@ -262,7 +262,7 @@ struct group *bufgetgrgid(gid_t gid);
 int readlinkat0(int dirfd, char *path, char *buf, int len);
 int readlink0(char *path, char *buf, int len);
 int regexec0(regex_t *preg, char *string, long len, int nmatch,
-  regmatch_t pmatch[], int eflags);
+  regmatch_t *pmatch, int eflags);
 char *getusername(uid_t uid);
 char *getgroupname(gid_t gid);
 void do_lines(int fd, char delim, void (*call)(char **pline, long len));
