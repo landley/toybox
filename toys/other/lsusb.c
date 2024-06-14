@@ -234,9 +234,7 @@ static int list_pci(struct dirtree *new)
     FILE *fp;
     int b, col = 0, max = (TT.x >= 4) ? 4096 : ((TT.x >= 3) ? 256 : 64);
 
-    // TODO: where does the "0000:" come from?
-    snprintf(toybuf, sizeof(toybuf), "/sys/bus/pci/devices/0000:%s/config",
-      new->name+5);
+    snprintf(toybuf, sizeof(toybuf), "/sys/bus/pci/devices/%s/config", new->name);
     fp = xfopen(toybuf, "r");
     while ((b = fgetc(fp)) != EOF) {
       if ((col % 16) == 0) printf("%02x: ", col & 0xf0);
