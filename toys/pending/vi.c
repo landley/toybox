@@ -5,7 +5,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/vi.html
 
-USE_VI(NEWTOY(vi, ">1s:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_VI(NEWTOY(vi, ">1s:c:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config VI
   bool "vi"
@@ -16,9 +16,33 @@ config VI
     Visual text editor. Predates keyboards with standardized cursor keys.
     If you don't know how to use it, hit the ESC key, type :q! and press ENTER.
 
-    -s	run SCRIPT of commands on FILE
+    -s	run SCRIPT as if typed at keyboard (like -c "source SCRIPT")
+    -c	run SCRIPT of ex commands
 
-    vi mode commands:
+    The editor is usually in one of three modes:
+
+      Hit ESC for "vi mode" where each key is a command.
+      Hit : for "ex mode" which runs command lines typed at bottom of screen.
+      Hit i (from vi mode) for "insert mode" where typing adds to the file.
+
+    ex mode commands (ESC to exit ex mode):
+
+      q   Quit (exit editor if no unsaved changes)
+      q!  Quit discarding unsaved changes
+      w   Write changed contents to file (optionally to NAME argument)
+      wq  Write to file, then quit
+
+    vi mode single key commands:
+      i  switch to insert mode (until next ESC)
+      u  undo last change (can be repeated)
+      a  append (move one character right, switch to insert mode)
+      A  append (jump to end of line, switch to insert mode)
+
+    vi mode commands that prompt for more data on bottom line:
+      :  switch to ex mode
+      /  search forwards for regex
+      ?  search backwards for regex
+      .  repeat last command
 
       [count][cmd][motion]
       cmd: c d y
@@ -30,28 +54,23 @@ config VI
       [cmd]
       cmd: / ? : A a i CTRL_D CTRL_B CTRL_E CTRL_F CTRL_Y \e \b
 
-    ex mode commands:
-
       [cmd]
-      \b \e \n w wq q! 'set list' 'set nolist' d $ % g v
+      \b \e \n 'set list' 'set nolist' d $ % g v
 */
 #define FOR_vi
 #include "toys.h"
 #define CTL(a) a-'@'
 
 GLOBALS(
-  char *s;
+  char *c, *s;
 
   char *filename;
-  int vi_mode, tabstop, list;
-  int cur_col, cur_row, scr_row;
-  int drawn_row, drawn_col;
-  int count0, count1, vi_mov_flag;
+  int vi_mode, tabstop, list, cur_col, cur_row, scr_row, drawn_row, drawn_col,
+      count0, count1, vi_mov_flag;
   unsigned screen_height, screen_width;
   char vi_reg, *last_search;
   struct str_line {
-    int alloc;
-    int len;
+    int alloc, len;
     char *data;
   } *il;
   size_t screen, cursor; //offsets
@@ -59,7 +78,7 @@ GLOBALS(
   struct yank_buf {
     char reg;
     int alloc;
-    char* data;
+    char *data;
   } yank;
 
   size_t filesize;
@@ -68,8 +87,7 @@ GLOBALS(
   struct block_list {
     struct block_list *next, *prev;
     struct mem_block {
-      size_t size;
-      size_t len;
+      size_t size, len;
       enum alloc_flag {
         MMAP,  //can be munmap() before exit()
         HEAP,  //can be free() before exit()
@@ -119,25 +137,23 @@ static int utf8_dec(char key, char *utf8_scratch, int *sta_p)
   char *c = utf8_scratch;
   c[*sta_p] = key;
   if (!(*sta_p))  *c = key;
-  if (*c < 0x7F) { *sta_p = 1; return 1; }
+  if (*c < 0x7F) return *sta_p = 1;
   if ((*c & 0xE0) == 0xc0) len = 2;
   else if ((*c & 0xF0) == 0xE0 ) len = 3;
   else if ((*c & 0xF8) == 0xF0 ) len = 4;
-  else {*sta_p = 0; return 0; }
+  else return *sta_p = 0;
 
-  (*sta_p)++;
+  if (++*sta_p == 1) return 0;
+  if ((c[*sta_p-1] & 0xc0) != 0x80) return *sta_p = 0;
 
-  if (*sta_p == 1) return 0;
-  if ((c[*sta_p-1] & 0xc0) != 0x80) {*sta_p = 0; return 0; }
-
-  if (*sta_p == len) { c[(*sta_p)] = 0; return 1; }
+  if (*sta_p == len) return !(c[(*sta_p)] = 0);
 
   return 0;
 }
 
 static char* utf8_last(char* str, int size)
 {
-  char* end = str+size;
+  char *end = str+size;
   int pos = size, len, width = 0;
 
   for (;pos >= 0; end--, pos--) {
@@ -1627,15 +1643,13 @@ static void draw_page()
 
 void vi_main(void)
 {
-  char stdout_buf[8192], keybuf[16] = {0}, vi_buf[16] = {0}, utf8_code[8] = {0};
+  char keybuf[16] = {0}, vi_buf[16] = {0}, utf8_code[8] = {0};
   int utf8_dec_p = 0, vi_buf_pos = 0;
-  FILE *script = FLAG(s) ? xfopen(TT.s, "r") : 0;
+  FILE *script = TT.s ? xfopen(TT.s, "r") : 0;
 
   TT.il = xzalloc(sizeof(struct str_line));
-  TT.il->data = xzalloc(80);
-  TT.yank.data = xzalloc(128);
-
-  TT.il->alloc = 80, TT.yank.alloc = 128;
+  TT.il->data = xzalloc(TT.il->alloc = 80);
+  TT.yank.data = xzalloc(TT.yank.alloc = 128);
 
   TT.filename = *toys.optargs;
   linelist_load(0, 1);
@@ -1647,27 +1661,30 @@ void vi_main(void)
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 1;
 
-  // Avoid flicker.
-  setbuffer(stdout, stdout_buf, sizeof(stdout_buf));
-
   xsignal(SIGWINCH, generic_signal);
   set_terminal(0, 1, 0, 0);
   //writes stdout into different xterm buffer so when we exit
   //we dont get scroll log full of junk
   xputsn("\e[?1049h");
 
+  if (TT.c) {
+    FILE *cc = xfopen(TT.c, "r");
+    char *line;
+
+    while ((line = xgetline(cc))) if (run_ex_cmd(TT.il->data)) goto cleanup_vi;
+    fclose(cc);
+  }
+
   for (;;) {
     int key = 0;
 
     draw_page();
-    if (script) {
-      key = fgetc(script);
-      if (key == EOF) {
-        fclose(script);
-        script = 0;
-        key = scan_key(keybuf, -1);
-      }
-    } else key = scan_key(keybuf, -1);
+    // TODO script should handle cursor keys
+    if (script && EOF==(key = fgetc(script))) {
+      fclose(script);
+      script = 0;
+    }
+    if (!script) key = scan_key(keybuf, -1);
 
     if (key == -1) goto cleanup_vi;
     else if (key == -3) {
@@ -1694,6 +1711,7 @@ void vi_main(void)
       else if (key==KEY_END) vi_dollar(1, 1, 0);
       else if (key==KEY_PGDN) ctrl_f();
       else if (key==KEY_PGUP) ctrl_b();
+
       continue;
     }
 
