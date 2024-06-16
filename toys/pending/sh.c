@@ -4110,7 +4110,7 @@ FILE *fpathopen(char *name)
 
   if (fd==-1) {
     for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
-      if (-1==(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
+      if (-1!=(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
     if (sl) llist_traverse(sl, free);
   }
   if (fd != -1) {
