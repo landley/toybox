@@ -31,7 +31,9 @@ setupfor() {
   if [ -d "$DOWNLOAD/$PACKAGE" ]; then
     cp -la "$DOWNLOAD/$PACKAGE/." "$PACKAGE" && cd "$PACKAGE" || exit 1
   else
-    tar xvaf "$DOWNLOAD/$PACKAGE"-*.t* && cd "$PACKAGE"-* || exit 1
+    local DIR=$(mktemp -dp.)
+    tar xvafC "$DOWNLOAD/$PACKAGE"-*.t* "$DIR" &&
+    mv "$DIR"/* "$PACKAGE" && rmdir "$DIR" && cd "$PACKAGE" || exit 1
   fi
 }
 
