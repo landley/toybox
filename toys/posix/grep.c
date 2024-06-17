@@ -7,9 +7,9 @@
  * Posix doesn't even specify -r: too many deviations to document.
  * TODO: -i is only ascii case insensitive, not unicode.
 
-USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwc(count)L(files-without-match)l(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EF]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
-USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
-USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
+USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwc(count)L(files-without-match)l(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EF]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF|TOYFLAG_AUTOCONF))
+USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF|TOYFLAG_AUTOCONF))
+USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF|TOYFLAG_AUTOCONF))
 
 config GREP
   bool "grep"

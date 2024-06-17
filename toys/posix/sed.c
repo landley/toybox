@@ -22,7 +22,7 @@
  * print, l escapes \n
  * Added --tarxform mode to support tar --xform
 
-USE_SED(NEWTOY(sed, "(help)(version)(tarxform)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)(tarxform)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_AUTOCONF))
 
 config SED
   bool "sed"
@@ -1077,17 +1077,6 @@ void sed_main(void)
 
   if (FLAG(tarxform)) toys.optflags |= FLAG_z;
   if (!FLAG(z)) TT.delim = '\n';
-
-  // Lie to autoconf when it asks stupid questions, so configure regexes
-  // that look for "GNU sed version %f" greater than some old buggy number
-  // don't fail us for not matching their narrow expectations.
-  if (FLAG(version)) {
-    xprintf("This is not GNU sed version 9.0\n");
-    return;
-  }
-
-  // Handling our own --version means we handle our own --help too.
-  if (FLAG(help)) return show_help(stdout, 0);
 
   // Parse pattern into commands.
 

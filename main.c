@@ -132,9 +132,10 @@ static void unknown(char *name)
 // Parse --help and --version for (almost) all commands
 void check_help(char **arg)
 {
+  long flags = toys.which->flags;
+
   if (!CFG_TOYBOX_HELP_DASHDASH || !*arg) return;
-  if (!CFG_TOYBOX || toys.which != toy_list)
-    if (toys.which->flags&TOYFLAG_NOHELP) return;
+  if (!CFG_TOYBOX || toys.which!=toy_list) if (flags&TOYFLAG_NOHELP) return;
 
   if (!strcmp(*arg, "--help")) {
     if (CFG_TOYBOX && toys.which == toy_list && arg[1]) {
@@ -146,7 +147,12 @@ void check_help(char **arg)
   }
 
   if (!strcmp(*arg, "--version")) {
-    xprintf("toybox %s\n", toybox_version);
+    // Lie to autoconf when it asks stupid questions, so configure regexes
+    // that look for "GNU sed version %f" greater than some old buggy number
+    // don't fail us for not matching their narrow expectations.
+    sprintf(toybuf, (flags&TOYFLAG_AUTOCONF) ? " (is not GNU %s 9.0)" : "",
+      toys.which->name);
+    xprintf("toybox %s%s\n", toybox_version, toybuf);
     xexit();
   }
 }

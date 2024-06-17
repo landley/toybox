@@ -27,10 +27,11 @@
 
 // Suppress default --help processing
 #define TOYFLAG_NOHELP   (1<<9)
+#define TOYFLAG_AUTOCONF (1<<10)
 
 // Line buffered stdout
-#define TOYFLAG_LINEBUF  (1<<10)
-#define TOYFLAG_NOBUF    (1<<11)
+#define TOYFLAG_LINEBUF  (1<<11)
+#define TOYFLAG_NOBUF    (1<<12)
 
 // Error code to return if argument parsing fails (default 1)
 #define TOYFLAG_ARGFAIL(x) (x<<24)
