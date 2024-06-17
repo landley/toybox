@@ -4,7 +4,7 @@
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
 
 USE_LSUSB(NEWTOY(lsusb, "i:", TOYFLAG_USR|TOYFLAG_BIN))
-USE_LSPCI(NEWTOY(lspci, "emkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSPCI(NEWTOY(lspci, "eD@mkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
   bool "lspci"
@@ -19,6 +19,7 @@ config LSPCI
     -k	Show kernel driver
     -m	Machine readable
     -n	Numeric output (-nn for both)
+    -D	Print domain numbers
     -x	Hex dump of config space (64 bytes; -xxx for 256, -xxxx for 4096)
 
 config LSUSB
@@ -37,7 +38,7 @@ config LSUSB
 
 GLOBALS(
   char *i;
-  long x, n;
+  long x, n, D;
 
   void *ids, *class;
   int count;
@@ -192,6 +193,8 @@ static int list_pci(struct dirtree *new)
   char *driver = 0, buf[16], *ss, *names[3];
   int cvd[3] = {0}, ii, revision = 0;
   off_t len = sizeof(toybuf);
+  /* skip 0000: part by default */
+  char *bus = strchr(new->name, ':') + 1;
 
 // Output formats: -n, -nn, -m, -nm, -nnm, -k
 
@@ -214,7 +217,9 @@ static int list_pci(struct dirtree *new)
   if (!FLAG(e)) cvd[0] >>= 8;
 
   // Output line according to flags
-  printf("%s", new->name+5);
+  if (TT.D || strncmp(new->name, "0000:", bus-new->name))
+    bus=new->name;
+  printf("%s", bus);
   for (ii = 0; ii<3; ii++) {
     sprintf(buf, "%0*x", 6-2*(ii||!FLAG(e)), cvd[ii]);
     if (!TT.n) printf(FLAG(m) ? " \"%s\"" : ": %s"+(ii!=1), names[ii] ? : buf);
