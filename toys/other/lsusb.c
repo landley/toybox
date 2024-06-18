@@ -4,7 +4,7 @@
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
 
 USE_LSUSB(NEWTOY(lsusb, "i:", TOYFLAG_USR|TOYFLAG_BIN))
-USE_LSPCI(NEWTOY(lspci, "eD@mkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSPCI(NEWTOY(lspci, "eDmkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
   bool "lspci"
@@ -38,7 +38,7 @@ config LSUSB
 
 GLOBALS(
   char *i;
-  long x, n, D;
+  long x, n;
 
   void *ids, *class;
   int count;
@@ -199,7 +199,7 @@ static int list_pci(struct dirtree *new)
 // Output formats: -n, -nn, -m, -nm, -nnm, -k
 
   if (!new->parent) return DIRTREE_RECURSE;
-  if (strlen(new->name)<6) return 0;
+  if (!bus || strlen(new->name)<6) return 0;
   TT.count = 0;
 
   // Load revision
@@ -217,13 +217,12 @@ static int list_pci(struct dirtree *new)
   if (!FLAG(e)) cvd[0] >>= 8;
 
   // Output line according to flags
-  if (TT.D || strncmp(new->name, "0000:", bus-new->name))
-    bus=new->name;
+  if (FLAG(D) || strncmp(new->name, "0000:", bus-new->name)) bus = new->name;
   printf("%s", bus);
   for (ii = 0; ii<3; ii++) {
     sprintf(buf, "%0*x", 6-2*(ii||!FLAG(e)), cvd[ii]);
     if (!TT.n) printf(FLAG(m) ? " \"%s\"" : ": %s"+(ii!=1), names[ii] ? : buf);
-    else if (TT.n==1) printf(FLAG(m) ? " \"%s\"" : (ii==2) ? "%s " : " %s:", buf);
+    else if (TT.n==1) printf(FLAG(m) ? " \"%s\"" : (ii==2)?"%s ":" %s:", buf);
     else if (!FLAG(m)) {
       // This one permutes the order, so do it all first time and abort loop
       printf(" %s [%s]: %s %s [%04x:%04x]", names[0], buf, names[1], names[2],
