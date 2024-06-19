@@ -105,7 +105,7 @@ done
 # The following are commands toybox should provide, but doesn't yet.
 # For now symlink the host version. This list must go away by 1.0.
 
-PENDING="expr git tr bash sh gzip   awk bison flex make"
+PENDING="expr git tr bash sh gzip   awk bison flex make ar"
 TOOLCHAIN="as cc ld objdump"
 TOOLCHAIN+=" bc gcc" # both patched out but not in vanilla yet
 
