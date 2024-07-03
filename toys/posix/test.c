@@ -59,7 +59,7 @@ static int do_test(char **args, int *count)
 
   if (*count>=3) {
     *count = 3;
-    char *s = args[1], *ss = "eqnegtgeltle";
+    char *s = args[1], *ss = "eqnegtgeltleefotnt";
     // TODO shell integration case insensitivity
     if (!strcmp(s, "=") || !strcmp(s, "==")) return !strcmp(args[0], args[2]);
     if (!strcmp(s, "!=")) return strcmp(args[0], args[2]);
@@ -79,7 +79,15 @@ static int do_test(char **args, int *count)
       return (*s=='<') ? i<0 : i>0;
     }
     if (*s=='-' && strlen(s)==3 && (s = strstr(ss, s+1)) && !((i = s-ss)&1)) {
-      long long a = atolx(args[0]), b = atolx(args[2]);
+      struct stat st1, st2;
+      long long a QUIET, b QUIET;
+      if (i <= 10) {
+        a = atolx(args[0]);
+        b = atolx(args[2]);
+      } else {
+        if ((i == 12 ? stat : lstat)(args[0], &st1)
+          || (i == 12 ? stat : lstat)(args[2], &st2)) return 0;
+      }
 
       if (!i) return a == b;
       if (i==2) return a != b;
@@ -87,6 +95,11 @@ static int do_test(char **args, int *count)
       if (i==6) return a >= b;
       if (i==8) return a < b;
       if (i==10) return a<= b;
+      if (i==12) return (st1.st_dev==st2.st_dev) && (st1.st_ino==st2.st_ino);
+      if (i==14) return (st1.st_atim.tv_sec < st2.st_atim.tv_sec) ||
+        (st1.st_atim.tv_nsec < st2.st_atim.tv_nsec);
+      if (i==16) return (st1.st_atim.tv_sec > st2.st_atim.tv_sec) ||
+        (st1.st_atim.tv_nsec > st2.st_atim.tv_nsec);
     }
   }
   s = *args;

@@ -113,6 +113,13 @@ testing "-ge" "arith_test -ge" "eg" "" ""
 testing "-lt" "arith_test -lt" "l" "" ""
 testing "-le" "arith_test -le" "le" "" ""
 
+touch oldfile -d 1970-01-01
+touch newfile -d 2031-01-01
+
+testcmd "-ef" "newfile -ef newfile && echo yes" "yes\n" "" ""
+testcmd "-ot" "oldfile -ot newfile && echo yes" "yes\n" "" ""
+testcmd "-nt" "newfile -nt oldfile && echo yes" "yes\n" "" ""
+
 testing "positional" "test -a == -a && echo yes" "yes\n" "" ""
 testing "! stacks" 'test \! \! \! \! 2 -eq 2 && echo yes' "yes\n" "" ""
 
