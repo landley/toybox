@@ -38,6 +38,8 @@ config TEST
     Two integers:
       -eq  equal         -gt  first > second    -lt  first < second
       -ne  not equal     -ge  first >= second   -le  first <= second
+    Two files:
+      -ot  Older mtime   -nt  Newer mtime       -ef  same dev/inode
 
     --- Modify or combine tests:
       ! EXPR     not (swap true/false)   EXPR -a EXPR    and (are both true)
