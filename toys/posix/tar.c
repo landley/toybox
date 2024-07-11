@@ -20,7 +20,7 @@
  * No --no-null because the args infrastructure isn't ready.
  * Until args.c learns about no- toggles, --no-thingy always wins over --thingy
 
-USE_TAR(NEWTOY(tar, "&(one-file-system)(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(sort);:(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):as[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(one-file-system)(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(sort);:(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):as[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config TAR
   bool "tar"
@@ -637,7 +637,7 @@ static void extract_to_disk(char *name)
     } else {
       int fd = WARN_ONLY|O_WRONLY|O_CREAT|(FLAG(overwrite) ? O_TRUNC : O_EXCL);
 
-      if ((fd = xcreate(name, fd, ala&07777)) != -1) sendfile_sparse(fd);
+      if ((fd = xcreate(name, fd, 0700)) != -1) sendfile_sparse(fd);
       else return skippy(TT.hdr.size);
     }
   } else if (S_ISDIR(ala)) {
@@ -646,7 +646,7 @@ static void extract_to_disk(char *name)
   } else if (S_ISLNK(ala)) {
     if (symlink(TT.hdr.link_target, name))
       return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
-  } else if (mknod(name, ala, TT.hdr.device))
+  } else if (mknod(name, ala&~toys.old_umask, TT.hdr.device))
     return perror_msg("can't create '%s'", name);
 
   // Set ownership
@@ -668,7 +668,7 @@ static void extract_to_disk(char *name)
     if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
   }
 
-  if (!S_ISLNK(ala)) chmod(name, FLAG(p) ? ala : ala&0777);
+  if (!S_ISLNK(ala)) chmod(name, FLAG(p) ? ala : ala&0777&~toys.old_umask);
 
   // Apply mtime.
   if (!FLAG(m)) {
@@ -1033,7 +1033,8 @@ void tar_main(void)
   // nommu reentry for nonseekable input skips this, parent did it for us
   if (toys.stacktop) {
     if (TT.f && strcmp(TT.f, "-"))
-      TT.fd = xcreate(TT.f, TT.fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
+      TT.fd = xcreate(TT.f, TT.fd*(O_WRONLY|O_CREAT|O_TRUNC),
+                      0666&~toys.old_umask);
     // Get destination directory
     if (TT.C) xchdir(TT.C);
   }
