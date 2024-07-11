@@ -205,6 +205,7 @@ static void do_blkid(int fd, char *name)
         if (!(i&1)) *s++ = '-';
         *s++ = toybuf[uoff++];
       }
+      *s = 0;
     } else {
       for (j = 0; j < 16; j++)
         s += sprintf(s, "-%02x"+!(0x550 & (1<<j)), toybuf[uoff+j]);
