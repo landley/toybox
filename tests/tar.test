@@ -424,6 +424,16 @@ touch file
 testing './file bug' 'tar c ./file > tar.tar && tar t ./file < tar.tar' \
   './file\n' '' ''
 
+testing 'honor umask' \
+  'umask 0022 && rm -rf dir && mkdir dir && tar xf $FILES/tar/dir.tar && stat -c%A dir dir/file' \
+  'drwxr-xr-x\n-rwxr-xr-x\n' '' ''
+testing 'umask2' \
+  'umask 0022 && rm -rf dir && mkdir dir && umask 0 && tar xf $FILES/tar/dir.tar && stat -c%A dir dir/file' \
+  'drwxrwxrwx\n-rwxrwxrwx\n' '' ''
+testing 'umask3' \
+  'umask 0022 && rm -rf dir && mkdir dir && tar xpf $FILES/tar/dir.tar && stat -c%A dir dir/file' \
+  'drwxrwxrwx\n-rwxrwxrwx\n' '' ''
+
 if false
 then
 # Sequencing issues that leak implementation details out the interface
