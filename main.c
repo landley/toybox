@@ -150,8 +150,9 @@ void check_help(char **arg)
     // Lie to autoconf when it asks stupid questions, so configure regexes
     // that look for "GNU sed version %f" greater than some old buggy number
     // don't fail us for not matching their narrow expectations.
-    sprintf(toybuf, (flags&TOYFLAG_AUTOCONF) ? " (is not GNU %s 9.0)" : "",
-      toys.which->name);
+    *toybuf = 0;
+    if (flags&TOYFLAG_AUTOCONF)
+      sprintf(toybuf, " (is not GNU %s 9.0)", toys.which->name);
     xprintf("toybox %s%s\n", toybox_version, toybuf);
     xexit();
   }
