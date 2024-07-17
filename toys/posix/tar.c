@@ -84,7 +84,7 @@ GLOBALS(
   // Parsed information about a tar header.
   struct tar_header {
     char *name, *link_target, *uname, *gname;
-    long long size, ssize;
+    long long size, ssize, oldsparse;
     uid_t uid;
     gid_t gid;
     mode_t mode;
@@ -526,6 +526,12 @@ static void wsettime(char *s, long long sec)
     perror_msg("settime %lld %s", sec, s);
 }
 
+static void freedup(char **to, char *from)
+{
+  free(*to);
+  *to = xstrdup(from);
+}
+
 // Do pending directory utimes(), NULL to flush all.
 static int dirflush(char *name, int isdir)
 {
@@ -547,8 +553,7 @@ static int dirflush(char *name, int isdir)
 
     // --restrict means first entry extracted is what everything must be under
     if (FLAG(restrict)) {
-      free(TT.cwd);
-      TT.cwd = xstrdup(s);
+      freedup(&TT.cwd, s);
       toys.optflags ^= FLAG_restrict;
     }
     // use resolved name so trailing / is stripped
@@ -590,7 +595,7 @@ static void sendfile_sparse(int fd)
         }
       } else {
         sent = len;
-        if (!(len = TT.sparse[i*2+1]) && ftruncate(fd, sent+len))
+        if (!(len = TT.sparse[i*2+1]) && ftruncate(fd, sent))
           perror_msg("ftruncate");
       }
       if (len+used>TT.hdr.size) error_exit("sparse overflow");
@@ -752,11 +757,11 @@ static void unpack_tar(char *first)
             sefd = xopen("/proc/self/attr/fscreate", O_WRONLY|WARN_ONLY);
             if (sefd==-1 ||  i!=write(sefd, pp, i))
               perror_msg("setfscreatecon %s", pp);
-          } else if (strstart(&pp, "path=")) {
-            free(TT.hdr.name);
-            TT.hdr.name = xstrdup(pp);
-            break;
-          }
+          } else if (strstart(&pp, "path=")) freedup(&TT.hdr.name, pp);
+          // legacy sparse format circa 2005
+          else if (strstart(&pp, "GNU.sparse.name=")) freedup(&TT.hdr.name, pp);
+          else if (strstart(&pp, "GNU.sparse.realsize="))
+            TT.hdr.oldsparse = atoll(pp);
         }
         free(buf);
       }
@@ -795,7 +800,38 @@ static void unpack_tar(char *first)
       TT.sparselen /= 2;
       if (TT.sparselen)
         TT.hdr.ssize = TT.sparse[2*TT.sparselen-1]+TT.sparse[2*TT.sparselen-2];
-    } else TT.hdr.ssize = TT.hdr.size;
+    } else {
+      TT.hdr.ssize = TT.hdr.size;
+
+      // Handle obsolete sparse format
+      if (TT.hdr.oldsparse>0) {
+        char sparse[512], c;
+        long long ll = 0;
+
+        s = sparse+512;
+        for (i = 0;;) {
+          if (s == sparse+512) {
+            if (TT.hdr.size<512) break;
+            xreadall(TT.fd, s = sparse, 512);
+            TT.hdr.size -= 512;
+          } else if (!(c = *s++)) break;
+          else if (isdigit(c)) ll = (10*ll)+c-'0';
+          else {
+            if (!TT.sparselen)
+              TT.sparse = xzalloc(((TT.sparselen = ll)+1)*2*sizeof(long long));
+            else TT.sparse[i++] = ll;
+            ll = 0;
+            if (i == TT.sparselen*2) break;
+          }
+        }
+        if (TT.sparselen) {
+          ll = TT.sparse[2*(TT.sparselen-1)]+TT.sparse[2*TT.sparselen-1];
+          if (TT.hdr.oldsparse>ll)
+            TT.sparse[2*TT.sparselen++] = TT.hdr.oldsparse;
+        }
+        TT.hdr.oldsparse = 0;
+      }
+    }
 
     // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = OTOI(tar.mode)&0xfff;
