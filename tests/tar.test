@@ -424,6 +424,7 @@ touch file
 testing './file bug' 'tar c ./file > tar.tar && tar t ./file < tar.tar' \
   './file\n' '' ''
 
+skipnot [ $(id -u) -ne 0 ]  # Root doesn't count.
 testing 'honor umask' \
   'umask 0022 && rm -rf dir && mkdir dir && tar xf $FILES/tar/dir.tar && stat -c%A dir dir/file' \
   'drwxr-xr-x\n-rwxr-xr-x\n' '' ''
