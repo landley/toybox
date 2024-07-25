@@ -2,20 +2,26 @@
  *
  * Copyright 2019 The Android Open Source Project
 
-USE_DEVMEM(NEWTOY(devmem, "<1>3", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_DEVMEM(NEWTOY(devmem, "<1f:", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config DEVMEM
   bool "devmem"
   default y
   help
-    usage: devmem ADDR [WIDTH [DATA]]
+    usage: devmem -f FILE ADDR [WIDTH [DATA...]]
 
-    Read/write physical address. WIDTH is 1, 2, 4, or 8 bytes (default 4).
+    Read/write physical addresses. WIDTH is 1, 2, 4, or 8 bytes (default 4).
     Prefix ADDR with 0x for hexadecimal, output is in same base as address.
+
+    -f FILE	File to operate on (default /dev/mem)
 */
 
 #define FOR_devmem
 #include "toys.h"
+
+GLOBALS(
+  char *f;
+)
 
 unsigned long xatolu(char *str, int bytes)
 {
@@ -34,7 +40,7 @@ unsigned long xatolu(char *str, int bytes)
 
 void devmem_main(void)
 {
-  int writing = toys.optc == 3, page_size = sysconf(_SC_PAGESIZE), bytes = 4,fd;
+  int writing = toys.optc > 2, page_size = sysconf(_SC_PAGESIZE), bytes = 4, fd;
   unsigned long data = 0, map_off, map_len,
     addr = xatolu(*toys.optargs, sizeof(long));
   char *sizes = sizeof(long)==8 ? "1248" : "124";
@@ -49,12 +55,9 @@ void devmem_main(void)
     bytes = 1<<i;
   }
 
-  // DATA?
-  if (writing) data = xatolu(toys.optargs[2], bytes);
-
   // Map in just enough.
   if (CFG_TOYBOX_FORK) {
-    fd = xopen("/dev/mem", (writing ? O_RDWR : O_RDONLY) | O_SYNC);
+    fd = xopen(TT.f ?: "/dev/mem", (writing ? O_RDWR : O_RDONLY) | O_SYNC);
 
     map_off = addr & ~(page_size - 1ULL);
     map_len = (addr+bytes-map_off);
@@ -64,12 +67,16 @@ void devmem_main(void)
     close(fd);
   } else p = (void *)addr;
 
-  // Not using peek()/poke() because registers care about size of read/write
+  // Not using peek()/poke() because registers care about size of read/write.
   if (writing) {
-    if (bytes==1) *(char *)p = data;
-    else if (bytes==2) *(unsigned short *)p = data;
-    else if (bytes==4) *(unsigned int *)p = data;
-    else if (sizeof(long)==8 && bytes==8) *(unsigned long *)p = data;
+    for (int i = 2; i < toys.optc; i++) {
+      data = xatolu(toys.optargs[i], bytes);
+      if (bytes==1) *(char *)p = data;
+      else if (bytes==2) *(unsigned short *)p = data;
+      else if (bytes==4) *(unsigned int *)p = data;
+      else if (sizeof(long)==8 && bytes==8) *(unsigned long *)p = data;
+      p += bytes;
+    }
   } else {
     if (bytes==1) data = *(char *)p;
     else if (bytes==2) data = *(unsigned short *)p;
