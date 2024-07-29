@@ -1522,13 +1522,11 @@ static void top_common(
     "iow", "irq", "sirq", "host"};
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
-  char stdout_buf[8192];
 
   if (!TT.fields) perror_exit("no -o");
 
   // Avoid flicker and hide the cursor in interactive mode.
   if (!FLAG(b)) {
-    setbuffer(stdout, stdout_buf, sizeof(stdout_buf));
     sigatexit(top_cursor_cleanup);
     xputsn("\e[?25l");
   }
