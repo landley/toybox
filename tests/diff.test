@@ -43,6 +43,13 @@ echo -e "1\n3" > bb
 testcmd "line format" "--unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
 testcmd "line format empty" "--unchanged-line-format= --old-line-format=D%l --new-line-format=A%l aa bb" "D2A3" "" ""
 
+ln -s aa cc
+testcmd "follow symlink" "-q -L aa -L cc aa cc" "" "" ""
+testcmd "no follow symlink" "-q --no-dereference -L aa -L cc aa cc" "File aa is a regular file while file cc is a symbolic link\n" "" ""
+ln -s ./aa dd
+testcmd "symlink differs" "-q -L cc -L dd cc dd" "" "" ""
+testcmd "symlink differs no follow" "-q --no-dereference -L cc -L dd cc dd" "Symbolic links cc and dd differ\n" "" ""
+
 mkfifo fifo1
 mkfifo fifo2
 echo -e "1\n2" > fifo1&

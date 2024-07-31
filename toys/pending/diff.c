@@ -8,7 +8,7 @@
  *
  * Deviations from posix: always does -u
 
-USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):F(show-function-line):;L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(no-dereference);(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):F(show-function-line):;L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
@@ -35,6 +35,7 @@ config DIFF
     -w	Ignore all whitespace
 
     --color     Color output   --strip-trailing-cr   Strip '\r' from input lines
+    --no-dereference Don't follow symbolic links
     --TYPE-line-format=FORMAT  Display TYPE (unchanged/old/new) lines using FORMAT
       FORMAT uses printf integer escapes (ala %-2.4x) followed by LETTER: FELMNn
     Supported format specifiers are:
@@ -51,7 +52,7 @@ GLOBALS(
   struct arg_list *L;
   char *F, *S, *new_line_format, *old_line_format, *unchanged_line_format;
 
-  int dir_num, size, is_binary, differ, change, len[2], *offset[2];
+  int dir_num, size, is_binary, is_symlink, differ, change, len[2], *offset[2];
   struct stat st[2];
   struct {
     char **list;
@@ -61,6 +62,10 @@ GLOBALS(
     FILE *fp;
     int len;
   } file[2];
+  struct {
+    char *name;
+    int len;
+  } link[2];
 )
 
 #define IS_STDIN(s)     (*(s)=='-' && !(s)[1])
@@ -512,19 +517,19 @@ static int list_dir(struct dirtree *node)
 
   if (S_ISDIR(node->st.st_mode) && !node->parent) { //add root dirs.
     add_to_list(node);
-    return (DIRTREE_RECURSE|DIRTREE_SYMFOLLOW);
+    return (DIRTREE_RECURSE|((FLAG(no_dereference)) ? 0 : DIRTREE_SYMFOLLOW));
   }
 
   if (S_ISDIR(node->st.st_mode) && FLAG(r)) {
     if (!FLAG(N)) ret = skip(node);
-    if (!ret) return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
+    if (!ret) return DIRTREE_RECURSE|((FLAG(no_dereference)) ? 0 : DIRTREE_SYMFOLLOW);
     else {
       add_to_list(node); //only at one side.
       return 0;
     }
   } else {
     add_to_list(node);
-    return S_ISDIR(node->st.st_mode) ? 0 : (DIRTREE_RECURSE|DIRTREE_SYMFOLLOW);
+    return S_ISDIR(node->st.st_mode) ? 0 : (DIRTREE_RECURSE|((FLAG(no_dereference)) ? 0 : DIRTREE_SYMFOLLOW));
   }
 }
 
@@ -576,6 +581,33 @@ static void show_label(char *prefix, char *filename, struct stat *sb)
   printf("%s %s\t%s\n", prefix, quoted_file,
     format_iso_time(date, sizeof(date), &sb->st_mtim));
   free(quoted_file);
+}
+
+static void do_symlink_diff(char **files)
+{
+  size_t i;
+  int s = sizeof(toybuf)/2;
+
+  TT.is_symlink = 1;
+  TT.differ = 0;
+  TT.link[0].name = TT.link[1].name = NULL;
+  for (i = 0; i < 2; i++) {
+    TT.link[i].name = xreadlink(files[i]);
+    if (TT.link[i].name == 0) {
+      perror_msg("readlink failed");
+      TT.differ = 2;
+      free(TT.link[0].name);
+      return;
+    }
+    TT.link[i].len = strlen(TT.link[i].name);
+  }
+
+  if (TT.link[0].len != TT.link[1].len) TT.differ = 1;
+  else if (smemcmp(TT.link[0].name, TT.link[1].name, TT.link[0].len))
+    TT.differ = 1;
+  free(TT.link[0].name);
+  free(TT.link[1].name);
+  return;
 }
 
 static void do_diff(char **files)
@@ -717,9 +749,9 @@ calc_ct:
 static void show_status(char **files)
 {
   if (TT.differ==2) return; // TODO: needed?
-  if (TT.differ ? FLAG(q) || TT.is_binary : FLAG(s))
-    printf("Files %s and %s %s\n", files[0], files[1],
-      TT.differ ? "differ" : "are identical");
+  if (TT.differ ? FLAG(q) || TT.is_binary || TT.is_symlink : FLAG(s))
+    printf("%s %s and %s %s\n", TT.is_symlink ? "Symbolic links" : "Files",
+      files[0], files[1], TT.differ ? "differ" : "are identical");
 }
 
 static void create_empty_entry(int l , int r, int j)
@@ -736,25 +768,30 @@ static void create_empty_entry(int l , int r, int j)
       f[!i] = "/dev/null";
     }
     path[i] = f[i] = TT.dir[i].list[i ? r : l];
-    stat(f[i], st+i);
+    (FLAG(no_dereference) ? lstat : stat)(f[i], st+i);
     if (j) st[!i] = st[i];
   }
 
   for (i = 0; i<2; i++) {
-    if (!S_ISREG(st[i].st_mode) && !S_ISDIR(st[i].st_mode)) {
-      printf("File %s is not a regular file or directory and was skipped\n",
+    if (!S_ISREG(st[i].st_mode) && !S_ISDIR(st[i].st_mode) && !S_ISLNK(st[i].st_mode)) {
+      printf("File %s is not a regular file, symbolic link, or directory and was skipped\n",
         path[i]);
       break;
     }
   }
 
   if (i != 2);
-  else if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode))
-    printf("Common subdirectories: %s and %s\n", path[0], path[1]);
-  else if ((i = S_ISDIR(st[0].st_mode)) != S_ISDIR(st[1].st_mode)) {
-    char *fidir[] = {"directory", "regular file"};
+  else if ((st[0].st_mode & S_IFMT) != (st[1].st_mode & S_IFMT)) {
+    i = S_ISREG(st[0].st_mode) + 2 * S_ISLNK(st[0].st_mode);
+    int k = S_ISREG(st[1].st_mode) + 2 * S_ISLNK(st[1].st_mode);
+    char *fidir[] = {"directory", "regular file", "symbolic link"};
     printf("File %s is a %s while file %s is a %s\n",
-      path[0], fidir[!i], path[1], fidir[i]);
+      path[0], fidir[i], path[1], fidir[k]);
+  } else if (S_ISDIR(st[0].st_mode))
+    printf("Common subdirectories: %s and %s\n", path[0], path[1]);
+  else if (S_ISLNK(st[0].st_mode)) {
+    do_symlink_diff(f);
+    show_status(path);
   } else {
     do_diff(f);
     show_status(path);
@@ -814,7 +851,7 @@ static void diff_dir(int *start)
 
 void diff_main(void)
 {
-  int j = 0, k = 1, start[2] = {1, 1};
+  int i, j = 0, k = 1, start[2] = {1, 1};
   char **files = toys.optargs;
 
   toys.exitval = 2;
@@ -822,6 +859,7 @@ void diff_main(void)
 
   for (j = 0; j < 2; j++) {
     if (IS_STDIN(files[j])) fstat(0, &TT.st[j]);
+    else if (FLAG(no_dereference)) xlstat(files[j], &TT.st[j]);
     else xstat(files[j], &TT.st[j]);
   }
 
@@ -844,7 +882,7 @@ void diff_main(void)
   if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode)) {
     for (j = 0; j < 2; j++) {
       memset(TT.dir+j, 0, sizeof(*TT.dir));
-      dirtree_flagread(files[j], DIRTREE_SYMFOLLOW, list_dir);
+      dirtree_flagread(files[j], (FLAG(no_dereference)) ? 0 : DIRTREE_SYMFOLLOW, list_dir);
       TT.dir[j].nr_elm = TT.size; //size updated in list_dir
       qsort(&TT.dir[j].list[1], TT.size-1, sizeof(char *), (void *)cmp);
 
@@ -868,10 +906,19 @@ void diff_main(void)
       char *slash = strrchr(files[d], '/');
 
       files[!d] = concat_file_path(files[!d], slash ? slash+1 : files[d]);
-      if (stat(files[!d], &TT.st[!d])) perror_exit("%s", files[!d]);
+      if ((FLAG(no_dereference) ? lstat : stat)(files[!d], &TT.st[!d]))
+        perror_exit("%s", files[!d]);
     }
-    do_diff(files);
-    show_status(files);
+    if ((i = S_ISREG(TT.st[0].st_mode)) != S_ISREG(TT.st[1].st_mode)) {
+      char *fidir[] = {"regular file", "symbolic link"};
+      printf("File %s is a %s while file %s is a %s\n",
+        files[0], fidir[!i], files[1], fidir[i]);
+      TT.differ = 1;
+    } else {
+      if (S_ISLNK(TT.st[0].st_mode)) do_symlink_diff(files);
+      else do_diff(files);
+      show_status(files);
+    }
     if (TT.file[0].fp) fclose(TT.file[0].fp);
     if (TT.file[1].fp) fclose(TT.file[1].fp);
   }

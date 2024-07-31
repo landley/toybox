@@ -576,6 +576,11 @@ void xstat(char *path, struct stat *st)
   if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
+void xlstat(char *path, struct stat *st)
+{
+  if(lstat(path, st)) perror_exit("Can't lstat %s", path);
+}
+
 // Canonicalize path, even to file with one or more missing components at end.
 // Returns allocated string for pathname or NULL if doesn't exist. Flags are:
 // ABS_PATH:path to last component must exist ABS_FILE: whole path must exist
