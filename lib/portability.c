@@ -658,7 +658,7 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
 
     errno = 0;
     if (try_cfr) {
-      if (bytes<0 || bytes>(1<<30)) len = (1<<30);
+      if (bytes<0 || len>(1<<30)) len = (1<<30);
       len = syscall(try_cfr, in, 0, out, 0, len, 0);
       if (len < 0) {
         try_cfr = 0;
