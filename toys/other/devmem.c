@@ -2,18 +2,19 @@
  *
  * Copyright 2019 The Android Open Source Project
 
-USE_DEVMEM(NEWTOY(devmem, "<1f:", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_DEVMEM(NEWTOY(devmem, "<1(no-sync)f:", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config DEVMEM
   bool "devmem"
   default y
   help
-    usage: devmem -f FILE ADDR [WIDTH [DATA...]]
+    usage: devmem [-f FILE] ADDR [WIDTH [DATA...]]
 
     Read/write physical addresses. WIDTH is 1, 2, 4, or 8 bytes (default 4).
     Prefix ADDR with 0x for hexadecimal, output is in same base as address.
 
-    -f FILE	File to operate on (default /dev/mem)
+    -f FILE		File to operate on (default /dev/mem)
+    --no-sync	Don't open the file with O_SYNC (for cached access)
 */
 
 #define FOR_devmem
@@ -40,7 +41,8 @@ unsigned long xatolu(char *str, int bytes)
 
 void devmem_main(void)
 {
-  int writing = toys.optc > 2, page_size = sysconf(_SC_PAGESIZE), bytes = 4, fd;
+  int writing = toys.optc > 2, page_size = sysconf(_SC_PAGESIZE), bytes = 4, fd,
+    flags;
   unsigned long data = 0, map_off, map_len,
     addr = xatolu(*toys.optargs, sizeof(long));
   char *sizes = sizeof(long)==8 ? "1248" : "124";
@@ -57,8 +59,9 @@ void devmem_main(void)
 
   // Map in just enough.
   if (CFG_TOYBOX_FORK) {
-    fd = xopen(TT.f ?: "/dev/mem", (writing ? O_RDWR : O_RDONLY) | O_SYNC);
-
+    flags = writing ? O_RDWR : O_RDONLY;
+    if (!FLAG(no_sync)) flags |= O_SYNC;
+    fd = xopen(TT.f ?: "/dev/mem", flags);
     map_off = addr & ~(page_size - 1ULL);
     map_len = (addr+bytes-map_off);
     map = xmmap(0, map_len, writing ? PROT_WRITE : PROT_READ, MAP_SHARED, fd,
