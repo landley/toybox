@@ -40,7 +40,7 @@ static const struct rrt {
   { "CNAME", "is a nickname for", 5 }, { "SOA", "start of authority", 6 },
   { "PTR", "domain name pointer", 12 }, { "HINFO", "host information", 13 },
   { "MX", "mail is handled", 15 }, { "TXT", "descriptive text", 16 },
-  { "AAAA", "has address", 28 }, { "SRV", "mail is handled", 33 }
+  { "AAAA", "has IPv6 address", 28 }, { "SRV", "has SRV record", 33 }
 };
 
 int xdn_expand(char *packet, char *endpkt, char *comp, char *expand, int elen)
