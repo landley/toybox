@@ -70,6 +70,9 @@ toyonly test_line "Android NDK short ELF note" "elf/ndk-elf-note-short" \
     "ELF shared object, 32-bit LSB arm, EABI5, soft float, dynamic (/system/bin/linker), for Android 28, BuildID=da6a5f4ca8da163b9339326e626d8a3c, stripped\n" "" ""
 toyonly test_line "ELF static fdpic" "elf/fdstatic" \
     "ELF executable (fdpic), 32-bit MSB sh, static, stripped\n" "" ""
+echo -ne '\x7fELF\00000000000000000000000000000000000000000000' > bad-bits
+testing "ELF bad bits" "file bad-bits" "bad-bits: ELF (bad type 12336), (bad class -1) (bad endian 48) unknown arch 12336\n" "" ""
+rm -f bad-bits
 
 testing "broken symlink" "file dangler" "dangler: broken symbolic link to $BROKEN\n" "" ""
 testing "symlink" "file symlink" "symlink: symbolic link to $LINK\n" "" ""

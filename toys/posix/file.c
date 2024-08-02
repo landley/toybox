@@ -69,10 +69,11 @@ static void do_elf_file(int fd)
 
   // "x86".
   printf("%s", elf_arch_name(arch = elf_int(toybuf+18, 2)));
-  elf_print_flags(arch, elf_int(toybuf+36+12*bits, 4));
 
   // If what we've seen so far doesn't seem consistent, bail.
   if (bail) goto bad;
+
+  elf_print_flags(arch, elf_int(toybuf+36+12*bits, 4));
 
   // Stash what we need from the header; it's okay to reuse toybuf after this.
   phentsize = elf_int(toybuf+42+12*bits, 2);
