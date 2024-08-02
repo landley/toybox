@@ -38,6 +38,7 @@ GLOBALS(
   char *tty_name, buff[128];
   int speeds[20], sc;
   struct termios termios;
+  struct utsname uts;
 )
 
 #define CTL(x)        ((x) ^ 0100)
@@ -133,24 +134,23 @@ static void sense_baud(void)
   if (tcsetattr(0, TCSANOW, &TT.termios) < 0) perror_exit("tcsetattr");
 }
 
-// Print /etc/isuue with taking care of each escape sequence
-void write_issue(char *file, struct utsname *uts)
+// Print /etc/issue, interpreting escape sequences.
+void print_issue(void)
 {
-  char buff[20] = {0,};
-  int fd = open(TT.f, O_RDONLY), size;
+  FILE *fp = fopen(TT.f, "r");
+  int ch;
 
-  if (fd < 0) return;
-  while ((size = readall(fd, buff, 1)) > 0) {
-    char *ch = buff;
-
-    if (*ch == '\\' || *ch == '%') {
-      if (readall(fd, buff, 1) <= 0) perror_exit("readall");
-      if (*ch == 's') fputs(uts->sysname, stdout);
-      if (*ch == 'n'|| *ch == 'h') fputs(uts->nodename, stdout);
-      if (*ch == 'r') fputs(uts->release, stdout);
-      if (*ch == 'm') fputs(uts->machine, stdout);
-      if (*ch == 'l') fputs(TT.tty_name, stdout);
-    } else xputc(*ch);
+  if (!fp) return;
+  while ((ch = fgetc(fp)) != -1) {
+    if (ch == '\\' || ch == '%') {
+      ch = fgetc(fp);
+      if (ch == 'h' || ch == 'n') xputsn(TT.uts.nodename);
+      else if (ch == 'm') xputsn(TT.uts.machine);
+      else if (ch == 'r') xputsn(TT.uts.release);
+      else if (ch == 's') xputsn(TT.uts.sysname);
+      else if (ch == 'l') xputsn(TT.tty_name);
+      else printf("<bad escape>");
+    } else xputc(ch);
   }
 }
 
@@ -159,14 +159,12 @@ static int read_login_name(void)
 {
   tcflush(0, TCIFLUSH); // Flush pending speed switches
   while (1) {
-    struct utsname uts;
     int i = 0;
 
-    uname(&uts);
+    if (!FLAG(i)) print_issue();
 
-    if (!FLAG(i)) write_issue(TT.f, &uts);
-
-    dprintf(1, "%s login: ", uts.nodename);
+    printf("%s login: ", TT.uts.nodename);
+    fflush(stdout);
 
     TT.buff[0] = getchar();
     if (!TT.buff[0] && TT.sc > 1) return 0; // Switch speed
@@ -212,6 +210,7 @@ void getty_main(void)
   char ch, *cmd[3] = {TT.l ? : "/bin/login", 0, 0}; // space to add username
 
   if (!FLAG(f)) TT.f = "/etc/issue";
+  uname(&TT.uts);
 
   // parse arguments and set $TERM
   if (isdigit(**toys.optargs)) {
