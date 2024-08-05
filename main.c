@@ -158,6 +158,10 @@ void check_help(char **arg)
   }
 }
 
+#ifdef __NetBSD__
+#define uselocale(...) do {} while (0)
+#endif
+
 // Setup toybox global state for this command.
 void toy_singleinit(struct toy_list *which, char *argv[])
 {

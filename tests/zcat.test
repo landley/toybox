@@ -4,6 +4,8 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+HEAD=$(command -v ghead || echo head) # use head from GNU coreutils
+
 echo -n "hi " | gzip > 1.gz
 echo "there" | gzip > 2.gz
 
@@ -12,7 +14,7 @@ testcmd "files" "1.gz 2.gz && test -f 1.gz && test -f 2.gz" "hi there\n" "" ""
 # zcat -c is allowed but changes nothing
 testcmd "-c" "-c 1.gz 2.gz && test -f 1.gz && test -f 2.gz" "hi there\n" "" ""
 testing "concatenated" "{ cat 1.gz 2.gz; } | zcat" "hi there\n" "" ""
-testing "error" "head -c 10 2.gz | { zcat 2>/dev/null || echo fail; }" "fail\n"\
+testing "error" "$HEAD -c 10 2.gz | { zcat 2>/dev/null || echo fail; }" "fail\n"\
   "" ""
 
 # TODO: how to test "zcat -f"?
