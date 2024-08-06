@@ -2691,7 +2691,7 @@ notfd:
         s = 0;
 
         break;
-      }
+      } else if (from==to) saveclose |= 2;
     }
 
     // perform redirect, saving displaced "to".
