@@ -144,6 +144,11 @@ GLOBALS(
   } *zfiles, *cfile, *zstdout;
 )
 
+static void awk_exit(int status)
+{
+  toys.exitval = status;
+  xexit();
+}
 #ifdef __GNUC__
 #define ATTR_FALLTHROUGH_INTENDED __attribute__ ((fallthrough))
 #else
@@ -356,7 +361,7 @@ static void zzerr(char *format, ...)
   va_end(args);
   if (format[strlen(format)-1] != '\n') fputc('\n', stderr); // TEMP FIXME !!!
   fflush(stderr);
-  if (fatal_sw) exit(2);
+  if (fatal_sw) awk_exit(2);
         // Don't bump error count for warnings
   else if (!strstr(format, "arning")) TT.cgl.compile_error_count++;
 }
@@ -4486,7 +4491,7 @@ static void run(int optind, int argc, char **argv, char *sepstring,
   regfree(&TT.rx_last);
   free_literal_regex();
   close_file(0);    // close all files
-  if (status >= 0) exit(status);
+  if (status >= 0) awk_exit(status);
 }
 
 ////////////////////
