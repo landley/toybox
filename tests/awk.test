@@ -420,6 +420,10 @@ testcmd "awk -v myvar=val -f file1 file" "-v myvar=$2 -f test.awk testfile1.txt 
 
 # 2024: New tests -- not in Divya Kothari's original ...
 
+testcmd "nextfile" " '{print NR, FNR, \$0};/ghi jkl/{nextfile}/ghi,jkl/{nextfile}' testfile1.txt testfile2.txt" "1 1 abc def ghi 5\n2 2 ghi jkl mno 10\n3 1 abc,def,ghi,5\n4 2 ghi,jkl,mno,10\n" "" ""
+
+testcmd "getline var numeric string bug fixed 20240514"  "'BEGIN{getline var; print (var < 10.0)}'" "1\n" "" "5.0\n"
+
 testcmd "lshift()" "'BEGIN{print lshift(3,2)}'" "12\n" "" ""
 testcmd "lshift() 64 bit" "'BEGIN{print lshift(1,40)}'" "1099511627776\n" "" ""
 testcmd "rshift()" "'BEGIN{print rshift(12, 1)}'" "6\n" "" ""

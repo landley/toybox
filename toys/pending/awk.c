@@ -3290,11 +3290,12 @@ static int next_fp(void)
   } else if (fn) {
     if (!(TT.cfile->fp = fopen(fn, "r"))) FFATAL("can't open %s\n", fn);
     zvalue_copy(&STACK[FILENAME], &TT.rgl.cur_arg);
-    set_num(&STACK[FNR], 0);
   } else {
     TT.rgl.eof = 1;
     return 0;
   }
+  set_num(&STACK[FNR], 0);
+  TT.cfile->recoffs = TT.cfile->endoffs = 0;  // reset record buffer
   return 1;
 }
 
