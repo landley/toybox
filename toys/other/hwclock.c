@@ -41,7 +41,11 @@ GLOBALS(
 
 // Bug workaround for musl commit 2c2c3605d3b3 which rewrote the syscall
 // wrapper to not use the syscall, which is the only way to set kernel's sys_tz
+#ifdef _NR_settimeofday
 #define settimeofday(x, tz) syscall(__NR_settimeofday, (void *)0, (void *)tz)
+#else
+#define settimeofday(x, tz) ((tz)->tz_minuteswest = 0)
+#endif
 
 void hwclock_main()
 {
