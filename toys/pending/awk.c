@@ -3549,13 +3549,6 @@ static void gsub(int opcode, int nargs, int parmbase)
   if (field_num >= 0) fixup_fields(field_num);
 }
 
-static long millinow(void)
-{
-  struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  return ts.tv_sec*1000+ts.tv_nsec/1000000;
-}
-
 // Initially set stackp_needmore at MIN_STACK_LEFT before limit.
 // When stackp > stackp_needmore, then expand and reset stackp_needmore
 static void add_stack(struct zvalue **stackp_needmore)
@@ -4319,7 +4312,7 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         if (nargs == 1) {
           STKP->num = seedrand(to_num(STKP));
-        } else push_int_val(seedrand(millinow()));
+        } else push_int_val(seedrand(time(0)));
         break;
       case tkcos: case tksin: case tkexp: case tklog: case tksqrt: case tkint:
         nargs = *ip++;
@@ -4483,7 +4476,7 @@ static void run(int optind, int argc, char **argv, char *sepstring,
   new_file("/dev/stdout", stdout, 'w', 1, 1);
   TT.zstdout = TT.zfiles;
   new_file("/dev/stderr", stderr, 'w', 1, 1);
-  seedrand(123);
+  seedrand(1);
   int status = -1, r = 0;
   if (TT.cgl.first_begin) r = interp(TT.cgl.first_begin, &status);
   if (r != tkexit)
