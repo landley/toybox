@@ -269,6 +269,17 @@ get_target_config()
       PPC_{PSERIES,OF_BOOT_TRAMPOLINE,TRANSACTIONAL_MEM,DISABLE_WERROR} \
       SCSI_{LOWLEVEL,IBMVSCSI})"
     [ "$CROSS" == powerpc64le ] && KCONF=$KCONF,CPU_LITTLE_ENDIAN
+  elif [ "$CROSS" = riscv32 ]; then
+    # Note: -hda file.img doesn't work, but this insane overcomplicated pile:
+    # -drive file=file.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
+    QEMU="riscv32 -M virt -netdev user,id=net0 -device virtio-net-device,netdev=net0"
+    KARCH=riscv VMLINUX=Image
+    # Probably only about half of these kernel symbols are actually needed?
+    KCONF="$(be2csv MMU SOC_VIRT NONPORTABLE ARCH_RV32I CMODEL_MEDANY \
+      RISCV_ISA_{ZICBO{M,Z},FALLBACK} FPU PCI{,_HOST_GENERIC} BLK_DEV_SD \
+      SCSI_{PROC_FS,LOWLEVEL,VIRTIO} VIRTIO_{MENU,NET,BLK,PCI} SERIO_SERPORT \
+      SERIAL_{EARLYCON,8250{,_CONSOLE,_PCI},OF_PLATFORM} HW_RANDOM{,_VIRTIO} \
+      RTC_{CLASS,HCTOSYS} DMADEVICES VIRTIO_{MENU,PCI{,_LEGACY},INPUT,MMIO})"
   elif [ "$CROSS" = s390x ]; then
     QEMU="s390x" KARCH=s390 VMLINUX=bzImage
     KCONF="$(be2csv MARCH_Z900 PACK_STACK S390_GUEST VIRTIO_{NET,BLK} \
