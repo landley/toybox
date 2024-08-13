@@ -522,6 +522,16 @@ int strcasestart(char **a, char *b)
   return i;
 }
 
+// return length of match found at this point (try is null terminated array)
+int anystart(char *s, char **try)
+{
+  char *ss = s;
+
+  while (*try) if (strstart(&s, *try++)) return s-ss;
+
+  return 0;
+}
+
 int same_file(struct stat *st1, struct stat *st2)
 {
   return st1->st_ino==st2->st_ino && st1->st_dev==st2->st_dev;

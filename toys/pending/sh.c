@@ -815,16 +815,6 @@ static int utf8chr(char *wc, char *chrs, int *len)
   return 0;
 }
 
-// return length of match found at this point (try is null terminated array)
-static int anystart(char *s, char **try)
-{
-  char *ss = s;
-
-  while (*try) if (strstart(&s, *try++)) return s-ss;
-
-  return 0;
-}
-
 // does this entire string match one of the strings in try[]
 static int anystr(char *s, char **try)
 {

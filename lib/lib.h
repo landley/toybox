@@ -232,6 +232,7 @@ int unescape2(char **c, int echo);
 char *strend(char *str, char *suffix);
 int strstart(char **a, char *b);
 int strcasestart(char **a, char *b);
+int anystart(char *s, char **try);
 int same_file(struct stat *st1, struct stat *st2);
 int same_dev_ino(struct stat *st, struct dev_ino *di);
 off_t fdlength(int fd);
