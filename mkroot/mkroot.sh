@@ -303,7 +303,6 @@ get_target_config()
     [ "$CROSS" == sh4eb ] && KCONF+=,CPU_BIG_ENDIAN
   else die "Unknown \$CROSS=$CROSS"
   fi
-  [ ! -e "$LINUX/$VMLINUX" ] && VMLINUX=arch/$KARCH/boot/$VMLINUX
 }
 
 # Linux kernel .config symbols common to all architectures
@@ -373,6 +372,7 @@ else
       (cd modz && find lib/modules | cpio -o -H newc -R +0:+0 ) | gzip \
        > "$OUTDOC/modules.cpio.gz" || exit 1
   fi
+  [ ! -e "$VMLINUX" ] && VMLINUX=arch/$KARCH/boot/$VMLINUX
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
 
