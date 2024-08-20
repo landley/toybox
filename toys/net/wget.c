@@ -232,7 +232,7 @@ void wget_main(void)
   long status = 0;
   size_t len, c_len = 0;
   int fd = 0, ii;
-  char *body, *index, *host, *port, *path = 0, *chunked, *ss;
+  char *body, *index, *host, *port, *path = 0, *chunked, *ss, *last_slash;
   char agent[] = "toybox wget/" TOYBOX_VERSION;
 
   TT.url = escape_url(*toys.optargs, 0);
@@ -281,9 +281,9 @@ void wget_main(void)
     ss = wget_find_header(toybuf, "Content-Disposition: attachment; filename=");
     if (ss) {
       unescape_url(ss, 1);
-      for (ii = strlen(ss); ii; ii--) {
-        if (ss[ii]=='/') memmove(ss, ss+ii, strlen(ss+ii));
-        break;
+      last_slash = strrchr(ss, '/');
+      if (last_slash) {
+        memmove(ss, last_slash, strlen(last_slash) + 1);
       }
       if (!*ss) {
         free(ss);
