@@ -7,7 +7,7 @@
  * Linux 6.0 celebrates the 10th anniversary of this being in "testing":
  * http://kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 
-USE_DMESG(NEWTOY(dmesg, "w(follow)W(follow-new)CSTtrs#<1n#c[!Ttr][!Cc][!SWw]", TOYFLAG_BIN))
+USE_DMESG(NEWTOY(dmesg, "w(follow)W(follow-new)CSTtrs#<1n#c[!Ttr][!Cc][!SWw]", TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config DMESG
   bool "dmesg"
