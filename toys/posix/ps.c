@@ -287,6 +287,7 @@ struct procpid {
   long long slot[SLOT_count]; // data (see enum above)
   unsigned short offset[6];   // offset of fields in str[] (skip CMD, always 0)
   char state;
+  char pcy[3];                // Android scheduling policy
   char str[];                 // CMD, TTY, WCHAN, LABEL, COMM, ARGS, NAME
 };
 
@@ -632,7 +633,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
 
-  } else if (which==PS_PCY) sprintf(out, "%.2s", get_sched_policy_name(ll));
+  } else if (which==PS_PCY) sprintf(out, "%.2s", tb->pcy);
   else if (CFG_TOYBOX_DEBUG) error_exit("bad which %d", which);
 
   return out;
@@ -721,6 +722,7 @@ static int get_ps(struct dirtree *new)
   struct procpid *tb = (void *)toybuf;
   long long *slot = tb->slot;
   char *name, *s, *buf = tb->str, *end = 0;
+  FILE *fp;
   struct sysinfo si;
   int i, j, fd;
   off_t len;
@@ -852,8 +854,30 @@ static int get_ps(struct dirtree *new)
   }
 
   // Do we need Android scheduling policy?
-  if (TT.bits&_PS_PCY)
-    get_sched_policy(slot[SLOT_tid], (void *)&slot[SLOT_pcy]);
+  if (TT.bits&_PS_PCY) {
+    // Find the cpuset line in "/proc/$pid/cgroup", extract the final field,
+    // and translate it to one of Android's traditional 2-char names.
+    // TODO: if other Linux systems start using cgroups, conditionalize this.
+    sprintf(buf, "/proc/%lld/cgroup", slot[SLOT_tid]);
+    if ((fp = fopen(buf, "re"))) {
+      char *s, *line;
+      while ((line = xgetline(fp))) {
+        if ((s = strstr(line, ":cpuset:/"))) {
+          s += strlen(":cpuset:/");
+          if (!*s || !strcmp(s, "foreground")) strcpy(tb->pcy, "fg");
+          else if (!strcmp(s, "system-background")) strcpy(tb->pcy, "  ");
+          else if (!strcmp(s, "background")) strcpy(tb->pcy, "bg");
+          else if (!strcmp(s, "top-app")) strcpy(tb->pcy, "ta");
+          else if (!strcmp(s, "restricted")) strcpy(tb->pcy, "rs");
+          else if (!strcmp(s, "foreground-window")) strcpy(tb->pcy, "wi");
+          else if (!strcmp(s, "camera-daemon")) strcpy(tb->pcy, "cd");
+          else strcpy(tb->pcy, "?");
+        }
+        free(line);
+      }
+      fclose(fp);
+    } else strcpy(tb->pcy, "-");
+  }
 
   // Done using buf[] (tb->str) as scratch space, now read string data,
   // saving consective null terminated strings. (Save starting offsets into
@@ -929,10 +953,9 @@ static int get_ps(struct dirtree *new)
 
         // Couldn't find it, try all the tty drivers.
         if (i == 3) {
-          FILE *fp = fopen("/proc/tty/drivers", "r");
           int tty_major = 0, maj = dev_major(rdev), min = dev_minor(rdev);
 
-          if (fp) {
+          if ((fp = fopen("/proc/tty/drivers", "r"))) {
             while (fscanf(fp, "%*s %256s %d %*s %*s", buf, &tty_major) == 2) {
               // TODO: we could parse the minor range too.
               if (tty_major == maj) {
