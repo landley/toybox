@@ -2744,14 +2744,27 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
 {
   regex_t *rx;
   regoff_t offs, end;
+  int multiline_null_rs = !ENSURE_STR(&STACK[RS])->vst->str[0];
   if (!IS_RX(zvfs)) to_str(zvfs);
-  char *fs = IS_STR(zvfs) ? zvfs->vst->str : "";
+  char *s0 = s, *fs = IS_STR(zvfs) ? zvfs->vst->str : "";
+  int one_char_fs = utf8cnt(zvfs->vst->str, zvfs->vst->size) == 1;
   int nf = 0, r = 0, eflag = 0;
   // Empty string or empty fs (regex).
   // Need to include !*s b/c empty string, otherwise
   // split("", a, "x") splits to a 1-element (empty element) array
   if (!*s || (IS_STR(zvfs) && !*fs) || IS_EMPTY_RX(zvfs)) {
-    for ( ; *s; s++) setter(m, ++nf, s, 1);
+    while (*s) {
+      if (*s < 128) setter(m, ++nf, s++, 1);
+      else {        // Handle UTF-8
+        char cbuf[8];
+        unsigned wc;
+        int nc = utf8towc(&wc, s, strlen(s));
+        if (nc < 2) FATAL("bad string for split: \"%s\"\n", s0);
+        s += nc;
+        nc = wctoutf8(cbuf, wc);
+        setter(m, ++nf, cbuf, nc);
+      }
+    }
     return nf;
   }
   if (IS_RX(zvfs)) rx = zvfs->rx;
@@ -2761,7 +2774,9 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
     // rx_find_FS() returns 0 if found. If nonzero, the field will
     // be the rest of the record (all of it if first time through).
     if ((r = rx_find_FS(rx, s, &offs, &end, eflag))) offs = end = strlen(s);
-    else {
+    else if (setter == set_field && multiline_null_rs && one_char_fs) {
+      // Contra POSIX, if RS=="" then newline is always also a
+      // field separator only if FS is a single char (see gawk manual)
       int k = strcspn(s, "\n");
       if (k < offs) offs = k, end = k + 1;
     }
