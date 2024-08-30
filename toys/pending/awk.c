@@ -3346,6 +3346,7 @@ static int rx_findx(regex_t *rx, char *s, long len, regoff_t *start, regoff_t *e
   return 0;
 }
 
+// get a record; return length, or 0 at EOF
 static ssize_t getrec_f(struct zfile *zfp)
 {
   int r = 0;
@@ -3372,21 +3373,24 @@ static ssize_t getrec_f(struct zfile *zfp)
     }
     TT.rgl.recptr = zfp->recbuf + zfp->recoffs;
     r = rx_findx(rsrxp, TT.rgl.recptr, zfp->endoffs - zfp->recoffs, &so, &eo, 0);
-    // if not found, or found "near" end of buffer...
+    if (!r && so == eo) r = 1;  // RS was empty, so fake not found
     if (r || zfp->recoffs + eo > (int)zfp->recbufsize - RS_LENGTH_MARGIN) {
-      // if at end of data, and (not found or found at end of data)
+      // not found, or found "near" end of buffer...
       if (zfp->endoffs < (int)zfp->recbufsize &&
           (r || zfp->recoffs + eo == zfp->endoffs)) {
+        // at end of data, and (not found or found at end of data)
         ret = zfp->endoffs - zfp->recoffs;
         zfp->recoffs = zfp->endoffs;
         break;
       }
       if (zfp->recoffs) {
+        // room to move data up: move remaining data in buffer to low end
         memmove(zfp->recbuf, TT.rgl.recptr, zfp->endoffs - zfp->recoffs);
         zfp->endoffs -= zfp->recoffs;
         zfp->recoffs = 0;
-      } else zfp->recbuf =
+      } else zfp->recbuf =    // enlarge buffer
         xrealloc(zfp->recbuf, (zfp->recbufsize = zfp->recbufsize * 3 / 2) + 1);
+      // try to read more into buffer past current data
       zfp->endoffs += fread(zfp->recbuf + zfp->endoffs,
                       1, zfp->recbufsize - zfp->endoffs, zfp->fp);
       zfp->recbuf[zfp->endoffs] = 0;
