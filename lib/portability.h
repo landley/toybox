@@ -343,20 +343,6 @@ static inline int stub_out_log_write(int pri, const char *tag, const char *msg)
 
 #endif
 
-// libprocessgroup is an Android platform library not included in the NDK.
-#if defined(__BIONIC__)
-#if __has_include(<processgroup/sched_policy.h>)
-#include <processgroup/sched_policy.h>
-#define GOT_IT
-#endif
-#endif
-#ifdef GOT_IT
-#undef GOT_IT
-#else
-static inline int get_sched_policy(int tid, void *policy) {return 0;}
-static inline char *get_sched_policy_name(int policy) {return "unknown";}
-#endif
-
 #ifndef SYSLOG_NAMES
 typedef struct {char *c_name; int c_val;} CODE;
 extern CODE prioritynames[], facilitynames[];

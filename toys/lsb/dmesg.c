@@ -7,13 +7,13 @@
  * Linux 6.0 celebrates the 10th anniversary of this being in "testing":
  * http://kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 
-USE_DMESG(NEWTOY(dmesg, "w(follow)CSTtrs#<1n#c[!Ttr][!Cc][!Sw]", TOYFLAG_BIN))
+USE_DMESG(NEWTOY(dmesg, "w(follow)W(follow-new)CSTtrs#<1n#c[!Ttr][!Cc][!SWw]", TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config DMESG
   bool "dmesg"
   default y
   help
-    usage: dmesg [-Cc] [-r|-t|-T] [-n LEVEL] [-s SIZE] [-w]
+    usage: dmesg [-Cc] [-r|-t|-T] [-n LEVEL] [-s SIZE] [-w|-W]
 
     Print or control the kernel ring buffer.
 
@@ -26,6 +26,7 @@ config DMESG
     -T	Human readable timestamps
     -t	Don't print timestamps
     -w	Keep waiting for more output (aka --follow)
+    -W	Wait for output, only printing new messages
 */
 
 #define FOR_dmesg
@@ -136,12 +137,12 @@ void dmesg_main(void)
 
     // Each read returns one message. By default, we block when there are no
     // more messages (--follow); O_NONBLOCK is needed for for usual behavior.
-    fd = open("/dev/kmsg", O_RDONLY|O_NONBLOCK*!FLAG(w));
+    fd = open("/dev/kmsg", O_RDONLY|O_NONBLOCK*!(FLAG(w) || FLAG(W)));
     if (fd == -1) goto klogctl_mode;
 
     // SYSLOG_ACTION_CLEAR(5) doesn't actually remove anything from /dev/kmsg,
     // you need to seek to the last clear point.
-    lseek(fd, 0, SEEK_DATA);
+    lseek(fd, 0, FLAG(W) ? SEEK_END : SEEK_DATA);
 
     for (;;) {
       // why does /dev/kmesg return EPIPE instead of EAGAIN if oldest message
