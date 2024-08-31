@@ -869,7 +869,7 @@ static int get_ps(struct dirtree *new)
           else if (!strcmp(s, "background")) strcpy(tb->pcy, "bg");
           else if (!strcmp(s, "top-app")) strcpy(tb->pcy, "ta");
           else if (!strcmp(s, "restricted")) strcpy(tb->pcy, "rs");
-          else if (!strcmp(s, "foreground-window")) strcpy(tb->pcy, "wi");
+          else if (!strcmp(s, "foreground_window")) strcpy(tb->pcy, "wi");
           else if (!strcmp(s, "camera-daemon")) strcpy(tb->pcy, "cd");
           else strcpy(tb->pcy, "?");
         }
