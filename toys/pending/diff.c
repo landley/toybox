@@ -914,10 +914,12 @@ void diff_main(void)
       if ((FLAG(no_dereference) ? lstat : stat)(files[!d], &TT.st[!d]))
         perror_exit("%s", files[!d]);
     }
-    if ((i = S_ISREG(TT.st[0].st_mode)) != S_ISREG(TT.st[1].st_mode)) {
-      char *fidir[] = {"regular file", "symbolic link"};
+    if ((S_ISLNK(TT.st[0].st_mode)) != S_ISLNK(TT.st[1].st_mode)) {
+      i = !strcmp(files[0], "-") ? 0 : S_ISREG(TT.st[0].st_mode) + 2 * S_ISLNK(TT.st[0].st_mode);
+      int k = !strcmp(files[0], "-") ? 0 : S_ISREG(TT.st[1].st_mode) + 2 * S_ISLNK(TT.st[1].st_mode);
+      char *fidir[] = {"fifo", "regular file", "symbolic link"};
       printf("File %s is a %s while file %s is a %s\n",
-        files[0], fidir[!i], files[1], fidir[i]);
+        files[0], fidir[i], files[1], fidir[k]);
       TT.differ = 1;
     } else {
       if (S_ISLNK(TT.st[0].st_mode)) do_symlink_diff(files);
