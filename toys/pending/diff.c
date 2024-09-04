@@ -95,6 +95,11 @@ enum {
   space = 1 << 12
 };
 
+void xlstat(char *path, struct stat *st)
+{
+  if(lstat(path, st)) perror_exit("Can't lstat %s", path);
+}
+
 static int comp(void *a, void *b)
 {
   int i = ((struct v_vector *)a)->hash - ((struct v_vector *)b)->hash;

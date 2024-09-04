@@ -156,7 +156,6 @@ char *xreadfile(char *name, char *buf, off_t len);
 int xioctl(int fd, int request, void *data);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
-void xlstat(char *path, struct stat *st);
 char *xabspath(char *path, int exact);
 void xchdir(char *path);
 void xchroot(char *path);
