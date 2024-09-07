@@ -2766,7 +2766,7 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
     // rx_find_FS() returns 0 if found. If nonzero, the field will
     // be the rest of the record (all of it if first time through).
     if ((r = rx_find_FS(rx, s, &offs, &end, eflag))) offs = end = strlen(s);
-    else if (setter == set_field && multiline_null_rs && one_char_fs) {
+    if (setter == set_field && multiline_null_rs && one_char_fs) {
       // Contra POSIX, if RS=="" then newline is always also a
       // field separator only if FS is a single char (see gawk manual)
       int k = strcspn(s, "\n");
