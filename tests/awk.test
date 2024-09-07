@@ -420,6 +420,25 @@ testcmd "awk -v myvar=val -f file1 file" "-v myvar=$2 -f test.awk testfile1.txt 
 
 # 2024: New tests -- not in Divya Kothari's original ...
 
+testcmd "srand() seeds unix time seconds" "'{dt = srand(srand()) - \$0; ok = dt == 0 || dt == 1; print ok}'" "1\n" "" "`date +%s`"
+testcmd "srand() default seed is 1" "'BEGIN{ print srand()}'" "1\n" "" ""
+
+# A file with empty lines can be treated as multiline records if RS="".
+FILEMULTILINE="abc defxy ghi\njkl mno\n\n\npqr stu\nvwxy abc\n"
+
+testcmd "multiline 1" "'BEGIN { RS=\"\"; FS=\"\"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 21 abc defxy ghi\njkl mno\n 1 a 2 b 3 c 4   5 d 6 e 7 f 8 x 9 y 10   11 g 12 h 13 i 14 \n 15 j 16 k 17 l 18   19 m 20 n 21 o\n2 16 pqr stu\nvwxy abc\n 1 p 2 q 3 r 4   5 s 6 t 7 u 8 \n 9 v 10 w 11 x 12 y 13   14 a 15 b 16 c\n" "" "$FILEMULTILINE"
+testcmd "multiline 2" "'BEGIN { RS=\"\"; FS=\" \"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 5 abc defxy ghi\njkl mno\n 1 abc 2 defxy 3 ghi 4 jkl 5 mno\n2 4 pqr stu\nvwxy abc\n 1 pqr 2 stu 3 vwxy 4 abc\n" "" "$FILEMULTILINE"
+testcmd "multiline 3" "'BEGIN { RS=\"\"; FS=\"x\"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 3 abc defxy ghi\njkl mno\n 1 abc def 2 y ghi 3 jkl mno\n2 3 pqr stu\nvwxy abc\n 1 pqr stu 2 vw 3 y abc\n" "" "$FILEMULTILINE"
+testcmd "multiline 4" "'BEGIN { RS=\"\"; FS=\"[ ]\"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 4 abc defxy ghi\njkl mno\n 1 abc 2 defxy 3 ghi\njkl 4 mno\n2 3 pqr stu\nvwxy abc\n 1 pqr 2 stu\nvwxy 3 abc\n" "" "$FILEMULTILINE"
+testcmd "multiline 5" "'BEGIN { RS=\"\"; FS=\"xy\"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 2 abc defxy ghi\njkl mno\n 1 abc def 2  ghi\njkl mno\n2 2 pqr stu\nvwxy abc\n 1 pqr stu\nvw 2  abc\n" "" "$FILEMULTILINE"
+
+# A "null" RS other than an empty string, e.g. "()" cannot match anywhere and most awks will take the entire file as one record.
+# A bug in earlier versions (also in busybox awk) cause infinite output on "null RS" test
+testcmd "null RS" "'BEGIN { RS=\"()\"; FS=\" \"}; {print NR, NF, \$0; for (i=1;i<=NF;i++)printf \" %s %s\", i, \$i; print \"\"}'" "1 9 abc defxy ghi\njkl mno\n\n\npqr stu\nvwxy abc\n\n 1 abc 2 defxy 3 ghi 4 jkl 5 mno 6 pqr 7 stu 8 vwxy 9 abc\n" "" "$FILEMULTILINE"
+
+testcmd "split() utf8"  "'BEGIN{n = split(\"aβc\", a, \"\"); printf \"%d %d\", n, length(a);for (e = 1; e <= n; e++) printf \" %s %s\", e, \"(\" a[e] \")\";print \"\"}'" "3 3 1 (a) 2 (β) 3 (c)\n" "" ""
+testcmd "split fields utf8"  "'BEGIN{FS=\"\"}; {printf \"%d\", NF; for (e = 1; e <= NF; e++) printf \" %s %s\", e, \"(\" \$e \")\"; print \"\"}'" "3 1 (a) 2 (β) 3 (c)\n" "" "aβc"
+
 testcmd "nextfile" " '{print NR, FNR, \$0};/ghi jkl/{nextfile}/ghi,jkl/{nextfile}' testfile1.txt testfile2.txt" "1 1 abc def ghi 5\n2 2 ghi jkl mno 10\n3 1 abc,def,ghi,5\n4 2 ghi,jkl,mno,10\n" "" ""
 
 testcmd "getline var numeric string bug fixed 20240514"  "'BEGIN{getline var; print (var < 10.0)}'" "1\n" "" "5.0\n"
