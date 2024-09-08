@@ -236,7 +236,7 @@ if grep -qx 'CONFIG_TOYBOX_ZHELP=y' "$KCONFIG_CONFIG"
 then
   do_loudly $HOSTCC -I . scripts/install.c -o "$UNSTRIPPED"/instlist || exit 1
   { echo "#define ZHELP_LEN $("$UNSTRIPPED"/instlist --help | wc -c)" &&
-    "$UNSTRIPPED"/instlist --help | gzip -9 | od -Anone -vtx1 | \
+    "$UNSTRIPPED"/instlist --help | gzip -9 | od -An -vtx1 | \
     sed 's/ /,0x/g;1s/^,/static char zhelp_data[] = {\n /;$s/.*/&};/'
   } > "$GENDIR"/zhelp.h || exit 1
 else
