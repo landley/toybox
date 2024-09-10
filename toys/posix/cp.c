@@ -193,20 +193,20 @@ static int cp_node(struct dirtree *try)
     if (!faccessat(cfd, catch, F_OK, 0) && !S_ISDIR(cst.st_mode)) {
       if (S_ISDIR(try->st.st_mode))
         error_msg("dir at '%s'", s = dirtree_path(try, 0));
-      else if ((flags & FLAG_F) && unlinkat(cfd, catch, 0))
+      else if (FLAG(F) && unlinkat(cfd, catch, 0))
         error_msg("unlink '%s'", catch);
-      else if (flags & FLAG_i) {
-        fprintf(stderr, "%s: overwrite '%s'", toys.which->name,
-          s = dirtree_path(try, 0));
+      else if (FLAG(i)) {
+        fprintf(stderr, "%s: overwrite '%s'", toys.which->name, catch);
         if (yesno(0)) rc++;
-      } else if (!((flags&FLAG_u) && nanodiff(&try->st.st_mtim, &cst.st_mtim)>0)
-                 && !(flags & FLAG_n)) rc++;
+      } else if (!(FLAG(u) && nanodiff(&try->st.st_mtim, &cst.st_mtim)>0)
+                 && !FLAG(n)) rc++;
       free(s);
       if (!rc) return save;
     }
 
-    if (flags & FLAG_v) {
-      printf("%s '%s'\n", toys.which->name, s = dirtree_path(try, 0));
+    if (FLAG(v)) {
+      printf("%s '%s' -> '%s'\n", toys.which->name, s = dirtree_path(try, 0),
+             catch);
       free(s);
     }
 
