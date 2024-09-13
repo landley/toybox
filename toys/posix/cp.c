@@ -154,9 +154,8 @@ void cp_xattr(int fdin, int fdout, char *file)
 static int cp_node(struct dirtree *try)
 {
   int fdout = -1, cfd = try->parent ? try->parent->extra : AT_FDCWD,
-      save = DIRTREE_SAVE*(CFG_MV && *toys.which->name == 'm'), rc = 0,
+      save = DIRTREE_SAVE*(CFG_MV && *toys.which->name == 'm'), rc = 0, rr = 0,
       tfd = dirtree_parentfd(try);
-  unsigned flags = toys.optflags;
   char *s = 0, *catch = try->parent ? try->name : TT.destname, *err = "%s";
   struct stat cst;
 
@@ -176,7 +175,7 @@ static int cp_node(struct dirtree *try)
     cp_xattr(try->dirfd, try->extra, catch);
   } else {
     // -d is only the same as -r for symlinks, not for directories
-    if (S_ISLNK(try->st.st_mode) && (flags & FLAG_d)) flags |= FLAG_r;
+    if (S_ISLNK(try->st.st_mode) && FLAG(d)) rr++;
 
     // Detect recursive copies via repeated top node (cp -R .. .) or
     // identical source/target (fun with hardlinks).
@@ -221,7 +220,7 @@ static int cp_node(struct dirtree *try)
       if (S_ISDIR(try->st.st_mode)) {
         struct stat st2;
 
-        if (!(flags & (FLAG_a|FLAG_r))) {
+        if (!FLAG(a) && !FLAG(r) && !rr) {
           err = "Skipped dir '%s'";
           catch = try->name;
           break;
@@ -241,13 +240,13 @@ static int cp_node(struct dirtree *try)
 
       // Hardlink
 
-      } else if (flags & FLAG_l) {
+      } else if (FLAG(l)) {
         if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
 
       // Copy tree as symlinks. For non-absolute paths this involves
       // appending the right number of .. entries as you go down the tree.
 
-      } else if (flags & FLAG_s) {
+      } else if (FLAG(s)) {
         char *s, *s2;
         struct dirtree *or;
 
@@ -271,7 +270,7 @@ static int cp_node(struct dirtree *try)
 
       // Do something _other_ than copy contents of a file?
       } else if (!S_ISREG(try->st.st_mode)
-                 && (try->parent || (flags & (FLAG_a|FLAG_P|FLAG_r))))
+                 && (try->parent||FLAG(a)||FLAG(P)||FLAG(r)||rr))
       {
         // make symlink, or make block/char/fifo/socket
         if (S_ISLNK(try->st.st_mode)
@@ -303,7 +302,7 @@ static int cp_node(struct dirtree *try)
         cp_xattr(fdin, fdout, catch);
       }
       if (fdin != -1) close(fdin);
-    } while (err && (flags & (FLAG_f|FLAG_n)) && !unlinkat(cfd, catch, 0));
+    } while (err && (FLAG(f)||FLAG(n)) && !unlinkat(cfd, catch, 0));
   }
 
   // Did we make a thing?
