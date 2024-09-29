@@ -149,6 +149,7 @@ void print_issue(void)
       else if (ch == 'r') xputsn(TT.uts.release);
       else if (ch == 's') xputsn(TT.uts.sysname);
       else if (ch == 'l') xputsn(TT.tty_name);
+      else if (ch == '\\') xputc(ch);
       else printf("<bad escape>");
     } else xputc(ch);
   }
