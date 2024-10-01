@@ -2739,10 +2739,14 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
   regex_t *rx;
   regoff_t offs, end;
   int multiline_null_rs = !ENSURE_STR(&STACK[RS])->vst->str[0];
-  if (!IS_RX(zvfs)) to_str(zvfs);
-  char *s0 = s, *fs = IS_STR(zvfs) ? zvfs->vst->str : "";
-  int one_char_fs = utf8cnt(zvfs->vst->str, zvfs->vst->size) == 1;
   int nf = 0, r = 0, eflag = 0;
+  int one_char_fs = 0;
+  char *s0 = s, *fs = "";
+  if (!IS_RX(zvfs)) {
+    to_str(zvfs);
+    fs = zvfs->vst->str;
+    one_char_fs = utf8cnt(zvfs->vst->str, zvfs->vst->size) == 1;
+  }
   // Empty string or empty fs (regex).
   // Need to include !*s b/c empty string, otherwise
   // split("", a, "x") splits to a 1-element (empty element) array
