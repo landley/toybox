@@ -3,7 +3,14 @@
  *
  * Copyright 2024 Ray Gardner <raygard@gmail.com>
  *
- * See https://pubs.opengroup.org/onlinepubs/9699919799/utilities/awk.html
+ * See https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
+ *
+ * Deviations from posix: Don't handle LANG, LC_ALL, etc.
+ *   Accept regex for RS
+ *   Bitwise functions (from gawk): and, or, xor, lshift, rshift
+ *   Attempt to follow tradition (nawk, gawk) where it departs from posix
+ *
+ * TODO: Lazy field splitting; improve performance; more testing/debugging
 
 USE_AWK(NEWTOY(awk, "F:v*f*bc", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
@@ -16,7 +23,7 @@ config AWK
             awk [-F sepstring] -f progfile [-f progfile]... [-v assignment]...
                   [argument...]
       also:
-      -b : use bytes, not characters
+      -b : count bytes, not characters (experimental)
       -c : compile only, do not run
 */
 
@@ -128,15 +135,10 @@ GLOBALS(
     FILE *fp;
     char mode;  // w, a, or r
     char file_or_pipe;  // 1 if file, 0 if pipe
-    char is_tty;
-    char is_std_file;
-    char *recbuf;
-    size_t recbufsize;
-    char *recbuf_multi;
-    size_t recbufsize_multi;
-    char *recbuf_multx;
-    size_t recbufsize_multx;
-    int recoffs, endoffs;
+    char is_tty, is_std_file;
+    char eof;
+    int ro, lim, buflen;
+    char *buf;
   } *zfiles, *cfile, *zstdout;
 )
 
@@ -3011,7 +3013,7 @@ static struct zfile *new_file(char *fn, FILE *fp, char mode, char file_or_pipe,
 {
   struct zfile *f = xzalloc(sizeof(struct zfile));
   *f = (struct zfile){TT.zfiles, xstrdup(fn), fp, mode, file_or_pipe,
-                isatty(fileno(fp)), is_std_file, 0, 0, 0, 0, 0, 0, 0, 0};
+                isatty(fileno(fp)), is_std_file, 0, 0, 0, 0, 0};
   return TT.zfiles = f;
 }
 
@@ -3046,9 +3048,7 @@ static int close_file(char *fn)
     np = p->next;   // save in case unlinking file (invalidates p->next)
     // Don't close std files -- wrecks print/printf (can be fixed though TODO)
     if ((!p->is_std_file) && (!fn || !strcmp(fn, p->fn))) {
-      xfree(p->recbuf);
-      xfree(p->recbuf_multi);
-      xfree(p->recbuf_multx);
+      xfree(p->buf);
       xfree(p->fn);
       r = (p->fp) ? (p->file_or_pipe ? fclose : pclose)(p->fp) : -1;
       *pp = p->next;
@@ -3292,11 +3292,15 @@ static int next_fp(void)
   char *fn = nextfilearg();
   if (TT.cfile->fp && TT.cfile->fp != stdin) fclose(TT.cfile->fp);
   if ((!fn && !TT.rgl.nfiles && TT.cfile->fp != stdin) || (fn && !strcmp(fn, "-"))) {
+    xfree(TT.cfile->buf);
+    *TT.cfile = (struct zfile){0};
     TT.cfile->fp = stdin;
-    TT.cfile->fn = "<stdin>";
+    TT.cfile->fn = "-";
     zvalue_release_zstring(&STACK[FILENAME]);
-    STACK[FILENAME].vst = new_zstring("<stdin>", 7);
+    STACK[FILENAME].vst = new_zstring("-", 1);
   } else if (fn) {
+    xfree(TT.cfile->buf);
+    *TT.cfile = (struct zfile){0};
     if (!(TT.cfile->fp = fopen(fn, "r"))) FFATAL("can't open %s\n", fn);
     TT.cfile->fn = fn;
     zvalue_copy(&STACK[FILENAME], &TT.rgl.cur_arg);
@@ -3305,105 +3309,121 @@ static int next_fp(void)
     return 0;
   }
   set_num(&STACK[FNR], 0);
-  TT.cfile->recoffs = TT.cfile->endoffs = 0;  // reset record buffer
   TT.cfile->is_tty = isatty(fileno(TT.cfile->fp));
   return 1;
 }
 
-static ssize_t getrec_multiline(struct zfile *zfp)
-{
-  ssize_t k, kk;
-  do {
-    k = getdelim(&zfp->recbuf_multi, &zfp->recbufsize_multi, '\n', zfp->fp);
-  } while (k > 0 && zfp->recbuf_multi[0] == '\n');
-  TT.rgl.recptr = zfp->recbuf_multi;
-  if (k < 0) return k;
-  // k > 0 and recbuf_multi is not only a \n. Prob. ends w/ \n
-  // but may not at EOF (last line w/o newline)
-  for (;;) {
-    kk = getdelim(&zfp->recbuf_multx, &zfp->recbufsize_multx, '\n', zfp->fp);
-    if (kk < 0 || zfp->recbuf_multx[0] == '\n') break;
-    // data is in zfp->recbuf_multi[0..k-1]; append to it
-    if ((size_t)(k + kk + 1) > zfp->recbufsize_multi)
-      zfp->recbuf_multi =
-          xrealloc(zfp->recbuf_multi, zfp->recbufsize_multi = k + kk + 1);
-    memmove(zfp->recbuf_multi + k, zfp->recbuf_multx, kk+1);
-    k += kk;
-  }
-  if (k > 1 && zfp->recbuf_multi[k-1] == '\n') zfp->recbuf_multi[--k] = 0;
-  TT.rgl.recptr = zfp->recbuf_multi;
-  return k;
-}
-
-static int rx_findx(regex_t *rx, char *s, long len, regoff_t *start, regoff_t *end, int eflags)
+static int rx_find_rs(regex_t *rx, char *s, long len,
+                      regoff_t *start, regoff_t *end, int one_byte_rs)
 {
   regmatch_t matches[1];
-  int r = regexec0(rx, s, len, 1, matches, eflags);
-  if (r == REG_NOMATCH) return r;
-  if (r) FATAL("regexec error");  // TODO ? use regerr() to meaningful msg
-  *start = matches[0].rm_so;
-  *end = matches[0].rm_eo;
+  if (one_byte_rs) {
+    char *p = memchr(s, one_byte_rs, len);
+    if (!p) return REG_NOMATCH;
+    *start = p - s;
+    *end = *start + 1;
+  } else {
+    int r = regexec0(rx, s, len, 1, matches, 0);
+    if (r == REG_NOMATCH) return r;
+    if (r) FATAL("regexec error");  // TODO ? use regerr() to meaningful msg
+    *start = matches[0].rm_so;
+    *end = matches[0].rm_eo;
+  }
   return 0;
 }
 
-// get a record; return length, or 0 at EOF
+// get a record; return length, or -1 at EOF
+// Does work for getrec_f() for regular RS or multiline
+static ssize_t getr(struct zfile *zfp, int rs_mode)
+{
+  // zfp->buf (initially null) points to record buffer
+  // zfp->buflen -- size of allocated buf
+  // TT.rgl.recptr -- points to where record is being / has been read into
+  // zfp->ro -- offset in buf to record data
+  // zfp->lim -- offset to 1+last byte read in buffer
+  // rs_mode nonzero iff multiline mode; reused for one-byte RS
+
+  regex_t rsrx; // FIXME Need to cache and avoid rx compile on every record?
+  long ret = -1;
+  int r = -REG_NOMATCH;   // r cannot have this value after rx_findx() below
+  regoff_t so = 0, eo = 0;
+  size_t m = 0, n = 0;
+
+  xregcomp(&rsrx, rs_mode ? "\n\n+" : fmt_one_char_fs(STACK[RS].vst->str),
+      REG_EXTENDED);
+  rs_mode = strlen(STACK[RS].vst->str) == 1 ? STACK[RS].vst->str[0] : 0;
+  for ( ;; ) {
+    if (zfp->ro == zfp->lim && zfp->eof) break; // EOF & last record; return -1
+
+    // Allocate initial buffer, and expand iff buffer holds one
+    //   possibly (probably) incomplete record.
+    if (zfp->ro == 0 && zfp->lim == zfp->buflen)
+      zfp->buf = xrealloc(zfp->buf,
+          (zfp->buflen = maxof(512, zfp->buflen * 2)) + 1);
+
+    if ((m = zfp->buflen - zfp->lim) && !zfp->eof) {
+      // Read iff space left in buffer
+      if (zfp->is_tty) m = 1;
+      n = fread(zfp->buf + zfp->lim, 1, m, zfp->fp);
+      if (n < m) {
+        if (ferror(zfp->fp)) FFATAL("i/o error %d on %s!", errno, zfp->fn);
+        zfp->eof = 1;
+        if (!n && r == -REG_NOMATCH) break; // catch empty file here
+      }
+      zfp->lim += n;
+      zfp->buf[zfp->lim] = 0;
+    }
+    TT.rgl.recptr = zfp->buf + zfp->ro;
+    r = rx_find_rs(&rsrx, TT.rgl.recptr, zfp->lim - zfp->ro, &so, &eo, rs_mode);
+    if (!r && so == eo) r = 1;  // RS was empty, so fake not found
+
+    if (!zfp->eof && (r
+          || (zfp->lim - (zfp->ro + eo)) < zfp->buflen / 4) && !zfp->is_tty) {
+      // RS not found, or found near lim. Slide up and try to get more data
+      // If recptr at start of buf and RS not found then expand buffer
+      memmove(zfp->buf, TT.rgl.recptr, zfp->lim - zfp->ro);
+      zfp->lim -= zfp->ro;
+      zfp->ro = 0;
+      continue;
+    }
+    ret = so;   // If RS found, then 'so' is rec length
+    if (zfp->eof) {
+      if (r) {  // EOF and RS not found; rec is all data left in buf
+        ret = zfp->lim - zfp->ro;
+        zfp->ro = zfp->lim; // set ro for -1 return on next call
+      } else zfp->ro += eo; // RS found; advance ro
+    } else zfp->ro += eo; // Here only if RS found not near lim
+
+    if (!r || !zfp->is_tty) {
+      // If is_tty then RS found; reset buffer pointers;
+      // is_tty uses one rec per buffer load
+      if (zfp->is_tty) zfp->ro = zfp->lim = 0;
+      break;
+    } // RS not found AND is_tty; loop to keep reading
+  }
+  regfree(&rsrx);
+  return ret;
+}
+
+// get a record; return length, or -1 at EOF
 static ssize_t getrec_f(struct zfile *zfp)
 {
-  int r = 0;
-  if (!ENSURE_STR(&STACK[RS])->vst->str[0]) return getrec_multiline(zfp);
-  regex_t rsrx, *rsrxp = &rsrx;
-  // TEMP!! FIXME Need to cache and avoid too-frequent rx compiles
-  rx_zvalue_compile(&rsrxp, &STACK[RS]);
-  regoff_t so = 0, eo = 0;
-  long ret = -1;
-  for ( ;; ) {
-    if (zfp->recoffs == zfp->endoffs) {
-#define INIT_RECBUF_LEN     8192
-#define RS_LENGTH_MARGIN    (INIT_RECBUF_LEN / 8)
-      if (!zfp->recbuf)
-        zfp->recbuf = xmalloc((zfp->recbufsize = INIT_RECBUF_LEN) + 1);
-      if (zfp->is_tty && !memcmp(STACK[RS].vst->str, "\n", 2)) {
-        zfp->endoffs = 0;
-        if (fgets(zfp->recbuf, zfp->recbufsize, zfp->fp))
-          zfp->endoffs = strlen(zfp->recbuf);
-      } else zfp->endoffs = fread(zfp->recbuf, 1, zfp->recbufsize, zfp->fp);
-      zfp->recoffs = 0;
-      zfp->recbuf[zfp->endoffs] = 0;
-      if (!zfp->endoffs) break;
-    }
-    TT.rgl.recptr = zfp->recbuf + zfp->recoffs;
-    r = rx_findx(rsrxp, TT.rgl.recptr, zfp->endoffs - zfp->recoffs, &so, &eo, 0);
-    if (!r && so == eo) r = 1;  // RS was empty, so fake not found
-    if (r || zfp->recoffs + eo > (int)zfp->recbufsize - RS_LENGTH_MARGIN) {
-      // not found, or found "near" end of buffer...
-      if (zfp->endoffs < (int)zfp->recbufsize &&
-          (r || zfp->recoffs + eo == zfp->endoffs)) {
-        // at end of data, and (not found or found at end of data)
-        ret = zfp->endoffs - zfp->recoffs;
-        zfp->recoffs = zfp->endoffs;
-        break;
-      }
-      if (zfp->recoffs) {
-        // room to move data up: move remaining data in buffer to low end
-        memmove(zfp->recbuf, TT.rgl.recptr, zfp->endoffs - zfp->recoffs);
-        zfp->endoffs -= zfp->recoffs;
-        zfp->recoffs = 0;
-      } else zfp->recbuf =    // enlarge buffer
-        xrealloc(zfp->recbuf, (zfp->recbufsize = zfp->recbufsize * 3 / 2) + 1);
-      // try to read more into buffer past current data
-      zfp->endoffs += fread(zfp->recbuf + zfp->endoffs,
-                      1, zfp->recbufsize - zfp->endoffs, zfp->fp);
-      zfp->recbuf[zfp->endoffs] = 0;
-    } else {
-      // found and not too near end of data
-      ret = so;
-      TT.rgl.recptr[so] = 0;
-      zfp->recoffs += eo;
-      break;
-    }
-  }
-  regfree(rsrxp);
-  return ret;
+  int k;
+  if (ENSURE_STR(&STACK[RS])->vst->str[0]) return getr(zfp, 0);
+  // RS == "" so multiline read
+  // Passing 1 to getr() forces multiline mode, which uses regex "\n\n+" to
+  // split on sequences of 2 or more newlines. But that's not the same as
+  // multiline mode, which never returns empty records or records with leading
+  // or trailing newlines, which can occur with RS="\n\n+". So here we loop and
+  // strip leading/trailing newlines and discard empty lines. See gawk manual,
+  // "4.9 Multiple-Line Records" for info on this difference.
+  do {
+    k = getr(zfp, 1);
+    if (k < 0) break;
+    while (k && TT.rgl.recptr[k-1] == '\n') k--;
+    while (k && TT.rgl.recptr[0] == '\n') k--, TT.rgl.recptr++;
+  } while (!k);
+  return k;
 }
 
 static ssize_t getrec(void)
@@ -3631,18 +3651,19 @@ static int interpx(int start, int *status)
         break;
 
         // Comparisons (with the '<', "<=", "!=", "==", '>', and ">="
-        // operators) shall be made numerically if both operands are numeric,
-        // if one is numeric and the other has a string value that is a numeric
-        // string, or if one is numeric and the other has the uninitialized
-        // value. Otherwise, operands shall be converted to strings as required
-        // and a string comparison shall be made as follows:
+        // operators) shall be made numerically:
+        // * if both operands are numeric,
+        // * if one is numeric and the other has a string value that is a
+        //   numeric string,
+        // * if both have string values that are numeric strings, or
+        // * if one is numeric and the other has the uninitialized value.
         //
-        // For the "!=" and "==" operators, the strings should be compared to
-        // check if they are identical but may be compared using the
-        // locale-specific collation sequence to check if they collate equally.
-        //
-        // For the other operators, the strings shall be compared using the
-        // locale-specific collation sequence.
+        // Otherwise, operands shall be converted to strings as required and a
+        // string comparison shall be made as follows:
+        // * For the "!=" and "==" operators, the strings shall be compared to
+        //   check if they are identical (not to check if they collate equally).
+        // * For the other operators, the strings shall be compared using the
+        //   locale-specific collation sequence.
         //
         // The value of the comparison expression shall be 1 if the relation is
         // true, or 0 if the relation is false.
