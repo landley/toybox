@@ -420,6 +420,11 @@ testcmd "awk -v myvar=val -f file1 file" "-v myvar=$2 -f test.awk testfile1.txt 
 
 # 2024: New tests -- not in Divya Kothari's original ...
 
+# The following has never had a problem but is a good test anyway
+testcmd "split on empty string" "'BEGIN { n = split(\"abc\", a, \"\");print n, length(a)}'" "3 3\n" "" ""
+# The following must be run with ASAN=1 to cause failure with older versions
+testcmd "split on empty regex" "'BEGIN { n = split(\"abc\", a, //);print n, length(a)}'" "3 3\n" "" ""
+
 testcmd "srand() seeds unix time seconds" "'{dt = srand(srand()) - \$0; ok = dt == 0 || dt == 1; print ok}'" "1\n" "" "`date +%s`"
 testcmd "srand() default seed is 1" "'BEGIN{ print srand()}'" "1\n" "" ""
 
