@@ -61,9 +61,9 @@ void klogd_main(void)
   int prio, size, used = 0;
   char *start, *line_start;
 
+  if (!FLAG(n) xvdaemon();
   sigatexit(handle_signal);
   if (FLAG(c)) set_log_level(TT.level);    //set log level
-  if (!FLAG(n)) daemon(0, 0);            //Make it daemon
 
   if (FLAG(s)) klogctl(1, 0, 0);
   else TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
