@@ -5,27 +5,23 @@
  *
  * No standard
 
-USE_KLOGD(NEWTOY(klogd, "c#<1>8n", TOYFLAG_SBIN))
+USE_KLOGD(NEWTOY(klogd, "c#<1>8ns", TOYFLAG_SBIN))
 
 config KLOGD
   bool "klogd"
   default n
   help
-  usage: klogd [-n] [-c N]
+  usage: klogd [-n] [-c PRIORITY]
 
-  -c  N   Print to console messages more urgent than prio N (1-8)"
-  -n    Run in foreground
-
-config KLOGD_SOURCE_RING_BUFFER
-  bool "enable kernel ring buffer as log source."
-  default n
-  depends on KLOGD
+  -c	Print to console messages more urgent than PRIORITY (1-8)"
+  -n	Run in foreground
+  -s	Use syscall instead of /proc
 */
 
 #define FOR_klogd
 #include "toys.h"
-#include <signal.h>
 #include <sys/klog.h>
+
 GLOBALS(
   long level;
 
@@ -34,7 +30,7 @@ GLOBALS(
 
 static void set_log_level(int level)
 {
-  if (CFG_KLOGD_SOURCE_RING_BUFFER) klogctl(8, 0, level);
+  if (FLAG(s)) klogctl(8, 0, level);
   else {
     FILE *fptr = xfopen("/proc/sys/kernel/printk", "w");
 
@@ -45,22 +41,21 @@ static void set_log_level(int level)
 
 static void handle_signal(int sig)
 {
-  if (CFG_KLOGD_SOURCE_RING_BUFFER) {
+  if (FLAG(s)) {
     klogctl(7, 0, 0);
     klogctl(0, 0, 0);
   } else {
-    set_log_level(7);
+    set_log_level(7); // TODO: hardwired? Old value...?
     xclose(TT.fd);
   }
   syslog(LOG_NOTICE, "KLOGD: Daemon exiting......");
 
-  exit(1);
+  toys.exitval = 1;
+  xexit();
 }
 
-/*
- * Read kernel ring buffer in local buff and keep track of
- * "used" amount to track next read to start.
- */
+// Read kernel ring buffer in local buff and keep track of
+// "used" amount to track next read to start.
 void klogd_main(void)
 {
   int prio, size, used = 0;
@@ -70,26 +65,23 @@ void klogd_main(void)
   if (FLAG(c)) set_log_level(TT.level);    //set log level
   if (!FLAG(n)) daemon(0, 0);            //Make it daemon
 
-  if (CFG_KLOGD_SOURCE_RING_BUFFER) {
-    syslog(LOG_NOTICE, "KLOGD: started with Kernel ring buffer as log source\n");
-    klogctl(1, 0, 0);
-  } else {
-    TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
-    syslog(LOG_NOTICE, "KLOGD: started with /proc/kmsg as log source\n");
-  }
+  if (FLAG(s)) klogctl(1, 0, 0);
+  else TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
+  syslog(LOG_NOTICE, "KLOGD: started with %s as log source\n",
+    FLAG(s) ? "Kernel ring buffer" : "/proc/kmsg");
   openlog("Kernel", 0, LOG_KERN);    //open connection to system logger..
 
   for (;;) {
     start = toybuf + used; //start updated for re-read.
     size = sizeof(toybuf)-used-1;
-    if (CFG_KLOGD_SOURCE_RING_BUFFER) size = klogctl(2, start, size);
+    if (FLAG(s)) size = klogctl(2, start, size);
     else size = xread(TT.fd, start, size);
     if (size < 0) perror_exit("error reading file:");
     start[size] = 0;
     if (used) start = toybuf;
-    while(start) {
-      if ((line_start = strsep(&start, "\n")) != NULL && start != NULL) used = 0;
-      else {                            //Incomplete line, copy it to start of buff.
+    while (start) {
+      if ((line_start = strsep(&start, "\n")) && start) used = 0;
+      else {      //Incomplete line, copy it to start of buff.
         used = strlen(line_start);
         strcpy(toybuf, line_start);
         if (used < (sizeof(toybuf) - 1)) break;
@@ -98,7 +90,7 @@ void klogd_main(void)
       prio = LOG_INFO;  //we dont know priority, mark it INFO
       if (*line_start == '<') {  //we have new line to syslog
         line_start++;
-        if (line_start) prio = (int)strtoul(line_start, &line_start, 10);
+        if (line_start) prio = strtoul(line_start, &line_start, 10);
         if (*line_start == '>') line_start++;
       }
       if (*line_start) syslog(prio, "%s", line_start);
