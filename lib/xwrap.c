@@ -198,6 +198,7 @@ void xvdaemon(void)
   }
 
   // new session id, point fd 0-2 at /dev/null, detach from tty
+  chdir("/");
   setsid();
   close(0);
   xopen_stdio("/dev/null", O_RDWR);
