@@ -3007,6 +3007,20 @@ here_loop:
         error_msg("%u: <<%s EOF", TT.LINENO, arg->v[arg->c]);
         goto here_end;
       }
+      end = arg->v[arg->c];
+      if (*end != '\\' && arg->c > 0) {
+        s = arg->v[arg->c - 1];
+        if (*s) {
+          while (*s) ++s;
+          if (*--s == '\n' && *--s == '\\') { // next\\\nEOF -> nextEOF
+            *s = '\0';
+            arg->v[arg->c--] = 0;
+            line = start = xmprintf("%s%s", arg->v[arg->c], line);
+            free(arg->v[arg->c]);
+            arg->v[arg->c] = end;
+          }
+        }
+      }
       for (s = line, end = arg->v[arg->c]; *end; s++, end++) {
         end += strspn(end, "\\\"'\n");
         if (!*s || *s != *end) break;
@@ -3060,6 +3074,11 @@ here_end:
         }
 
         // queue up HERE EOF so input loop asks for more lines.
+        for (char *p = arg->v[i + 1], *q = p; /**/; ++p, ++q)
+          if (*p == '\\' && p[1] == '\n') // EO\\\nF -> EOF
+            *p = p[2], q = &q[2];
+          else
+            if ((*p = *q) == '\0') break;
         memset(arg+pl->count, 0, sizeof(*arg));
         arg_add(arg+pl->count, arg->v[++i]);
         arg[pl->count].c--;
@@ -4081,7 +4100,7 @@ FILE *fpathopen(char *name)
 
   if (fd==-1) {
     for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
-      if (-1==(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
+      if (-1!=(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
     if (sl) llist_traverse(sl, free);
   }
   if (fd != -1) {
