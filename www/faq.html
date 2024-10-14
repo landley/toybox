@@ -24,6 +24,7 @@
 <ul>
 <!-- get binaries -->
 <li><h2><a href="#install">How do I install toybox?</h2></li>
+<li><h2><a href="#standalone">How do I make individual/standalone toybox command binaries?</h2></li>
 <li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
 <li><h2><a href="#targets">What architectures does toybox support?</li>
 <li><h2><a href="#system">What part of Linux/Android does toybox provide?</h2></li>
@@ -206,8 +207,8 @@ symlinks to toybox under the various command names. Toybox determines which
 command to run based on the filename, or you can use the "toybox" name in which case the first
 argument is the command to run (ala "toybox ls -l").</p>
 
-<p><u>You can also build
-individual commands as standalone executables</u>, ala "make sed cat ls".
+<p>You can also build individual commands as <a href="#standalone">standalone
+executables</a>, ala "make sed cat ls".
 The "make change" target builds all of them, as in "change for a $20".</p>
 
 <p><u>The main() function is in main.c</u> at the top level,
@@ -512,16 +513,25 @@ arbitrary file out of the filesystem and have it run that. You could
 
 <hr /><h2><a name="standalone" />Q: How do I make individual/standalone toybox command binaries?</h2>
 
-<p>After running the configure step (generally "make defconfig")
-you can "make list" to see available command names you can use as build
-targets to build just that command
-(ala "make sed"). Commands built this way do not contain a multiplexer and
-don't care what the command filename is.</p>
+<p>A: You can use almost<a href="#stand_foot"</a>*</a><a name="stand_back">
+any command name as a make target (ala "make sed") or test the standalone versions individually
+with the test_ prefix ("make test_sed"). You'll need to run the configure
+step first (generally "make defconfig") so the .config file exists for
+the build. For a list of currently available commands run
+"make list".</p>
 
 <p>The "make change" target (as in change for a $20) builds every command
 standalone (in the "change" subdirectory). Note that this is collectively
-about 10 times as large as the multiplexer version, both in disk space and
-runtime memory. (Even more when statically linked.)</p>
+about 10 times as large as the all-in-one multiplexer version (in disk space,
+runtime memory, how long the build takes...)</p>
+
+<p>As always, the Makefile is a thin wrapper around bash scripts actually
+doing the work, you can just all "scripts/single.sh cat ls mv" directly
+if you like.</p>
+
+<p><a name="stand_foot"><a href="#stand_back">*</a> A few command names, like "help" and "test" have
+other meanings to the Makefile, and you have to use scripts/single.sh or
+"make change" to build them standalone.</p>
 
 <hr /><h2><a name="cross" />Q: How do I cross compile toybox?</h2>
 
