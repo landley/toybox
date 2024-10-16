@@ -25,6 +25,7 @@
 <!-- get binaries -->
 <li><h2><a href="#install">How do I install toybox?</h2></li>
 <li><h2><a href="#standalone">How do I make individual/standalone toybox command binaries?</h2></li>
+<li><h2><a href="#hermetic">How do I build toybox on a system with a broken $PATH?</a></h2></li>
 <li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
 <li><h2><a href="#targets">What architectures does toybox support?</li>
 <li><h2><a href="#system">What part of Linux/Android does toybox provide?</h2></li>
@@ -532,6 +533,55 @@ if you like.</p>
 <p><a name="stand_foot"><a href="#stand_back">*</a> A few command names, like "help" and "test" have
 other meanings to the Makefile, and you have to use scripts/single.sh or
 "make change" to build them standalone.</p>
+
+<hr /><h2><a name="hermetic">How do I build toybox on a system with a broken $PATH?</a></h2>
+
+<p>Toybox can provide its own build prerequisites (I.E
+perform a "hermetic" build) using the script <b>scripts/prereq/build.sh</b>
+which is a canned minimal toybox build that basically does "cc *.c" against
+saved headers to build the commands needed by the rest of the build.</p>
+
+<p>At the moment, building toybox on mac requires homebrew to get a .config
+file, ala:</p>
+
+<blockquote><pre>
+$ homebrew
+$ make macos_defconfig
+$ make clean
+$ exit
+</pre></blockquote>
+
+<p>But the rest of the hermetic build works without it:</p>
+
+<blockquote><pre>
+$ scripts/prereq/build.sh #ignoring SO many warnings
+$ mkdir prereq; mv toybox-prereq prereq/
+$ for i in $(prereq/toybox-prereq); do ln -s toybox-prereq prereq/$i; done
+$ PATH=$PWD/prereq:$PATH scripts/make.sh
+$ ./toybox
+</pre></blockquote>
+
+<p>If you already have an appropriate .config file you can copy in you
+don't need homebrew at all (and can skip the first section above).
+Editing one up by hand for qnx and similar is currently left as an exercise
+for the reader (but it's a fairly simple text file format).</p>
+
+<p>The files in the scripts/prereq directory were created by
+<b>scripts/recreate-prereq.sh</b> which records the commands used by
+a toybox build, harvests stripped down headers, and writes a build.sh
+to compile the appropriate source files. It's a couple dozen lines of
+bash if you're interested.</p>
+
+<p>At the moment toybox's full scripts/make.sh still requires bash
+(until toysh is finished and promoted out of pending). Freebsd users
+can invoke "/opt/usr/local/bin/bash scripts/make.sh" or similar
+to work around their distro's policy insisting that /bin/env can be
+trusted to live at a specific path but /bin/bash can't. (On Android both
+env and sh live in /system/bin, which is at least internally consistent.)</p>
+
+<p>Toybox does not yet provide "make" either. You can call scripts/make.sh
+directly (and scripts/test.sh and scripts/single.sh) if you've got a .config,
+but until kconfig/ is replaced defconfig/menuconfig still need gmake.</p>
 
 <hr /><h2><a name="cross" />Q: How do I cross compile toybox?</h2>
 
