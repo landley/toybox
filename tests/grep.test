@@ -245,3 +245,9 @@ testcmd 'grep -of' '-of input' 'abc\n' 'a.c\n' 'abcdef\n'
 
 testcmd '-A with -m' '-A1 -m2 match' 'match\n1\nmatch\n2\n' '' \
   'match\n1\nmatch\n2\nmatch\n3\n'
+
+mkdir sub
+mkfifo -m 600 sub/blah
+echo found > sub/found
+testcmd "don't block on FIFO" '-rh found sub && echo done' 'found\ndone\n' '' ''
+rm -rf sub
