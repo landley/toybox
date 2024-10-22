@@ -110,7 +110,7 @@ static void get_names(struct dev_ids *ids, int id1, int id2,
 // Search for pci.ids or usb.ids and return parsed structure or NULL
 struct dev_ids *parse_dev_ids(char *name, struct dev_ids **and)
 {
-  char *path = "/etc:/vendor:/usr/share/misc";
+  char *path = "/etc:/vendor:/usr/share/hwdata:/usr/share/misc";
   struct string_list *sl = 0;
   FILE *fp;
   char *s, *ss, *sss;
