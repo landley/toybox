@@ -576,7 +576,7 @@ testing "line continuation5" $'XYZ=xyz; echo "abc$\\\nXYZ"' 'abcxyz\n' '' ''
 testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
 # testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' #bash!
 testing 'SECONDS2' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
-testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
+testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '1\n2\n' '' ''
 testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
 testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
 
@@ -652,7 +652,7 @@ testing '"exit shell" means exit eval but encapsulating function continues' \
   'func() { eval "echo one; echo \${?potato}; echo and" 2>/dev/null; echo plus;}; func; echo then' \
   'one\nplus\nthen\n' '' ''
 testing 'return needs function or source' \
-  'cat <(return 0 2>/dev/null; echo $?); echo after' '1\nafter\n' '' ''
+  'cat <(return 0 2>/dev/null; echo $?); echo after' '2\nafter\n' '' ''
 testing 'return nests' 'y(){ x; return $((3+$?));};x(){ return 5; };y;echo $?' \
   '8\n' '' ''
 
