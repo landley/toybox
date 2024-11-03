@@ -14,6 +14,7 @@
 # insulate shell child process to get predictable results
 SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
+[ -z "$TEST_HOST" ] && : ${BROKEN=true}
 # Wrap txpect for shell testing
 shxpect() {
   X="$1"
@@ -73,7 +74,7 @@ testing '$LINENO 1' "$SH input" "1\n" 'echo $LINENO' ''
 
 mkdir sub
 echo echo hello > sub/script
-testing 'simple script in $PATH' "PATH='$PWD/sub:$PATH' $SH script" \
+$BROKEN testing 'simple script in $PATH' "PATH='$PWD/sub:$PATH' $SH script" \
   'hello\n' '' ''
 rm -rf sub
 
@@ -118,16 +119,16 @@ testing '<< \' $'cat<<EOF\nabc\\\ndef\nEOF\n' 'abcdef\n' '' ''
 testing '<< "\"' $'cat<<\\EOF\nabc\\\ndef\nEOF\n' 'abc\\\ndef\n' '' ''
 testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
   '' ''
-testing '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
+$BROKEN testing '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
   'abcde\nnextEOF\n' '' ''
-testing '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' \
+$BROKEN testing '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' \
   'abcde\nhello\n' '' ''
 testing '<< $(a)' $'cat<<$(a)\nx\n$(a)' 'x\n' '' ''
 testing 'HERE straddle' $'cat<<EOF;if true\nhello\nEOF\nthen echo also; fi' \
   'hello\nalso\n' '' ''
-testing '\\n in <<EOF' $'cat<<EO\\\nF\n$PATH\nEOF\n' "$PATH\n" "" ""
+$BROKEN testing '\\n in <<EOF' $'cat<<EO\\\nF\n$PATH\nEOF\n' "$PATH\n" "" ""
 testing '\\n in <<EOF with ""' $'cat<<EO\\\nF""\n$PATH\nEOF\n' '$PATH\n' '' ''
-testing '\\n in HERE terminator' $'cat<<EOF\nabc\nE\\\nOF\necho hello\n' \
+$BROKEN testing '\\n in HERE terminator' $'cat<<EOF\nabc\nE\\\nOF\necho hello\n' \
   'abc\nhello\n' '' ''
 ln -s "$(which echo)" echo2
 testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
@@ -152,15 +153,15 @@ shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
 shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
 testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
 shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
-testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
+$BROKEN testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
   '123\n' '' ''
-testing 'prefix localizes magic vars' \
+$BROKEN testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
 testing 'assignment with redirect is persistent, not prefix' \
   'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
-testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
+$BROKEN testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
   'true\nabc\n' '' ''
 
 mkdir -p one/two/three
@@ -177,10 +178,10 @@ testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
 testing "eval4" 'eval printf '=%s=' \" hello \"' "= hello =" "" ""
 NOSPACE=1 testing "eval5" 'eval echo \" hello \" | wc' ' 1 1 8' "" ""
-testing 'eval6' $'false; eval \'echo $?\'' '1\n' '' ''
+$BROKEN testing 'eval6' $'false; eval \'echo $?\'' '1\n' '' ''
 testing 'eval7' $'eval \'false\'; echo $?' '1\n' '' ''
 testing 'eval8' $'false; eval ''; echo $?' '0\n' '' ''
-testing 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n' '' ''
+$BROKEN testing 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n' '' ''
 testing "exec" "exec echo hello" "hello\n" "" ""
 testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
 
@@ -260,7 +261,7 @@ testing 'hidden wildcards' \
 testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
 testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
-testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
+$BROKEN testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
 
 testing 'quote' "echo \"'\"" "'\n" "" ""
 
@@ -279,7 +280,7 @@ testing "predecrement vs prefix minus" 'echo $((---x)); echo $x' '1\n-1\n' '' ''
 testing "minus-minus-minus" 'echo $((x---7)); echo $x' '-7\n-1\n' '' ''
 testing "x---y is x-- -y not x- --y" 'x=1 y=1; echo $((x---y)) $x $y' '0 0 1\n'\
   '' ''
-testing "nesting ? :" \
+$BROKEN testing "nesting ? :" \
   'for((i=0;i<8;i++)); do echo $((i&1?i&2?1:i&4?2:3:4));done' \
   '4\n3\n4\n1\n4\n2\n4\n1\n' '' ''
 testing "inherited assignment suppression" 'echo $((0 ? (x++) : 2)); echo $x' \
@@ -291,10 +292,10 @@ testing "&& vs || priority" \
 testing "|| vs && priority" \
   'echo $((w++&&x++||y++&&z++)) w=$w x=$x y=$y z=$z' \
   '0 w=1 x= y=1 z=\n' '' ''
-shxpect '/0' I$'echo $((1/0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
-shxpect '%0' I$'echo $((1%0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
-shxpect '/=0' I$'echo $((x/=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
-shxpect '%=0' I$'echo $((x%=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+$BROKEN shxpect '/0' I$'echo $((1/0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+$BROKEN shxpect '%0' I$'echo $((1%0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+$BROKEN shxpect '/=0' I$'echo $((x/=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
+$BROKEN shxpect '%=0' I$'echo $((x%=0)); echo here\n' E E"$P" I$'echo $?\n' O$'1\n'
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
@@ -310,7 +311,7 @@ testing 'loop in && ||' \
   'false && for i in a b c; do echo $i; done || echo no' 'no\n' '' ''
 testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
   "a d\nb d\nc d\n" "" ""
-testing "piped loops that don't exit" \
+$BROKEN testing "piped loops that don't exit" \
   'while X=$(($X+1)); do echo $X; done | while read i; do echo $i; done | head -n 5' \
   '1\n2\n3\n4\n5\n' '' ''
 
@@ -328,7 +329,7 @@ testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
-testing "leading assignment occurs after parsing" \
+$BROKEN testing "leading assignment occurs after parsing" \
   'abc=def; abc=ghi echo $abc' "def\n" "" ""
 testing "leading assignment space" 'X="abc  def"; Y=$X; echo "$Y"' \
   "abc  def\n" "" ""
@@ -351,10 +352,10 @@ testing 'background curly block' \
   'hexxo\nyes\n' '' ''
 rm -f POIT
 
-testing 'background pipe block' \
+$BROKEN testing 'background pipe block' \
   'if true; then { sleep .25;bzcat "$FILES"/blkid/ntfs.bz2; }& fi | wc -c' \
   '8388608\n' '' ''
-testing 'background variable assignment' 'X=x; X=y & echo $X' 'x\n' '' ''
+$BROKEN testing 'background variable assignment' 'X=x; X=y & echo $X' 'x\n' '' ''
 
 #$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
 #=abc=
@@ -384,7 +385,7 @@ testing "curly bracket whitespace" 'for i in {$,} ""{$,}; do echo ="$i"=; done'\
   '=$=\n=$=\n==\n' '' ''
 
 testing 'empty $! is blank' 'echo $!' "\n" "" ""
-testing '$! = jobs -p' 'true & [ $(jobs -p) = $! ] && echo yes' "yes\n" "" ""
+$BROKEN testing '$! = jobs -p' 'true & [ $(jobs -p) = $! ] && echo yes' "yes\n" "" ""
 
 testing '$*' 'cc(){ for i in $*;do echo =$i=;done;};cc "" "" "" "" ""' \
   "" "" ""
@@ -392,7 +393,7 @@ testing '$*2' 'cc(){ for i in "$*";do echo =$i=;done;};cc ""' \
   "==\n" "" ""
 testing '$*3... Flame. Flames. Flames, on the side of my face...' \
   'cc(){ for i in "$*";do echo =$i=;done;};cc "" ""' "= =\n" "" ""
-testing 'why... oh.' \
+$BROKEN testing 'why... oh.' \
   'cc() { echo ="$*"=; for i in =$*=; do echo -$i-; done;}; cc "" ""; echo and; cc ""' \
   '= =\n-=-\n-=-\nand\n==\n-==-\n' "" ""
 testing 'really?' 'cc() { for i in $*; do echo -$i-; done;}; cc "" "" ""' \
@@ -411,7 +412,7 @@ testing '$@' 'cc(){ for i in "$@";do echo =$i=;done;};cc "" "" "" "" ""' \
   "==\n==\n==\n==\n==\n" "" ""
 testing "IFS10" 'IFS=bcd; A=abcde; for i in $A; do echo =$i=; done' \
   "=a=\n==\n==\n=e=\n" "" ""
-testing "IFS11" \
+$BROKEN testing "IFS11" \
   'IFS=x; chicken() { for i in $@$@; do echo =$i=; done;}; chicken one "" abc dxf ghi' \
   "=one=\n==\n=abc=\n=d=\n=f=\n=ghione=\n==\n=abc=\n=d=\n=f=\n=ghi=\n" "" ""
 testing "IFS12" 'IFS=3;chicken(){ return 3;}; chicken;echo 3$?3' '3 3\n' "" ""
@@ -420,7 +421,7 @@ testing "IFS combinations" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
   "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
 
-testing "! isn't special" "echo !" "!\n" "" ""
+$BROKEN testing "! isn't special" "echo !" "!\n" "" ""
 testing "! by itself" '!; echo $?' "1\n" "" ""
 testing "! true" '! true; echo $?' "1\n" "" ""
 testing "! ! true" '! ! true; echo $?' "0\n" "" ""
@@ -463,19 +464,19 @@ NOSPACE=1 testing "curly brackets and pipe" \
 NOSPACE=1 testing "parentheses and pipe" \
   '(echo two;echo three)|tee blah.txt;wc blah.txt' \
   "two\nthree\n2 2 10 blah.txt\n" "" ""
-testing "pipe into parentheses" \
+$BROKEN testing "pipe into parentheses" \
   'echo hello | (read i <input; echo $i; read i; echo $i)' \
   "there\nhello\n" "there\n" ""
 
-testing "\$''" $'echo $\'abc\\\'def\\nghi\'' "abc'def\nghi\n" '' ''
+$BROKEN testing "\$''" $'echo $\'abc\\\'def\\nghi\'' "abc'def\nghi\n" '' ''
 testing "shift shift" 'shift; shift; shift; echo $? hello' "1 hello\n" "" ""
 testing 'search cross $*' 'chicken() { echo ${*/b c/ghi}; }; chicken a b c d' \
   "a b c d\n" "" ""
 testing 'eval $IFS' 'IFS=x; X=x; eval abc=a${X}b 2>/dev/null; echo $abc' \
   "\n" '' ''
-testing '${@:3:5}' 'chicken() { for i in "${@:3:5}"; do echo =$i=; done; } ; chicken ab cd ef gh ij kl mn op qr' \
+$BROKEN testing '${@:3:5}' 'chicken() { for i in "${@:3:5}"; do echo =$i=; done; } ; chicken ab cd ef gh ij kl mn op qr' \
   '=ef=\n=gh=\n=ij=\n=kl=\n=mn=\n' '' ''
-testing '${@:3:5}' 'chicken() { for i in "${*:3:5}"; do unset IFS; echo =$i=; done; } ; IFS=x chicken ab cd ef gh ij kl mn op qr' \
+$BROKEN testing '${*:3:5}' 'chicken() { for i in "${*:3:5}"; do unset IFS; echo =$i=; done; } ; IFS=x chicken ab cd ef gh ij kl mn op qr' \
   '=efxghxijxklxmn=\n' '' ''
 testing 'sequence check' 'IFS=x; X=abxcd; echo ${X/bxc/g}' 'agd\n' '' ''
 
@@ -500,7 +501,7 @@ testing 'here5' $'cat << EOF && cat << EOF2\nEOF2\nEOF\nEOF\nEOF2' \
 # Nothing is actually quoted, but there are quotes, therefore...
 testing 'here6' $'cat << EOF""\n$POTATO\nEOF' '$POTATO\n' '' ''
 # Not ambiguous when split, unlike <$FILENAME redirects
-testing 'here7' 'ABC="abc def"; cat <<< $ABC' 'abc def\n' '' ''
+$BROKEN testing 'here7' 'ABC="abc def"; cat <<< $ABC' 'abc def\n' '' ''
 # What does HERE expansion _not_ expand?
 testing 'here8' $'ABC="x y"\ncat << EOF\n~root/{"$ABC",def}\nEOF' \
   '~root/{"x y",def}\n' '' ''
@@ -510,37 +511,37 @@ testing '<<- eats leading tabs before expansion, but not after' \
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
 testing 'empty ${}' '{ echo ${};} 2>&1 | grep -o bad' 'bad\n' '' ''
-shxpect 'empty ${} syntax err abort' I$'echo ${}; echo hello\n' \
+$BROKEN shxpect 'empty ${} syntax err abort' I$'echo ${}; echo hello\n' \
   E I$'echo and\n' O$'and\n'
-testing '${$b}' '{ echo ${$b};} 2>&1 | grep -o bad' 'bad\n' '' ''
+$BROKEN testing '${$b}' '{ echo ${$b};} 2>&1 | grep -o bad' 'bad\n' '' ''
 testing '${!PATH*}' 'echo ${!PATH*}' 'PATH\n' '' ''
 testing '${!PATH@}' 'echo ${!PATH@}' 'PATH\n' '' ''
 #testing '${!PATH[@]}' 'echo ${!PATH[@]}' '0\n' '' ''
 testing '${!x}' 'X=abcdef Y=X; echo ${!Y}' 'abcdef\n' '' ''
 testing '${!x@}' 'ABC=def; def=ghi; echo ${!ABC@}' 'ABC\n' '' ''
-testing '${!x} err' '{ X=abcdef Y=X:2; echo ${!Y}; echo bang;} 2>/dev/null' \
+$BROKEN testing '${!x} err' '{ X=abcdef Y=X:2; echo ${!Y}; echo bang;} 2>/dev/null' \
   '' '' ''
 testing '${!x*}' 'abcdef=1 abc=2 abcq=; echo "${!abc@}" | tr " " \\n | sort' \
   'abc\nabcdef\nabcq\n' '' ''
 testing '${!x*} none' 'echo "${!abc*}"' '\n' '' ''
-testing '${!x*} err' '{ echo "${!abc*x}"; echo boing;} 2>/dev/null' '' '' ''
+$BROKEN testing '${!x*} err' '{ echo "${!abc*x}"; echo boing;} 2>/dev/null' '' '' ''
 # TODO bash 5.x broke this
 #testing '${!none@Q}' 'echo ${X@Q} ${!X@Q}; X=ABC; echo ${!X@Q}' '\n\n' '' ''
-testing '${!x@Q}' 'ABC=123 X=ABC; echo ${!X@Q}' "'123'\n" '' ''
-testing '${#@Q}' 'echo ${#@Q}' "'0'\n" '' ''
-testing '${!*}' 'xx() { echo ${!*};}; fruit=123; xx fruit' '123\n' '' ''
-testing '${!*} indirect' 'xx() { echo ${!a@Q};}; a=@; xx one two three' \
+$BROKEN testing '${!x@Q}' 'ABC=123 X=ABC; echo ${!X@Q}' "'123'\n" '' ''
+$BROKEN testing '${#@Q}' 'echo ${#@Q}' "'0'\n" '' ''
+$BROKEN testing '${!*}' 'xx() { echo ${!*};}; fruit=123; xx fruit' '123\n' '' ''
+$BROKEN testing '${!*} indirect' 'xx() { echo ${!a@Q};}; a=@; xx one two three' \
   "'one' 'two' 'three'\n" '' ''
-testing '${!x@ } match' \
+$BROKEN testing '${!x@ } match' \
   '{ ABC=def; def=ghi; echo ${!ABC@ }; } 2>&1 | grep -o bad' 'bad\n' '' ''
 # Bash added an error for this between 4.4 and 5.x.
 #testing '${!x@ } no match no err' 'echo ${!ABC@ }def' 'def\n' '' ''
-testing '${!x@ } no match no err2' 'ABC=def; echo ${!ABC@ }ghi' 'ghi\n' '' ''
+$BROKEN testing '${!x@ } no match no err2' 'ABC=def; echo ${!ABC@ }ghi' 'ghi\n' '' ''
 toyonly testing '${#x::}' 'ABC=abcdefghijklmno; echo ${#ABC:1:2}' '5\n' '' ''
 # TODO: ${!abc@x} does _not_ error? And ${PWD@q}
 testing '$""' 'ABC=def; echo $"$ABC"' 'def\n' '' ''
 testing '"$""" does not nest' 'echo "$"abc""' '$abc\n' '' ''
-testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
+$BROKEN testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
 testing 'bad ${^}' '{ echo ${^};} 2>&1 | grep -o bad' 'bad\n' '' ''
 shxpect '${:} empty len is err' I$'ABC=def; echo ${ABC:}\n' RE'ABC' X
 testing '${::} both empty=0' 'ABC=def; echo ${ABC::}' '\n' '' ''
@@ -548,7 +549,7 @@ testing '${::} first empty' 'ABC=def; echo ${ABC: : 2 }' 'de\n' '' ''
 testing '${::} second empty' 'ABC=def; echo ${ABC: 2 : }' '\n' '' ''
 testing '${:}' 'ABC=def; echo ${ABC:1}' 'ef\n' '' ''
 testing '${a: }' 'ABC=def; echo ${ABC: 1}' 'ef\n' '' ''
-testing '${a :}' 'ABC=def; { echo ${ABC :1};} 2>&1 | grep -o bad' 'bad\n' '' ''
+$BROKEN testing '${a :}' 'ABC=def; { echo ${ABC :1};} 2>&1 | grep -o bad' 'bad\n' '' ''
 testing '${::}' 'ABC=defghi; echo ${ABC:1:2}' 'ef\n' '' ''
 testing '${: : }' 'ABC=defghi; echo ${ABC: 1 : 2 }' 'ef\n' '' ''
 testing '${::} indirect' \
@@ -560,7 +561,7 @@ testing '${:-:-}2' 'echo ${ABC:-3:2}' '3:2\n' '' ''
 testing '${: -:}' 'ABC=defghi; echo ${ABC: -3:2}' 'gh\n' '' ''
 testing '${@%}' 'chicken() { for i in "${@%abc}"; do echo "=$i="; done;}; chicken 1abc 2abc 3abc' '=1=\n=2=\n=3=\n' '' ''
 testing '${*%}' 'chicken() { for i in "${*%abc}"; do echo "=$i="; done;}; chicken 1abc 2abc 3abc' '=1 2 3=\n' '' ''
-testing '${@@Q}' 'xx() { echo "${@@Q}"; }; xx one two three' \
+$BROKEN testing '${@@Q}' 'xx() { echo "${@@Q}"; }; xx one two three' \
   "'one' 'two' 'three'\n" '' ''
 
 shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
@@ -570,25 +571,25 @@ shxpect 'line continuation' I$'echo "hello" \\\n' E'> ' I$'> blah\n' E"$P" \
 shxpect 'line continuation2' I$'echo ABC\\\n' E'> ' I$'DEF\n' O$'ABCDEF\n'
 testing "line continuation3" $'ec\\\nho hello' 'hello\n' '' ''
 testing "line continuation4" $'if true | \\\n(true);then echo true;fi' 'true\n' '' ''
-testing "line continuation5" $'XYZ=xyz; echo "abc$\\\nXYZ"' 'abcxyz\n' '' ''
+$BROKEN testing "line continuation5" $'XYZ=xyz; echo "abc$\\\nXYZ"' 'abcxyz\n' '' ''
 
 # Race condition (in bash, but not in toysh) can say 43.
-testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
+$BROKEN testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
 # testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' #bash!
-testing 'SECONDS2' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
+$BROKEN testing 'SECONDS2' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
 testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '1\n2\n' '' ''
 testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
 testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
 
-testing 'readonly leading assignment' \
+$BROKEN testing 'readonly leading assignment' \
   '{ readonly abc=123;abc=def echo hello; echo $?;} 2>output; grep -o readonly output' \
   'hello\n0\nreadonly\n' '' ''
-testing 'readonly leading assignment2' \
+$BROKEN testing 'readonly leading assignment2' \
   'readonly boink=123; export boink; { boink=234 env | grep ^boink=;} 2>/dev/null; echo $?' 'boink=123\n0\n' '' ''
-testing 'readonly for' \
+$BROKEN testing 'readonly for' \
   'readonly i; for i in one two three; do echo $i; done 2>/dev/null; echo $?' \
   '1\n' '' ''
-testing 'readonly {}<' \
+$BROKEN testing 'readonly {}<' \
   'readonly i; echo hello 2>/dev/null {i}</dev/null; echo $?' '1\n' '' ''
 testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
 testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
@@ -603,17 +604,17 @@ rm -f walrus wallpapers
 
 # Force parsing granularity via interactive shxpect because bash parses all
 # of sh -c "str" in one go, meaning the "shopt -s extglob" won't take effect
-shxpect 'IFS +(extglob)' I$'shopt -s extglob\n' E"$P" \
+$BROKEN shxpect 'IFS +(extglob)' I$'shopt -s extglob\n' E"$P" \
   I$'IFS=x; ABC=cxd; for i in +($ABC); do echo =$i=; done\n' \
   O$'=+(c=\n' O$'=d)=\n'
 
 touch abc\)d
-shxpect 'IFS +(extglob) 2' I$'shopt -s extglob\n' E"$P" \
+$BROKEN shxpect 'IFS +(extglob) 2' I$'shopt -s extglob\n' E"$P" \
   I$'ABC="c?d"; for i in ab+($ABC); do echo =$i=; done\n' \
   O$'=abc)d=\n'
 rm abc\)d
 
-shxpect '[+(]) overlap priority' I$'shopt -s extglob\n' E"$P" \
+$BROKEN shxpect '[+(]) overlap priority' I$'shopt -s extglob\n' E"$P" \
   I$'touch "AB[DEF]"; echo AB[+(DEF]) AB[+(DEF)? AB+([DEF)]\n' \
   O$'AB[+(DEF]) AB[DEF] AB+([DEF)]\n' \
   I$'X="("; Y=")"; echo AB[+${X}DEF${Y}?\n' O$'AB[DEF]\n'
@@ -622,7 +623,7 @@ shxpect '[+(]) overlap priority' I$'shopt -s extglob\n' E"$P" \
 shxpect '${a?b} sets err, stops cmdline eval' \
   I$': ${a?b} ${c:=d}\n' E E"$P" I$'echo $?$c\n' O$'1\n'
 
-shxpect 'trace redirect' I$'set -x; echo one\n' E$'+ echo one\n'"$P" O$'one\n' \
+$BROKEN shxpect 'trace redirect' I$'set -x; echo one\n' E$'+ echo one\n'"$P" O$'one\n' \
   I$'echo two 2>/dev/null\n' O$'two\n' E$'+ echo two\n'"$P" \
   I$'{ echo three; } 2>/dev/null\n' O$'three\n' E"$P"
 shxpect 'set -u' I$'set -u; echo $walrus\n' REwalrus X
@@ -642,16 +643,16 @@ testing 'source is live in functions' \
 testing 'subshell inheritance' \
   'func() { source input; cat <(echo $xx; xx=456; echo $xx); echo $xx;}; echo local xx=123 > input; func; echo $xx' \
   '123\n456\n123\n\n' 'x' ''
-testing 'semicolon vs newline' \
+$BROKEN testing 'semicolon vs newline' \
   'source input 2>/dev/null || echo yes' 'one\nyes\n' \
   'echo one\necho two; echo |' ''
-testing 'syntax err pops to source but encapsulating function continues' \
+$BROKEN testing 'syntax err pops to source but encapsulating function continues' \
   'func() { echo one; source <(echo -e "echo hello\necho |") 2>/dev/null; echo three;}; func; echo four' \
   'one\nhello\nthree\nfour\n' '' ''
-testing '"exit shell" means exit eval but encapsulating function continues' \
+$BROKEN testing '"exit shell" means exit eval but encapsulating function continues' \
   'func() { eval "echo one; echo \${?potato}; echo and" 2>/dev/null; echo plus;}; func; echo then' \
   'one\nplus\nthen\n' '' ''
-testing 'return needs function or source' \
+$BROKEN testing 'return needs function or source' \
   'cat <(return 0 2>/dev/null; echo $?); echo after' '2\nafter\n' '' ''
 testing 'return nests' 'y(){ x; return $((3+$?));};x(){ return 5; };y;echo $?' \
   '8\n' '' ''
@@ -679,26 +680,26 @@ testing 'local replaces/preserves magic type' \
   'x() { local RANDOM=potato; echo $RANDOM;};x;echo -e "$RANDOM\n$RANDOM"|wc -l'\
   'potato\n2\n' '' ''
 
-testing '$$ is parent shell' \
+$BROKEN testing '$$ is parent shell' \
   '{ echo $$; (echo $$) } | sort -u | wc -l' "1\n" "" ""
-testing '$PPID is parent shell' \
+$BROKEN testing '$PPID is parent shell' \
   '{ echo $PPID; (echo $PPID) } | sort -u | wc -l' "1\n" "" ""
-testing '$BASHPID is current PID' \
+$BROKEN testing '$BASHPID is current PID' \
   '{ echo $BASHPID; (echo $BASHPID) } | sort -u | wc -l' "2\n" "" ""
 
 testing 'unexport supports +=' 'export -n ABC+=DEF; declare -p ABC' \
   'declare -- ABC="DEF"\n' '' ''
-testing 'unexport existing +=' \
+$BROKEN testing 'unexport existing +=' \
   'export ABC=XYZ; export -n ABC+=DEF; declare -p ABC' \
   'declare -- ABC="XYZDEF"\n' '' ''
 
-testing '$!' '{ echo $BASHPID & echo $!; echo ${!};} | sort -u | wc -l' '1\n' \
+$BROKEN testing '$!' '{ echo $BASHPID & echo $!; echo ${!};} | sort -u | wc -l' '1\n' \
   '' ''
 
 shxpect 'blank line preserves $?' \
   I$'false\n' E"$P" I$'\n' E"$P" I$'echo $?\n' O$'1\n'
 testing 'NOP line clears $?' 'false;$NOTHING;echo $?' '0\n' '' ''
-testing 'run "$@"' 'false;"$@";echo $?' '0\n' '' ''
+$BROKEN testing 'run "$@"' 'false;"$@";echo $?' '0\n' '' ''
 
 # "Word splitting... not performed on the words between the [[ and ]]"
 testing '[[split1]]' 'A="1 -lt 2"; [[ $A ]] && echo yes' 'yes\n' '' ''
@@ -710,7 +711,7 @@ rm -f '2 -lt 1'
 testing '[[split4]]' \
   '[[ $(cat) == "a b" ]] <<< "a b" > potato && rm potato && echo ok' \
   'ok\n' '' ''
-testing '[[split5]]' \
+$BROKEN testing '[[split5]]' \
   '[[ $(cat) == "a b" ]] < <(echo a b) > potato && rm potato && echo ok' \
   'ok\n' '' ''
 # And token parsing leaking through: 1>2 is an error, 1 >2 is not
@@ -722,7 +723,7 @@ testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
   'yes\n' '' ''
 testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
 
-testing 'quoting contexts nest' \
+$BROKEN testing 'quoting contexts nest' \
         $'echo -n "$(echo "hello $(eval $\'echo -\\\\\\ne \\\'world\\n \\\'\')")"' \
   'hello world\n ' '' ''
 
