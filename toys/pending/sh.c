@@ -44,7 +44,9 @@
  * if/then/elif/else/fi, for select while until/do/done, case/esac,
  * {/}, [[/]], (/), function assignment
 
+USE_SH(NEWTOY(break, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(continue, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(declare, "pAailunxr", TOYFLAG_NOFORK))
  // TODO tpgfF
 USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
@@ -134,6 +136,15 @@ config SH
     bg fg jobs kill
 
 # These are here for the help text, they're not selectable and control nothing
+config BREAK
+  bool
+  default n
+  depends on SH
+  help
+    usage: break [N]
+
+    End N levels of for/while/until loop immediately (default 1).
+
 config CD
   bool
   default n
@@ -146,6 +157,15 @@ config CD
 
     -P	Physical path: resolve symlinks in path
     -L	Local path: .. trims directories off $PWD (default)
+
+config CONTINUE
+  bool
+  default n
+  depends on SH
+  help
+    usage: continue [N]
+
+    Start next entry in for/while/until loop (or Nth outer loop, default 1).
 
 config DECLARE
   bool
@@ -381,6 +401,7 @@ GLOBALS(
 
   // job list, command line for $*, scratch space for do_wildcard_files()
   struct sh_arg jobs, *wcdeck;
+  FILE *script;
 )
 
 // Prototype because $($($(blah))) nests, leading to run->parse->run loop
@@ -3637,7 +3658,6 @@ static char *get_next_line(FILE *ff, int prompt)
        probably have to inline run_command here to do that? Implicit ()
        also "X=42 | true; echo $X" doesn't get X.
        I.E. run_subshell() here sometimes? (But when?)
- TODO: bash supports "break &" and "break > file". No idea why.
  TODO If we just started a new pipeline, implicit parentheses (subshell)
  TODO can't free sh_process delete until ready to dispose else no debug output
  TODO: a | b | c needs subshell for builtins?
@@ -3736,32 +3756,12 @@ static void run_lines(void)
       }
     }
 
-    // Is this an executable segment?
-    if (!TT.ff->pl->type) {
-      // Is it a flow control jump? These aren't handled as normal builtins
-      // because they move *pl to other pipeline segments which is local here.
-      if (!strcmp(s, "break") || !strcmp(s, "continue")) {
-
-        // How many layers to peel off?
-        i = ss ? atol(ss) : 0;
-        if (i<1) i = 1;
-        if (TT.ff->blk->next && TT.ff->pl->arg->c<3
-            && (!ss || !ss[strspn(ss,"0123456789")]))
-        {
-          while (i && TT.ff->blk->next)
-            if (TT.ff->blk->middle && !strcmp(*TT.ff->blk->middle->arg->v, "do")
-              && !--i && *s=='c') TT.ff->pl = TT.ff->blk->start;
-            else TT.ff->pl = pop_block();
-        }
-        if (i) {
-          syntax_err(s);
-          break;
-        }
-      // Parse and run next command, saving resulting process
-      } else dlist_add_nomalloc((void *)&pplist, (void *)run_command());
+    // If executable segment parse and run next command saving resulting process
+    if (!TT.ff->pl->type) 
+      dlist_add_nomalloc((void *)&pplist, (void *)run_command());
 
     // Start of flow control block?
-    } else if (TT.ff->pl->type == 1) {
+    else if (TT.ff->pl->type == 1) {
 
 // TODO test cat | {thingy} is new PID: { is ( for |
 
@@ -4354,6 +4354,18 @@ void sh_main(void)
 
 /********************* shell builtin functions *************************/
 
+// Note: "break &" in bash breaks in the child, this breaks in the parent.
+void break_main(void)
+{
+  int i = *toys.optargs ? atolx_range(*toys.optargs, 1, INT_MAX) : 1;
+
+  // Peel off encosing do blocks
+  while (i && TT.ff->blk->next)
+    if (TT.ff->blk->middle && !strcmp(*TT.ff->blk->middle->arg->v, "do")
+        && !--i && *toys.which->name=='c') TT.ff->pl = TT.ff->blk->start;
+    else TT.ff->pl = pop_block();
+}
+
 #define FOR_cd
 #include "generated/flags.h"
 void cd_main(void)
@@ -4410,6 +4422,11 @@ void cd_main(void)
     export("PWD");
     TT.options |= OPT_cd;
   }
+}
+
+void continue_main(void)
+{
+  break_main();
 }
 
 void exit_main(void)
