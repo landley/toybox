@@ -162,13 +162,13 @@ static void do_blkid(int fd, char *name)
   if (!FLAG(L) && !FLAG(U)) {
     if (!TT.o || !strcasecmp(TT.o, "full")) printf("%s:", name);
     else if (!strcasecmp(TT.o, "export")) show_tag("DEVNAME", name);
+    if (*type=='v' && fstypes[i].magic_len == 4) show_tag("SEC_TYPE", "msdos");
   }
 
   len = fstypes[i].label_len;
   if (!FLAG(U) && len) {
     s = toybuf+fstypes[i].label_off-off;
     if (!strcmp(type, "vfat") || !strcmp(type, "iso9660")) {
-      if (*type=='v') show_tag("SEC_TYPE", "msdos");
       while (len && s[len-1]==' ') len--;
       if (strstart(&s, "NO NAME")) len=0;
     }
