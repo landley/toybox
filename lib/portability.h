@@ -43,13 +43,10 @@
 // Test for gcc (using compiler builtin #define)
 
 #ifdef __GNUC__
-#ifndef __clang__
 #define QUIET = 0 // shut up false positive "may be used uninitialized" warning
-#else
-#define QUIET
-#endif
 #define printf_format	__attribute__((format(printf, 1, 2)))
 #else
+#define QUIET
 #define printf_format
 #endif
 
