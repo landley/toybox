@@ -45,6 +45,9 @@ testing "squashfs" "BLKID squashfs" 'temp.img: TYPE="squashfs"\n' "" ""
 testing "vfat" "BLKID vfat" \
   'temp.img: SEC_TYPE="msdos" LABEL="myvfat" UUID="7356-B91D" TYPE="vfat"\n' \
   "" ""
+testing "fat32" "BLKID fat32" \
+  'temp.img: LABEL="myfat32" UUID="2E7D-E046" TYPE="vfat"\n' \
+  "" ""
 testing "xfs" "BLKID xfs" \
   'temp.img: LABEL="XFS_test" UUID="d63a1dc3-27d5-4dd4-8b38-f4f97f495c6f" TYPE="xfs"\n' \
   "" ""

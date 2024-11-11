@@ -59,7 +59,7 @@ GLOBALS(
 // TODO xgetline() instead, but replace_tempfile() wants fd...
 char *get_line(int fd)
 {
-  char c, *buf = NULL;
+  char c, *buf = 0;
   long len = 0;
 
   for (;;) {
@@ -113,7 +113,7 @@ static void fail_hunk(void)
 
   TT.state = 2;
   llist_traverse(TT.current_hunk, do_line);
-  TT.current_hunk = NULL;
+  TT.current_hunk = 0;
   if (!FLAG(dry_run)) delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
   TT.state = 0;
 }
@@ -308,7 +308,7 @@ static char *unquote_file(char *filename)
 void patch_main(void)
 {
   int state = 0, patchlinenum = 0, strip = 0;
-  char *oldname = NULL, *newname = NULL;
+  char *oldname = 0, *newname = 0;
 
   if (toys.optc == 2) TT.i = toys.optargs[1];
   if (TT.i) TT.filepatch = xopenro(TT.i);
@@ -316,12 +316,11 @@ void patch_main(void)
 
   if (TT.d) xchdir(TT.d);
 
-  // Loop through the lines in the patch
+  // Loop through the lines in the patch file (-i or stdin) collecting hunks
   for (;;) {
     char *patchline;
 
-    patchline = get_line(TT.filepatch);
-    if (!patchline) break;
+    if (!(patchline = get_line(TT.filepatch))) break;
 
     // Other versions of patch accept damaged patches, so we need to also.
     if (strip || !patchlinenum++) {
@@ -329,7 +328,7 @@ void patch_main(void)
       if (len && patchline[len-1] == '\r') {
         if (!strip && !FLAG(s)) fprintf(stderr, "Removing DOS newlines\n");
         strip = 1;
-        patchline[len-1]=0;
+        patchline[len-1] = 0;
       }
     }
     if (!*patchline) {
@@ -351,11 +350,11 @@ void patch_main(void)
 
         // If we've consumed all expected hunk lines, apply the hunk.
         if (!TT.oldlen && !TT.newlen) state = apply_one_hunk();
-        continue;
+      } else {
+        dlist_terminate(TT.current_hunk);
+        fail_hunk();
+        state = 0;
       }
-      dlist_terminate(TT.current_hunk);
-      fail_hunk();
-      state = 0;
       continue;
     }
 
@@ -372,7 +371,7 @@ void patch_main(void)
       free(*name);
       finish_oldfile();
 
-      // Trim date from end of filename (if any).  We don't care.
+      // Trim date from end of filename (if any). Date<=epoch means delete.
       for (s = patchline+4; *s && *s!='\t'; s++);
       i = atoi(s);
       if (i>1900 && i<=1970) *name = xstrdup("/dev/null");

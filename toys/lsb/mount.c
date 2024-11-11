@@ -37,7 +37,8 @@ config MOUNT
     Autodetects loopback mounts (a file on a directory) and bind mounts (file
     on file, directory on directory), so you don't need to say --bind or --loop.
     You can also "mount -a /path" to mount everything in /etc/fstab under /path,
-    even if it's noauto. DEVICE starting with UUID= is identified by blkid -U.
+    even if it's noauto. DEVICE starting with UUID= is identified by blkid -U,
+    and DEVICE starting with LABEL= is identified by blkid -L.
 
 #config SMBMOUNT
 #  bool "smbmount"
@@ -169,6 +170,12 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     char *s = chomp(xrunread((char *[]){"blkid", "-U", dev, 0}, 0));
 
     if (!s || strlen(s)>=sizeof(toybuf)) return error_msg("No uuid %s", dev);
+    strcpy(dev = toybuf, s);
+    free(s);
+  } else if (strstart(&dev, "LABEL=")) {
+    char *s = chomp(xrunread((char *[]){"blkid", "-L", dev, 0}, 0));
+
+    if (!s || strlen(s)>=sizeof(toybuf)) return error_msg("No label %s", dev);
     strcpy(dev = toybuf, s);
     free(s);
   }

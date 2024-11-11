@@ -3,9 +3,16 @@
  *
  * Copyright 2024 Ray Gardner <raygard@gmail.com>
  *
- * See https://pubs.opengroup.org/onlinepubs/9699919799/utilities/awk.html
+ * See https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
+ *
+ * Deviations from posix: Don't handle LANG, LC_ALL, etc.
+ *   Accept regex for RS
+ *   Bitwise functions (from gawk): and, or, xor, lshift, rshift
+ *   Attempt to follow tradition (nawk, gawk) where it departs from posix
+ *
+ * TODO: Lazy field splitting; improve performance; more testing/debugging
 
-USE_AWK(NEWTOY(awk, "F:v*f*bc", TOYFLAG_USR|TOYFLAG_BIN))
+USE_AWK(NEWTOY(awk, "F:v*f*bc", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config AWK
   bool "awk"
@@ -16,7 +23,7 @@ config AWK
             awk [-F sepstring] -f progfile [-f progfile]... [-v assignment]...
                   [argument...]
       also:
-      -b : use bytes, not characters
+      -b : count bytes, not characters (experimental)
       -c : compile only, do not run
 */
 
@@ -86,16 +93,11 @@ GLOBALS(
 
   struct runtime_globals {
     struct zvalue cur_arg;
-    //char *filename;     // UNUSED
     FILE *fp;           // current data file
     int narg;           // cmdline arg index
     int nfiles;         // num of cmdline data file args processed
     int eof;            // all cmdline files (incl. stdin) read
     char *recptr;
-    char *recbuf;
-    size_t recbufsize;
-    char *recbuf_multx;
-    size_t recbufsize_multx;
     struct zstring *zspr;      // Global to receive sprintf() string value
   } rgl;
 
@@ -132,18 +134,19 @@ GLOBALS(
     char *fn;
     FILE *fp;
     char mode;  // w, a, or r
-    char file_or_pipe;  // f or p
-    char is_std_file;
-    char *recbuf;
-    size_t recbufsize;
-    char *recbuf_multi;
-    size_t recbufsize_multi;
-    char *recbuf_multx;
-    size_t recbufsize_multx;
-    int recoffs, endoffs;
+    char file_or_pipe;  // 1 if file, 0 if pipe
+    char is_tty, is_std_file;
+    char eof;
+    int ro, lim, buflen;
+    char *buf;
   } *zfiles, *cfile, *zstdout;
 )
 
+static void awk_exit(int status)
+{
+  toys.exitval = status;
+  xexit();
+}
 #ifdef __GNUC__
 #define ATTR_FALLTHROUGH_INTENDED __attribute__ ((fallthrough))
 #else
@@ -212,7 +215,6 @@ enum spec_var_names { ARGC=1, ARGV, CONVFMT, ENVIRON, FILENAME, FNR, FS, NF,
 
 struct symtab_slot {    // global symbol table entry
   unsigned flags;
-  int slotnum;
   char *name;
 };
 
@@ -265,7 +267,6 @@ struct zstring {
 
 struct functab_slot {    // function symbol table entry
   unsigned flags;
-  int slotnum;
   char *name;
   struct zlist function_locals;
   int zcode_addr;
@@ -356,7 +357,7 @@ static void zzerr(char *format, ...)
   va_end(args);
   if (format[strlen(format)-1] != '\n') fputc('\n', stderr); // TEMP FIXME !!!
   fflush(stderr);
-  if (fatal_sw) exit(2);
+  if (fatal_sw) awk_exit(2);
         // Don't bump error count for warnings
   else if (!strstr(format, "arning")) TT.cgl.compile_error_count++;
 }
@@ -1112,15 +1113,15 @@ static int havetok(int tk)
 }
 
 //// code and "literal" emitters
-static void gen2cd(int op, int n)
-{
-  zlist_append(&TT.zcode, &op);
-  TT.zcode_last = zlist_append(&TT.zcode, &n);
-}
-
 static void gencd(int op)
 {
   TT.zcode_last = zlist_append(&TT.zcode, &op);
+}
+
+static void gen2cd(int op, int n)
+{
+  gencd(op);
+  gencd(n);
 }
 
 static int make_literal_str_val(char *s)
@@ -1150,8 +1151,7 @@ static int make_literal_num_val(double num)
 
 static int make_uninit_val(void)
 {
-  struct zvalue v = uninit_zvalue;
-  return zlist_append(&TT.literals, &v);
+  return zlist_append(&TT.literals, &uninit_zvalue);
 }
 //// END code and "literal" emitters
 
@@ -1165,10 +1165,9 @@ static int find_func_def_entry(char *s)
 
 static int add_func_def_entry(char *s)
 {
-  struct functab_slot ent = {0, 0, 0, {0, 0, 0, 0}, 0};
+  struct functab_slot ent = {0, 0, {0, 0, 0, 0}, 0};
   ent.name = xstrdup(s);
   int slotnum = zlist_append(&TT.func_def_table, &ent);
-  FUNC_DEF[slotnum].slotnum = slotnum;
   return slotnum;
 }
 
@@ -1181,10 +1180,9 @@ static int find_global(char *s)
 
 static int add_global(char *s)
 {
-  struct symtab_slot ent = {0, 0, 0};
+  struct symtab_slot ent = {0, 0};
   ent.name = xstrdup(s);
   int slotnum = zlist_append(&TT.globals_table, &ent);
-  GLOBAL[slotnum].slotnum = slotnum;
   return slotnum;
 }
 
@@ -1197,10 +1195,9 @@ static int find_local_entry(char *s)
 
 static int add_local_entry(char *s)
 {
-  struct symtab_slot ent = {0, 0, 0};
+  struct symtab_slot ent = {0, 0};
   ent.name = xstrdup(s);
   int slotnum = zlist_append(&TT.locals_table, &ent);
-  LOCAL[slotnum].slotnum = slotnum;
   return slotnum;
 }
 
@@ -1210,11 +1207,11 @@ static int find_or_add_var_name(void)
   int globals_ent = 0;
   int locals_ent = find_local_entry(TT.tokstr);   // in local symbol table?
   if (locals_ent) {
-    slotnum = -LOCAL[locals_ent].slotnum;
+    slotnum = -locals_ent;
   } else {
     globals_ent = find_global(TT.tokstr);
     if (!globals_ent) globals_ent = add_global(TT.tokstr);
-    slotnum = GLOBAL[globals_ent].slotnum;
+    slotnum = globals_ent;
     if (find_func_def_entry(TT.tokstr))
       // POSIX: The same name shall not be used both as a variable name
       // with global scope and as the name of a function.
@@ -1527,9 +1524,7 @@ static void function_call(void)
   //  push placeholder for return value, push placeholder for return addr,
   //  push args, then push number of args, then:
   //      for builtins: gen opcode (e.g. tkgsub)
-  //      for user func: gen (tkfunc, function location)
-  //      if function not yet defined, location will be filled in when defined
-  //          the location slots will be chained from the symbol table
+  //      for user func: gen (tkfunc, number-of-args)
   int functk = 0, funcnum = 0;
   char builtin_name[16];  // be sure it's long enough for all builtins
   if (ISTOK(tkbuiltin)) {
@@ -2743,14 +2738,31 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
 {
   regex_t *rx;
   regoff_t offs, end;
-  if (!IS_RX(zvfs)) to_str(zvfs);
-  char *fs = IS_STR(zvfs) ? zvfs->vst->str : "";
+  int multiline_null_rs = !ENSURE_STR(&STACK[RS])->vst->str[0];
   int nf = 0, r = 0, eflag = 0;
+  int one_char_fs = 0;
+  char *s0 = s, *fs = "";
+  if (!IS_RX(zvfs)) {
+    to_str(zvfs);
+    fs = zvfs->vst->str;
+    one_char_fs = utf8cnt(zvfs->vst->str, zvfs->vst->size) == 1;
+  }
   // Empty string or empty fs (regex).
   // Need to include !*s b/c empty string, otherwise
   // split("", a, "x") splits to a 1-element (empty element) array
   if (!*s || (IS_STR(zvfs) && !*fs) || IS_EMPTY_RX(zvfs)) {
-    for ( ; *s; s++) setter(m, ++nf, s, 1);
+    while (*s) {
+      if (*s < 128) setter(m, ++nf, s++, 1);
+      else {        // Handle UTF-8
+        char cbuf[8];
+        unsigned wc;
+        int nc = utf8towc(&wc, s, strlen(s));
+        if (nc < 2) FATAL("bad string for split: \"%s\"\n", s0);
+        s += nc;
+        nc = wctoutf8(cbuf, wc);
+        setter(m, ++nf, cbuf, nc);
+      }
+    }
     return nf;
   }
   if (IS_RX(zvfs)) rx = zvfs->rx;
@@ -2760,7 +2772,9 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
     // rx_find_FS() returns 0 if found. If nonzero, the field will
     // be the rest of the record (all of it if first time through).
     if ((r = rx_find_FS(rx, s, &offs, &end, eflag))) offs = end = strlen(s);
-    else {
+    if (setter == set_field && multiline_null_rs && one_char_fs) {
+      // Contra POSIX, if RS=="" then newline is always also a
+      // field separator only if FS is a single char (see gawk manual)
       int k = strcspn(s, "\n");
       if (k < offs) offs = k, end = k + 1;
     }
@@ -2998,12 +3012,12 @@ static struct zvalue *setup_lvalue(int ref_stack_ptr, int parmbase, int *field_n
   return v; // order FATAL() and return to mute warning
 }
 
-
-static struct zfile *new_file(char *fn, FILE *fp, char mode, char file_or_pipe)
+static struct zfile *new_file(char *fn, FILE *fp, char mode, char file_or_pipe,
+                              char is_std_file)
 {
   struct zfile *f = xzalloc(sizeof(struct zfile));
   *f = (struct zfile){TT.zfiles, xstrdup(fn), fp, mode, file_or_pipe,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0};
+                isatty(fileno(fp)), is_std_file, 0, 0, 0, 0, 0};
   return TT.zfiles = f;
 }
 
@@ -3038,9 +3052,7 @@ static int close_file(char *fn)
     np = p->next;   // save in case unlinking file (invalidates p->next)
     // Don't close std files -- wrecks print/printf (can be fixed though TODO)
     if ((!p->is_std_file) && (!fn || !strcmp(fn, p->fn))) {
-      xfree(p->recbuf);
-      xfree(p->recbuf_multi);
-      xfree(p->recbuf_multx);
+      xfree(p->buf);
       xfree(p->fn);
       r = (p->fp) ? (p->file_or_pipe ? fclose : pclose)(p->fp) : -1;
       *pp = p->next;
@@ -3068,7 +3080,7 @@ static struct zfile *setup_file(char file_or_pipe, char *mode)
     }
   FILE *fp = (file_or_pipe ? fopen : popen)(fn, mode);
   if (fp) {
-    struct zfile *p = new_file(fn, fp, *mode, file_or_pipe);
+    struct zfile *p = new_file(fn, fp, *mode, file_or_pipe, 0);
     drop();
     return p;
   }
@@ -3284,106 +3296,138 @@ static int next_fp(void)
   char *fn = nextfilearg();
   if (TT.cfile->fp && TT.cfile->fp != stdin) fclose(TT.cfile->fp);
   if ((!fn && !TT.rgl.nfiles && TT.cfile->fp != stdin) || (fn && !strcmp(fn, "-"))) {
+    xfree(TT.cfile->buf);
+    *TT.cfile = (struct zfile){0};
     TT.cfile->fp = stdin;
+    TT.cfile->fn = "-";
     zvalue_release_zstring(&STACK[FILENAME]);
-    STACK[FILENAME].vst = new_zstring("<stdin>", 7);
+    STACK[FILENAME].vst = new_zstring("-", 1);
   } else if (fn) {
+    xfree(TT.cfile->buf);
+    *TT.cfile = (struct zfile){0};
     if (!(TT.cfile->fp = fopen(fn, "r"))) FFATAL("can't open %s\n", fn);
+    TT.cfile->fn = fn;
     zvalue_copy(&STACK[FILENAME], &TT.rgl.cur_arg);
-    set_num(&STACK[FNR], 0);
   } else {
     TT.rgl.eof = 1;
     return 0;
   }
+  set_num(&STACK[FNR], 0);
+  TT.cfile->is_tty = isatty(fileno(TT.cfile->fp));
   return 1;
 }
 
-static ssize_t getrec_multiline(struct zfile *zfp)
-{
-  ssize_t k, kk;
-  do {
-    k = getdelim(&zfp->recbuf_multi, &zfp->recbufsize_multi, '\n', zfp->fp);
-  } while (k > 0 && zfp->recbuf_multi[0] == '\n');
-  TT.rgl.recptr = zfp->recbuf_multi;
-  if (k < 0) return k;
-  // k > 0 and recbuf_multi is not only a \n. Prob. ends w/ \n
-  // but may not at EOF (last line w/o newline)
-  for (;;) {
-    kk = getdelim(&zfp->recbuf_multx, &zfp->recbufsize_multx, '\n', zfp->fp);
-    if (kk < 0 || zfp->recbuf_multx[0] == '\n') break;
-    // data is in zfp->recbuf_multi[0..k-1]; append to it
-    if ((size_t)(k + kk + 1) > zfp->recbufsize_multi)
-      zfp->recbuf_multi =
-          xrealloc(zfp->recbuf_multi, zfp->recbufsize_multi = k + kk + 1);
-    memmove(zfp->recbuf_multi + k, zfp->recbuf_multx, kk+1);
-    k += kk;
-  }
-  if (k > 1 && zfp->recbuf_multi[k-1] == '\n') zfp->recbuf_multi[--k] = 0;
-  TT.rgl.recptr = zfp->recbuf_multi;
-  return k;
-}
-
-static int rx_findx(regex_t *rx, char *s, long len, regoff_t *start, regoff_t *end, int eflags)
+static int rx_find_rs(regex_t *rx, char *s, long len,
+                      regoff_t *start, regoff_t *end, int one_byte_rs)
 {
   regmatch_t matches[1];
-  int r = regexec0(rx, s, len, 1, matches, eflags);
-  if (r == REG_NOMATCH) return r;
-  if (r) FATAL("regexec error");  // TODO ? use regerr() to meaningful msg
-  *start = matches[0].rm_so;
-  *end = matches[0].rm_eo;
+  if (one_byte_rs) {
+    char *p = memchr(s, one_byte_rs, len);
+    if (!p) return REG_NOMATCH;
+    *start = p - s;
+    *end = *start + 1;
+  } else {
+    int r = regexec0(rx, s, len, 1, matches, 0);
+    if (r == REG_NOMATCH) return r;
+    if (r) FATAL("regexec error");  // TODO ? use regerr() to meaningful msg
+    *start = matches[0].rm_so;
+    *end = matches[0].rm_eo;
+  }
   return 0;
 }
 
+// get a record; return length, or -1 at EOF
+// Does work for getrec_f() for regular RS or multiline
+static ssize_t getr(struct zfile *zfp, int rs_mode)
+{
+  // zfp->buf (initially null) points to record buffer
+  // zfp->buflen -- size of allocated buf
+  // TT.rgl.recptr -- points to where record is being / has been read into
+  // zfp->ro -- offset in buf to record data
+  // zfp->lim -- offset to 1+last byte read in buffer
+  // rs_mode nonzero iff multiline mode; reused for one-byte RS
+
+  regex_t rsrx; // FIXME Need to cache and avoid rx compile on every record?
+  long ret = -1;
+  int r = -REG_NOMATCH;   // r cannot have this value after rx_findx() below
+  regoff_t so = 0, eo = 0;
+  size_t m = 0, n = 0;
+
+  xregcomp(&rsrx, rs_mode ? "\n\n+" : fmt_one_char_fs(STACK[RS].vst->str),
+      REG_EXTENDED);
+  rs_mode = strlen(STACK[RS].vst->str) == 1 ? STACK[RS].vst->str[0] : 0;
+  for ( ;; ) {
+    if (zfp->ro == zfp->lim && zfp->eof) break; // EOF & last record; return -1
+
+    // Allocate initial buffer, and expand iff buffer holds one
+    //   possibly (probably) incomplete record.
+    if (zfp->ro == 0 && zfp->lim == zfp->buflen)
+      zfp->buf = xrealloc(zfp->buf,
+          (zfp->buflen = maxof(512, zfp->buflen * 2)) + 1);
+
+    if ((m = zfp->buflen - zfp->lim) && !zfp->eof) {
+      // Read iff space left in buffer
+      if (zfp->is_tty) m = 1;
+      n = fread(zfp->buf + zfp->lim, 1, m, zfp->fp);
+      if (n < m) {
+        if (ferror(zfp->fp)) FFATAL("i/o error %d on %s!", errno, zfp->fn);
+        zfp->eof = 1;
+        if (!n && r == -REG_NOMATCH) break; // catch empty file here
+      }
+      zfp->lim += n;
+      zfp->buf[zfp->lim] = 0;
+    }
+    TT.rgl.recptr = zfp->buf + zfp->ro;
+    r = rx_find_rs(&rsrx, TT.rgl.recptr, zfp->lim - zfp->ro, &so, &eo, rs_mode);
+    if (!r && so == eo) r = 1;  // RS was empty, so fake not found
+
+    if (!zfp->eof && (r
+          || (zfp->lim - (zfp->ro + eo)) < zfp->buflen / 4) && !zfp->is_tty) {
+      // RS not found, or found near lim. Slide up and try to get more data
+      // If recptr at start of buf and RS not found then expand buffer
+      memmove(zfp->buf, TT.rgl.recptr, zfp->lim - zfp->ro);
+      zfp->lim -= zfp->ro;
+      zfp->ro = 0;
+      continue;
+    }
+    ret = so;   // If RS found, then 'so' is rec length
+    if (zfp->eof) {
+      if (r) {  // EOF and RS not found; rec is all data left in buf
+        ret = zfp->lim - zfp->ro;
+        zfp->ro = zfp->lim; // set ro for -1 return on next call
+      } else zfp->ro += eo; // RS found; advance ro
+    } else zfp->ro += eo; // Here only if RS found not near lim
+
+    if (!r || !zfp->is_tty) {
+      // If is_tty then RS found; reset buffer pointers;
+      // is_tty uses one rec per buffer load
+      if (zfp->is_tty) zfp->ro = zfp->lim = 0;
+      break;
+    } // RS not found AND is_tty; loop to keep reading
+  }
+  regfree(&rsrx);
+  return ret;
+}
+
+// get a record; return length, or -1 at EOF
 static ssize_t getrec_f(struct zfile *zfp)
 {
-  int r = 0, rs = ENSURE_STR(&STACK[RS])->vst->str[0] & 0xff;
-  if (!rs) return getrec_multiline(zfp);
-  regex_t rsrx, *rsrxp = &rsrx;
-  // TEMP!! FIXME Need to cache and avoid too-frequent rx compiles
-  rx_zvalue_compile(&rsrxp, &STACK[RS]);
-  regoff_t so = 0, eo = 0;
-  long ret = -1;
-  for ( ;; ) {
-    if (zfp->recoffs == zfp->endoffs) {
-#define INIT_RECBUF_LEN     8192
-#define RS_LENGTH_MARGIN    (INIT_RECBUF_LEN / 8)
-      if (!zfp->recbuf)
-        zfp->recbuf = xmalloc((zfp->recbufsize = INIT_RECBUF_LEN) + 1);
-      zfp->endoffs = fread(zfp->recbuf, 1, zfp->recbufsize, zfp->fp);
-      zfp->recoffs = 0;
-      zfp->recbuf[zfp->endoffs] = 0;
-      if (!zfp->endoffs) break;
-    }
-    TT.rgl.recptr = zfp->recbuf + zfp->recoffs;
-    r = rx_findx(rsrxp, TT.rgl.recptr, zfp->endoffs - zfp->recoffs, &so, &eo, 0);
-    // if not found, or found "near" end of buffer...
-    if (r || zfp->recoffs + eo > (int)zfp->recbufsize - RS_LENGTH_MARGIN) {
-      // if at end of data, and (not found or found at end of data)
-      if (zfp->endoffs < (int)zfp->recbufsize &&
-          (r || zfp->recoffs + eo == zfp->endoffs)) {
-        ret = zfp->endoffs - zfp->recoffs;
-        zfp->recoffs = zfp->endoffs;
-        break;
-      }
-      if (zfp->recoffs) {
-        memmove(zfp->recbuf, TT.rgl.recptr, zfp->endoffs - zfp->recoffs);
-        zfp->endoffs -= zfp->recoffs;
-        zfp->recoffs = 0;
-      } else zfp->recbuf =
-        xrealloc(zfp->recbuf, (zfp->recbufsize = zfp->recbufsize * 3 / 2) + 1);
-      zfp->endoffs += fread(zfp->recbuf + zfp->endoffs,
-                      1, zfp->recbufsize - zfp->endoffs, zfp->fp);
-      zfp->recbuf[zfp->endoffs] = 0;
-    } else {
-      // found and not too near end of data
-      ret = so;
-      TT.rgl.recptr[so] = 0;
-      zfp->recoffs += eo;
-      break;
-    }
-  }
-  regfree(rsrxp);
-  return ret;
+  int k;
+  if (ENSURE_STR(&STACK[RS])->vst->str[0]) return getr(zfp, 0);
+  // RS == "" so multiline read
+  // Passing 1 to getr() forces multiline mode, which uses regex "\n\n+" to
+  // split on sequences of 2 or more newlines. But that's not the same as
+  // multiline mode, which never returns empty records or records with leading
+  // or trailing newlines, which can occur with RS="\n\n+". So here we loop and
+  // strip leading/trailing newlines and discard empty lines. See gawk manual,
+  // "4.9 Multiple-Line Records" for info on this difference.
+  do {
+    k = getr(zfp, 1);
+    if (k < 0) break;
+    while (k && TT.rgl.recptr[k-1] == '\n') k--;
+    while (k && TT.rgl.recptr[0] == '\n') k--, TT.rgl.recptr++;
+  } while (!k);
+  return k;
 }
 
 static ssize_t getrec(void)
@@ -3540,13 +3584,6 @@ static void gsub(int opcode, int nargs, int parmbase)
   if (field_num >= 0) fixup_fields(field_num);
 }
 
-static long millinow(void)
-{
-  struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  return ts.tv_sec*1000+ts.tv_nsec/1000000;
-}
-
 // Initially set stackp_needmore at MIN_STACK_LEFT before limit.
 // When stackp > stackp_needmore, then expand and reset stackp_needmore
 static void add_stack(struct zvalue **stackp_needmore)
@@ -3618,18 +3655,19 @@ static int interpx(int start, int *status)
         break;
 
         // Comparisons (with the '<', "<=", "!=", "==", '>', and ">="
-        // operators) shall be made numerically if both operands are numeric,
-        // if one is numeric and the other has a string value that is a numeric
-        // string, or if one is numeric and the other has the uninitialized
-        // value. Otherwise, operands shall be converted to strings as required
-        // and a string comparison shall be made as follows:
+        // operators) shall be made numerically:
+        // * if both operands are numeric,
+        // * if one is numeric and the other has a string value that is a
+        //   numeric string,
+        // * if both have string values that are numeric strings, or
+        // * if one is numeric and the other has the uninitialized value.
         //
-        // For the "!=" and "==" operators, the strings should be compared to
-        // check if they are identical but may be compared using the
-        // locale-specific collation sequence to check if they collate equally.
-        //
-        // For the other operators, the strings shall be compared using the
-        // locale-specific collation sequence.
+        // Otherwise, operands shall be converted to strings as required and a
+        // string comparison shall be made as follows:
+        // * For the "!=" and "==" operators, the strings shall be compared to
+        //   check if they are identical (not to check if they collate equally).
+        // * For the other operators, the strings shall be compared using the
+        //   locale-specific collation sequence.
         //
         // The value of the comparison expression shall be 1 if the relation is
         // true, or 0 if the relation is false.
@@ -4310,7 +4348,7 @@ static int interpx(int start, int *status)
         nargs = *ip++;
         if (nargs == 1) {
           STKP->num = seedrand(to_num(STKP));
-        } else push_int_val(seedrand(millinow()));
+        } else push_int_val(seedrand(time(0)));
         break;
       case tkcos: case tksin: case tkexp: case tklog: case tksqrt: case tkint:
         nargs = *ip++;
@@ -4469,12 +4507,12 @@ static void run(int optind, int argc, char **argv, char *sepstring,
   xregcomp(&TT.rx_default, "[ \t\n]+", REG_EXTENDED);
   xregcomp(&TT.rx_last, "[ \t\n]+", REG_EXTENDED);
   xregcomp(&TT.rx_printf_fmt, printf_fmt_rx, REG_EXTENDED);
-  new_file("-", stdin, 'r', 'f')->is_std_file = 1;
-  new_file("/dev/stdin", stdin, 'r', 'f')->is_std_file = 1;
-  new_file("/dev/stdout", stdout, 'w', 'f')->is_std_file = 1;
+  new_file("-", stdin, 'r', 1, 1);
+  new_file("/dev/stdin", stdin, 'r', 1, 1);
+  new_file("/dev/stdout", stdout, 'w', 1, 1);
   TT.zstdout = TT.zfiles;
-  new_file("/dev/stderr", stderr, 'w', 'f')->is_std_file = 1;
-  seedrand(123);
+  new_file("/dev/stderr", stderr, 'w', 1, 1);
+  seedrand(1);
   int status = -1, r = 0;
   if (TT.cgl.first_begin) r = interp(TT.cgl.first_begin, &status);
   if (r != tkexit)
@@ -4485,7 +4523,7 @@ static void run(int optind, int argc, char **argv, char *sepstring,
   regfree(&TT.rx_last);
   free_literal_regex();
   close_file(0);    // close all files
-  if (status >= 0) exit(status);
+  if (status >= 0) awk_exit(status);
 }
 
 ////////////////////

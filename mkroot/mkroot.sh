@@ -223,8 +223,7 @@ get_target_config()
       SERIAL_AMBA_PL011{,_CONSOLE} RTC_{CLASS,HCTOSYS,DRV_PL031} \
       PATA_{,OF_}PLATFORM PCI{,_HOST_GENERIC})"
   elif [ "$CROSS" == hexagon ]; then
-    QEMU="hexagon -M comet"
-    KARCH="hexagon LLVM_IAS=1" KCONF=SPI,SPI_BITBANG,IOMMU_SUPPORT
+    QEMU_M=comet KARCH="hexagon LLVM_IAS=1" KCONF=SPI,SPI_BITBANG,IOMMU_SUPPORT
   elif [ "$CROSS" == i486 ] || [ "$CROSS" == i686 ] ||
        [ "$CROSS" == x86_64 ] || [ "$CROSS" == x32 ]; then
     if [ "$CROSS" == i486 ]; then
@@ -239,23 +238,23 @@ get_target_config()
     KCONF+=,"$(be2csv UNWINDER_FRAME_POINTER PCI BLK_DEV_SD NET_VENDOR_INTEL \
       E1000 RTC_CLASS ATA{,_SFF,_BMDMA,_PIIX} SERIAL_8250{,_CONSOLE})"
   elif [ "$CROSS" == m68k ]; then
-    QEMU="m68k -M q800" KARCH=m68k
+    QEMU_M=q800 KARCH=m68k
     KCONF="$(be2csv MMU M68040 M68KFPU_EMU MAC BLK_DEV_SD MACINTOSH_DRIVERS \
       NET_VENDOR_NATSEMI MACSONIC SCSI{,_LOWLEVEL,_MAC_ESP} \
       SERIAL_PMACZILOG{,_TTYS,_CONSOLE})"
   elif [ "$CROSS" == microblaze ]; then
-    QEMU="microblaze -M petalogix-s3adsp1800" KARCH=microblaze KARGS=ttyUL0
+    QEMU_M=petalogix-s3adsp1800 KARCH=microblaze KARGS=ttyUL0
     KCONF="$(be2csv MMU CPU_BIG_ENDIAN SERIAL_UARTLITE{,_CONSOLE} \
       XILINX_{EMACLITE,MICROBLAZE0_{FAMILY="spartan3adsp",USE_{{MSR,PCMP}_INSTR,BARREL,HW_MUL}=1}})"
   elif [ "${CROSS#mips}" != "$CROSS" ]; then # mips mipsel mips64 mips64el
-    QEMU="$CROSS -M malta" KARCH=mips
+    QEMU_M=malta KARCH=mips
     KCONF="$(be2csv MIPS_MALTA CPU_MIPS32_R2 BLK_DEV_SD NET_VENDOR_AMD PCNET32 \
       PCI SERIAL_8250{,_CONSOLE} ATA{,_SFF,_BMDMA,_PIIX} POWER_RESET{,_SYSCON})"
     [ "${CROSS/64/}" == "$CROSS" ] && KCONF+=,CPU_MIPS32_R2 ||
       KCONF+=,64BIT,CPU_MIPS64_R1,MIPS32_O32
     [ "${CROSS%el}" != "$CROSS" ] && KCONF+=,CPU_LITTLE_ENDIAN
   elif [ "$CROSS" == or1k ]; then
-    KARCH=openrisc QEMU="or1k -M or1k-sim" KARGS=FIXME BUILTIN=1
+    KARCH=openrisc QEMU_M=or1k-sim KARGS=FIXME BUILTIN=1
     KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE})"
     KCONF+=,OPENRISC_BUILTIN_DTB=\"or1ksim\"
   elif [ "$CROSS" == powerpc ]; then
@@ -269,19 +268,20 @@ get_target_config()
       PPC_{PSERIES,OF_BOOT_TRAMPOLINE,TRANSACTIONAL_MEM,DISABLE_WERROR} \
       SCSI_{LOWLEVEL,IBMVSCSI})"
     [ "$CROSS" == powerpc64le ] && KCONF=$KCONF,CPU_LITTLE_ENDIAN
-  elif [ "$CROSS" = riscv32 ]; then
+  elif [ "$CROSS" = riscv32 ] || [ "$CROSS" = riscv64 ]; then
     # Note: -hda file.img doesn't work, but this insane overcomplicated pile:
     # -drive file=file.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
-    QEMU="riscv32 -M virt -netdev user,id=net0 -device virtio-net-device,netdev=net0"
+    QEMU_M="virt -netdev user,id=net0 -device virtio-net-device,netdev=net0"
     KARCH=riscv VMLINUX=Image
     # Probably only about half of these kernel symbols are actually needed?
-    KCONF="$(be2csv MMU SOC_VIRT NONPORTABLE ARCH_RV32I CMODEL_MEDANY \
+    KCONF="$(be2csv MMU SOC_VIRT NONPORTABLE CMODEL_MEDANY \
       RISCV_ISA_{ZICBO{M,Z},FALLBACK} FPU PCI{,_HOST_GENERIC} BLK_DEV_SD \
       SCSI_{PROC_FS,LOWLEVEL,VIRTIO} VIRTIO_{MENU,NET,BLK,PCI} SERIO_SERPORT \
       SERIAL_{EARLYCON,8250{,_CONSOLE,_PCI},OF_PLATFORM} HW_RANDOM{,_VIRTIO} \
       RTC_{CLASS,HCTOSYS} DMADEVICES VIRTIO_{MENU,PCI{,_LEGACY},INPUT,MMIO})"
+    [ "$CROSS" = riscv32 ] && KCONF+=,ARCH_RV32I
   elif [ "$CROSS" = s390x ]; then
-    QEMU="s390x" KARCH=s390 VMLINUX=bzImage
+    KARCH=s390 VMLINUX=bzImage
     KCONF="$(be2csv MARCH_Z900 PACK_STACK S390_GUEST VIRTIO_{NET,BLK} \
       SCLP_VT220_{TTY,CONSOLE})"
   elif [ "$CROSS" == sh2eb ]; then
@@ -293,7 +293,7 @@ get_target_config()
       BINFMT_{ELF_FDPIC,MISC} I2C{,_HELPER_AUTO})"
     KCONF+=,CMDLINE=\"console=ttyUL0\ earlycon\"
   elif [ "$CROSS" == sh4 ] || [ "$CROSS" == sh4eb ]; then
-    QEMU="$CROSS -M r2d -serial null -serial mon:stdio" KARCH=sh
+    QEMU_M="r2d -serial null -serial mon:stdio" KARCH=sh
     KARGS="ttySC1 noiotrap" VMLINUX=zImage
     KCONF="$(be2csv CPU_SUBTYPE_SH7751R MMU VSYSCALL SH_{FPU,RTS7751R2D} PCI \
       RTS7751R2D_PLUS SERIAL_SH_SCI{,_CONSOLE} NET_VENDOR_REALTEK 8139CP \
@@ -303,6 +303,7 @@ get_target_config()
     [ "$CROSS" == sh4eb ] && KCONF+=,CPU_BIG_ENDIAN
   else die "Unknown \$CROSS=$CROSS"
   fi
+  : ${QEMU:=$CROSS ${QEMU_M:+-M $QEMU_M}}
 }
 
 # Linux kernel .config symbols common to all architectures
