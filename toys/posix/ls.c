@@ -30,7 +30,7 @@ config LS
     -H  follow command line symlinks   -i  inode number
     -L  follow symlinks                -N  no escaping, even on tty
     -p  put '/' after dir names        -q  unprintable chars as '?'
-    -R  recursively list in subdirs    -s  storage used (in --block-size)
+    -R  recursively list in subdirs    -s  storage used (units of --block-size)
     -Z  security context
 
     output formats:
@@ -46,7 +46,7 @@ config LS
     -c  ctime      -r  reverse    -S  size     -t  time    -u  atime    -U  none
     -X  extension  -!  dirfirst   -~  nocase
 
-    --block-size N	block size (default 1024, -k resets to 1024)
+    --block-size N	block size for -s (default 1024, -k resets to 1024)
     --color  =always (default)  =auto (when stdout is tty) =never
         exe=green  suid=red  suidfile=redback  stickydir=greenback
         device=yellow  symlink=turquoise/red  dir=blue  socket=purple
