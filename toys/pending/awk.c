@@ -752,8 +752,6 @@ static int get_char(void)
     if (TT.scs->line == nl) return EOF;
     if (!TT.scs->fp) {
       progfile_open();
-    // The "  " + 1 is to set p to null string but allow ref to prev char for
-    // "lastchar" test below.
     }
     // Save last char to allow faking final newline.
     int lastchar = (TT.scs->p)[-2];
@@ -991,7 +989,7 @@ static void ascan_opt_div(int div_op_allowed_here)
       TT.scs->toktype = BUILTIN;
       TT.scs->tok = tkbuiltin;
       TT.scs->tokbuiltin = n;
-    } else if ((TT.scs->ch == '(')) {
+    } else if (TT.scs->ch == '(') {
       TT.scs->toktype = USERFUNC;
       TT.scs->tok = tkfunc;
     } else {
