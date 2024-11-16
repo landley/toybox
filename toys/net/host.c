@@ -162,9 +162,10 @@ void host_main(void)
       if (type==1 || type == 28)
         inet_ntop(type==1 ? AF_INET : AF_INET6, p, t2, t2len);
       else if (type==2 || type==5) xdn_expand(abuf, abuf+alen, p, t2, t2len);
-      else if (type==13 || type==16)
+      else if (type==13 || type==16) {
+        if (pllen && pllen-1==*p) p++, pllen--;
         sprintf(t2, "\"%.*s\"", minof(pllen, t2len), p);
-      else if (type==6) {
+      } else if (type==6) {
         ss = p+xdn_expand(abuf, abuf+alen, p, t2, t2len-1);
         j = strlen(t2);
         t2[j++] = ' ';
