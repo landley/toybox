@@ -1128,7 +1128,7 @@ static char *parse_word(char *start, int early)
           else if (qq==254) return start+1;
           else if (qq==255) toybuf[quote-1] = ')';
         } else if (ii==')') quote--;
-      } else if (ii==qq) quote--;        // matching end quote
+      } else if (ii==(qq&127)) quote--;        // matching end quote
       else if (qq!='\'') end--, ii = 0;  // single quote claims everything
       if (ii) continue;                  // fall through for other quote types
 
@@ -1146,11 +1146,11 @@ static char *parse_word(char *start, int early)
 
     // \? $() ${} $[] ?() *() +() @() !()
     else {
-      if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
+      if (ii=='$' && qq != 0247 && -1!=(qq = stridx("({['", *end))) {
         if (strstart(&end, "((")) {
           end--;
           toybuf[quote++] = 255;
-        } else toybuf[quote++] = ")}]"[qq];
+        } else toybuf[quote++] = ")}]\247"[qq]; // last is '+128
       } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
       else {
         if (ii!='\\') end--;
