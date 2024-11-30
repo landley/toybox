@@ -723,9 +723,12 @@ testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
   'yes\n' '' ''
 testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
 
-$BROKEN testing 'quoting contexts nest' \
-        $'echo -n "$(echo "hello $(eval $\'echo -\\\\\\ne \\\'world\\n \\\'\')")"' \
+# The trailing space is because the \n gets stripped off otherwise
+testing 'quoting contexts nest' \
+  $'echo -n "$(echo "hello $(eval $\'echo -\\\\\\ne \\\'world\\n \\\'\')")"' \
   'hello world\n ' '' ''
+testing "\$'' suppresses variable expansion" \
+  $'echo $\'$(abc\'' '$(abc\n' '' ''
 
 testing 'if; is a syntax error but if $EMPTY; is not' \
   'if $NONE; then echo hello; fi' 'hello\n' '' ''

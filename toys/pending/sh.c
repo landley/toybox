@@ -575,7 +575,7 @@ static char *getvar(char *s)
 // Append variable to ff->vars, returning *struct. Does not check duplicates.
 static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
 {
-  if (ff->varslen == ff->varscap && !(ff->varslen&31)) {
+  if (ff->varslen == ff->varscap) {
     ff->varscap += 32;
     ff->vars = xrealloc(ff->vars, (ff->varscap)*sizeof(*ff->vars));
   }
@@ -847,8 +847,8 @@ static int anystr(char *s, char **try)
 // Update $IFS cache in function call stack after variable assignment
 static void cache_ifs(char *s, struct sh_fcall *ff)
 {
-  if (!strncmp(s, "IFS=", 4))
-    do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
+  if (strstart(&s, "IFS="))
+    do ff->ifs = s; while ((ff = ff->next) != TT.ff->prev);
 }
 
 // declare -aAilnrux
@@ -951,7 +951,7 @@ bad:
 }
 
 // Creates new variables (local or global) and handles +=
-// returns 0 on error, else sh_vars of new entry.
+// returns 0 on error, else sh_vars of new entry. Adds at ff if not found.
 static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 {
   struct sh_vars *vv = 0, *was;
@@ -982,7 +982,7 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 // Returns sh_vars * or 0 for failure (readonly, etc)
 static struct sh_vars *setvar(char *str)
 {
-  return setvar_long(str, 0, TT.ff->prev);
+  return setvar_long(str, 1, TT.ff->prev);
 }
 
 
@@ -1004,7 +1004,7 @@ static int unsetvar(char *name)
     // free from global context
     } else {
       if (!(var->flags&VAR_NOFREE)) free(var->str);
-      memmove(var, var+1, sizeof(ff->vars)*(ff->varslen-(var-ff->vars)));
+      memmove(var, var+1, sizeof(ff->vars)*(ff->varslen-- -(var-ff->vars)));
     }
     if (!strcmp(name, "IFS"))
       do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
@@ -1128,7 +1128,7 @@ static char *parse_word(char *start, int early)
           else if (qq==254) return start+1;
           else if (qq==255) toybuf[quote-1] = ')';
         } else if (ii==')') quote--;
-      } else if (ii==qq) quote--;        // matching end quote
+      } else if (ii==(qq&127)) quote--;        // matching end quote
       else if (qq!='\'') end--, ii = 0;  // single quote claims everything
       if (ii) continue;                  // fall through for other quote types
 
@@ -1146,11 +1146,11 @@ static char *parse_word(char *start, int early)
 
     // \? $() ${} $[] ?() *() +() @() !()
     else {
-      if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
+      if (ii=='$' && qq != 0247 && -1!=(qq = stridx("({['", *end))) {
         if (strstart(&end, "((")) {
           end--;
           toybuf[quote++] = 255;
-        } else toybuf[quote++] = ")}]"[qq];
+        } else toybuf[quote++] = ")}]\247"[qq]; // last is '+128
       } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
       else {
         if (ii!='\\') end--;
