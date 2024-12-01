@@ -302,9 +302,6 @@ struct zmap {
 
 #define NO_EXIT_STATUS  (9999987)  // value unlikely to appear in exit stmt
 
-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
-ssize_t getdelim(char ** restrict lineptr, size_t * restrict n, int delimiter, FILE *stream);
-
 
 
 ////////////////////
