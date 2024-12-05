@@ -142,7 +142,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 #define bswap_32(x) OSSwapInt32(x)
 #define bswap_64(x) OSSwapInt64(x)
 
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)  || defined(__NetBSD__)
 
 #include <sys/endian.h>
 
@@ -152,9 +152,15 @@ void *memmem(const void *haystack, size_t haystack_length,
 #define IS_BIG_ENDIAN 0
 #endif
 
+#ifdef __OpenBSD__
+#define bswap_16(x) swap16(x)
+#define bswap_32(x) swap32(x)
+#define bswap_64(x) swap64(x)
+#else
 #define bswap_16(x) bswap16(x)
 #define bswap_32(x) bswap32(x)
 #define bswap_64(x) bswap64(x)
+#endif
 
 #else
 
@@ -197,7 +203,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 
 #ifdef __APPLE__
 #include <util.h>
-#elif !defined(__FreeBSD__) && !defined(__OpenBSD__)
+#elif !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
 #include <pty.h>
 #else
 #include <termios.h>
@@ -237,7 +243,12 @@ int posix_fallocate(int, off_t, off_t);
 #include <xlocale.h>
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef __NetBSD__
+#include <sys/statvfs.h>
+#define statfs statvfs
+#endif
+
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static inline long statfs_bsize(struct statfs *sf) { return sf->f_iosize; }
 static inline long statfs_frsize(struct statfs *sf) { return sf->f_bsize; }
 #else

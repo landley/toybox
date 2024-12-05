@@ -8,6 +8,10 @@ then
   exit 1
 fi
 
+case ${OD-} in
+'') OD=$(command -v god || command -v ggod || echo od);; # use od from GNU coretutils
+esac
+
 if [ -z "$SED" ]
 then
   [ ! -z "$(command -v gsed 2>/dev/null)" ] && SED=gsed || SED=sed
@@ -19,7 +23,12 @@ then
   CFLAGS+=" -Wno-deprecated-declarations"
   : ${LDOPTIMIZE:=-Wl,-dead_strip} ${STRIP:=strip}
 else
-  : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
+  case "$(uname)" in
+  'NetBSD'|'OpenBSD') # don't strip .note.*bsd*
+    : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .comment};;
+  *)
+    : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment};;
+  esac
 fi
 
 # Disable pointless warnings only clang produces
@@ -27,6 +36,11 @@ fi
   CFLAGS+=" -Wno-string-plus-int -Wno-invalid-source-encoding" ||
 # And ones only gcc produces
   CFLAGS+=" -Wno-restrict -Wno-format-overflow"
+
+case "$(uname)" in
+'NetBSD'|'OpenBSD')
+  unset ASAN;;
+esac
 
 # Address Sanitizer
 if [ -n "$ASAN" ]; then
