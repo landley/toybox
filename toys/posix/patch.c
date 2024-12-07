@@ -166,6 +166,7 @@ static int apply_one_hunk(void)
     }
   }
   matcheof = !trail || trail < TT.context;
+  if (FLAG(F) && !TT.F) fuzz = 0;
   if (fuzz>1) allfuzz = TT.F ? : TT.context ? TT.context-1 : 0;
 
   // Loop through input data searching for this hunk. Match all context
