@@ -316,9 +316,6 @@ int main(int argc, char *argv[])
     toys.stacktop = &stack_start;
   }
 
-  // Android before O had non-default SIGPIPE, 7 years = remove in Sep 2024.
-  if (CFG_TOYBOX_ON_ANDROID) signal(SIGPIPE, SIG_DFL);
-
   if (CFG_TOYBOX) {
     // Call the multiplexer with argv[] as its arguments so it can toy_find()
     toys.argv = argv-1;
