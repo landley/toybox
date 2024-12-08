@@ -20,7 +20,7 @@
  * No --no-null because the args infrastructure isn't ready.
  * Until args.c learns about no- toggles, --no-thingy always wins over --thingy
 
-USE_TAR(NEWTOY(tar, "&(zstd)(one-file-system)(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(sort);:(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):as[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_TAR(NEWTOY(tar, "&(one-file-system)(no-ignore-case)(ignore-case)(no-anchored)(anchored)(no-wildcards)(wildcards)(no-wildcards-match-slash)(wildcards-match-slash)(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(sort);:(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*Z(zstd)o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):as[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config TAR
   bool "tar"
@@ -36,7 +36,7 @@ config TAR
     J  xz compression        j  bzip2 compression     z  gzip compression
     o  Ignore owner          h  Follow symlinks       m  Ignore mtime
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
-    s  Sort dirs (--sort)
+    s  Sort dirs (--sort)    Z  zstd compression
 
     --exclude        FILENAME to exclude  --full-time         Show seconds with -tv
     --mode MODE      Adjust permissions   --owner NAME[:UID]  Set file ownership
@@ -48,7 +48,6 @@ config TAR
     --strip-components NUM  Ignore first NUM directory components when extracting
     --xform=SED      Modify filenames via SED expression (ala s/find/replace/g)
     -I PROG          Filter through PROG to compress or PROG -d to decompress
-    --zstd           zstd compression
 
     Filename filter types. Create command line args aren't filtered, extract
     defaults to --anchored, --exclude defaults to --wildcards-match-slash,
@@ -1004,7 +1003,7 @@ static void do_XT(char **pline, long len)
 
 static char *get_archiver()
 {
-  return TT.I ? : FLAG(z)?"gzip" : FLAG(j)?"bzip2" : FLAG(zstd)?"zstd" : "xz";
+  return TT.I ? : FLAG(z)?"gzip" : FLAG(j)?"bzip2" : FLAG(Z)?"zstd" : "xz";
 }
 
 void tar_main(void)
@@ -1095,13 +1094,13 @@ void tar_main(void)
     char *hdr = 0;
 
     // autodetect compression type when not specified
-    if (!(FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(zstd))) {
+    if (!(FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(Z))) {
       len = xread(TT.fd, hdr = toybuf+sizeof(toybuf)-512, 512);
       if (len!=512 || !is_tar_header(hdr)) {
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
         else if (!smemcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
-	else if (!smemcmp(hdr, "\x28\xb5\x2f\xfd", 4)) toys.optflags|=FLAG_zstd;
+	else if (!smemcmp(hdr, "\x28\xb5\x2f\xfd", 4)) toys.optflags|=FLAG_Z;
         else if (peek_be(hdr, 7) == 0xfd377a585a0000ULL) toys.optflags |= FLAG_J;
         else error_exit("Not tar");
 
@@ -1110,10 +1109,10 @@ void tar_main(void)
       }
     }
 
-    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(zstd)) {
+    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(Z)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
       struct string_list *zcat = FLAG(I) ? 0 : find_in_path(getenv("PATH"),
-        FLAG(z)?"zcat" : FLAG(j)?"bzcat" : FLAG(zstd)?"zstdcat" : "xzcat");
+        FLAG(z)?"zcat" : FLAG(j)?"bzcat" : FLAG(Z)?"zstdcat" : "xzcat");
 
       // Toybox provides more decompressors than compressors, so try them first
       TT.pid = xpopen_both(zcat ? (char *[]){zcat->str, 0} :
@@ -1176,19 +1175,19 @@ void tar_main(void)
     struct double_list *dl = TT.incl;
 
     // autodetect compression type based on -f name. (Use > to avoid.)
-    if (TT.f && !(FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(zstd))) {
+    if (TT.f && !(FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(Z))) {
       char *tbz[] = {".tbz", ".tbz2", ".tar.bz", ".tar.bz2"};
       if (strend(TT.f, ".tgz") || strend(TT.f, ".tar.gz"))
         toys.optflags |= FLAG_z;
       else if (strend(TT.f, ".txz") || strend(TT.f, ".tar.xz"))
         toys.optflags |= FLAG_J;
       else if (strend(TT.f, ".tzst") || strend(TT.f, ".tar.zst"))
-        toys.optflags |= FLAG_zstd;
+        toys.optflags |= FLAG_Z;
       else for (len = 0; len<ARRAY_LEN(tbz); len++)
         if (strend(TT.f, tbz[len])) toys.optflags |= FLAG_j;
     }
 
-    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(zstd)) {
+    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)||FLAG(Z)) {
       int pipefd[2] = {-1, TT.fd};
 
       TT.pid = xpopen_both((char *[]){get_archiver(), 0}, pipefd);
