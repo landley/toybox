@@ -51,7 +51,16 @@ echo "hello world" | gzip > f1.gz
 chmod 0411 f1.gz
 touch -a -t 197801020304 f1.gz
 touch -m -t 198704030201 f1.gz
-testing "permissions/times preservation" \
+case $(uname) in
+'FreeBSD'|'NetBSD'|'OpenBSD')
+  testing "permissions/times preservation" \
+    "gunzip -k f1.gz && stat -f '%p %a %m' f1 && stat -f '%p %m' f1.gz" \
+    "100411 252558240 544413660\n100411 544413660\n" "" ""
+  ;;
+*)
+  testing "permissions/times preservation" \
     "gunzip -k f1.gz && stat -c '%a %X %Y' f1 && stat -c '%a %Y' f1.gz" \
     "411 252558240 544413660\n411 544413660\n" "" ""
+  ;;
+esac
 rm -f f1 f1.gz
