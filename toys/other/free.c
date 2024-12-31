@@ -2,19 +2,19 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-// Flag order is signifcant: b-g are units in order, FLAG_h-1 is unit mask
-USE_FREE(NEWTOY(free, "hgmkb[!hgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
+// Flag order is signifcant: b-e are units in order, FLAG_h-1 is unit mask
+USE_FREE(NEWTOY(free, "heptgmkb[!heptgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FREE
   bool "free"
   default y
   help
-    usage: free [-bkmgt]
+    usage: free [-hbkmgtpe]
 
     Display the total, free and used amount of physical memory and swap space.
 
-    -bkmg	Output units (default is bytes)
-    -h	Human readable (K=1024)
+    -bkmgtpe  Output units (default is bytes)
+    -h        Human readable (K=1024)
 */
 
 #define FOR_free
