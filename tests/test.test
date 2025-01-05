@@ -114,13 +114,16 @@ testing "-lt" "arith_test -lt" "l" "" ""
 testing "-le" "arith_test -le" "le" "" ""
 
 touch oldfile -d 1970-01-01
-touch newfile -d 2031-01-01
+touch newfile -d 2031-01-01T00:00:00.5
+ln -s newfile samefile
 
 testcmd "-ef" "newfile -ef newfile && echo yes" "yes\n" "" ""
+testcmd "-ef link" "newfile -ef samefile && echo yes" "yes\n" "" ""
 testcmd "-ef2" "newfile -ef oldfile || echo no" "no\n" "" ""
 testcmd "-ot" "oldfile -ot newfile && echo yes" "yes\n" "" ""
 testcmd "-ot2" "oldfile -ot oldfile || echo no" "no\n" "" ""
 testcmd "-nt" "newfile -nt oldfile && echo yes" "yes\n" "" ""
+testcmd "-nt2" "oldfile -nt newfile || echo no" "no\n" "" ""
 testcmd "-nt2" "oldfile -nt newfile || echo no" "no\n" "" ""
 
 testing "positional" "test -a == -a && echo yes" "yes\n" "" ""
