@@ -128,49 +128,25 @@ void *memmem(const void *haystack, size_t haystack_length,
 
 // Work out how to do endianness
 
+#define IS_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#define IS_BIG_ENDIAN (!IS_LITTLE_ENDIAN)
+
 #ifdef __APPLE__
 
 #include <libkern/OSByteOrder.h>
-
-#ifdef __BIG_ENDIAN__
-#define IS_BIG_ENDIAN 1
-#else
-#define IS_BIG_ENDIAN 0
-#endif
-
 #define bswap_16(x) OSSwapInt16(x)
 #define bswap_32(x) OSSwapInt32(x)
 #define bswap_64(x) OSSwapInt64(x)
-
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
-
 #include <sys/endian.h>
-
-#if _BYTE_ORDER == _BIG_ENDIAN
-#define IS_BIG_ENDIAN 1
-#else
-#define IS_BIG_ENDIAN 0
-#endif
-
 #define bswap_16(x) bswap16(x)
 #define bswap_32(x) bswap32(x)
 #define bswap_64(x) bswap64(x)
-
 #else
-
 #include <byteswap.h>
-#include <endian.h>
-
-#if __BYTE_ORDER == __BIG_ENDIAN
-#define IS_BIG_ENDIAN 1
-#else
-#define IS_BIG_ENDIAN 0
-#endif
-
 #endif
 
 #if IS_BIG_ENDIAN
-#define IS_LITTLE_ENDIAN 0
 #define SWAP_BE16(x) (x)
 #define SWAP_BE32(x) (x)
 #define SWAP_BE64(x) (x)
@@ -178,7 +154,6 @@ void *memmem(const void *haystack, size_t haystack_length,
 #define SWAP_LE32(x) bswap_32(x)
 #define SWAP_LE64(x) bswap_64(x)
 #else
-#define IS_LITTLE_ENDIAN 1
 #define SWAP_BE16(x) bswap_16(x)
 #define SWAP_BE32(x) bswap_32(x)
 #define SWAP_BE64(x) bswap_64(x)
