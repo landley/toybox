@@ -135,11 +135,10 @@ testing "<2" 'test def \< abc || echo yes' "yes\n" "" ""
 testing ">1" 'test abc \> def || echo yes' "yes\n" "" ""
 testing ">2" 'test def \> abc && echo yes' "yes\n" "" ""
 
-# toyonly doesn't work with TOYFLAG_NOHELP
 # bash only has this for [[ ]] but extra tests to _exclude_ silly...
-#toyonly testcmd "=~" 'abc =~ a.c && echo yes' "yes\n" "" ""
-#toyonly testcmd "=~ fail" 'abc =~ d.c; echo $?' '1\n' "" ""
-#toyonly testcmd "=~ zero length match" 'abc =~ "1*" && echo yes' 'yes\n' '' ''
+toyonly testcmd "=~" 'abc =~ a.c && echo yes' "yes\n" "" ""
+toyonly testcmd "=~ fail" 'abc =~ d.c; echo $?' '1\n' "" ""
+toyonly testcmd "=~ zero length match" 'abc =~ "1*" && echo yes' 'yes\n' '' ''
 
 # test ! = -o a
 # test ! \( = -o a \)

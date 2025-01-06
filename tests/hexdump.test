@@ -2,6 +2,7 @@
 
 [ -f testing.sh ] && . testing.sh
 
+[ -n "$TEST_HOST" ] && NOSPACE=1
 testcmd "simple file" "input" "0000000 6973 706d 656c 000a\n0000007\n" "simple\\n" ""
 testcmd "simple file -b" "-b input" "0000000 163 151 155 160 154 145 012\n0000007\n" "simple\\n" ""
 testcmd "simple file -c" "-c input" "0000000   s   i   m   p   l   e  \\\\n\n0000007\n" "simple\\n" ""
