@@ -255,8 +255,9 @@ get_target_config()
       KCONF+=,64BIT,CPU_MIPS64_R1,MIPS32_O32
     [ "${CROSS%el}" != "$CROSS" ] && KCONF+=,CPU_LITTLE_ENDIAN
   elif [ "$CROSS" == or1k ]; then
-    KARCH=openrisc QEMU_M=or1k-sim KARGS=ttyS0
-    KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE})"
+    KARCH=openrisc QEMU_M=virt KARGS=ttyS0
+    KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE} \
+      VIRTIO_{MENU,NET,BLK,PCI,MMIO} POWER_RESET{,_SYSCON{,_POWEROFF}} SYSCON_REBOOT_MODE)"
   elif [ "$CROSS" == powerpc ]; then
     KARCH=powerpc QEMU="ppc -M g3beige"
     KCONF="$(be2csv ALTIVEC PATA_MACIO BLK_DEV_SD MACINTOSH_DRIVERS SERIO \
