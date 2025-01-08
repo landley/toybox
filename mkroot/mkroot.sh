@@ -203,9 +203,9 @@ get_target_config()
     # This could use the same VIRT board as armv7, but let's demonstrate a
     # different one requiring a separate device tree binary.
     KARCH=arm KARGS=ttyAMA0 VMLINUX=zImage
-    QEMU="arm -M versatilepb -net nic,model=rtl8139 -net user"
+    QEMU="arm -M versatilepb"
     KCONF="$(be2csv CPU_ARM926T MMU VFP ARM_THUMB AEABI ARCH_VERSATILE ATAGS \
-      DEPRECATED_PARAM_STRUCT BLK_DEV_SD NET_VENDOR_REALTEK 8139CP \
+      DEPRECATED_PARAM_STRUCT BLK_DEV_SD GPIOLIB NET_VENDOR_SMSC SMC91X \
       ARM_ATAG_DTB_COMPAT{,_CMDLINE_EXTEND} PCI{,_VERSATILE} \
       SERIAL_AMBA_PL011{,_CONSOLE} RTC_{CLASS,DRV_PL031,HCTOSYS} \
       SCSI{,_LOWLEVEL,_SYM53C8XX_{2,MMIO,DMA_ADDRESSING_MODE=0}})"
