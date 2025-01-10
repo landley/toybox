@@ -451,7 +451,7 @@ entries, and merged most KERNEL_CONFIG lines into KCONF.
 NAME=\"this\ that\" to work right.) Added the legacy NLS
 dependencies the VFAT driver needs (even though we selected UTF8) to the
 base config. The init script now tests if stdin is open via
-"2>/dev/null <0 || blah" so only does the exec redirect for /dev/console
+"2&gt;/dev/null &lt;0 || blah" so only does the exec redirect for /dev/console
 when necessary.
 Fixed the .config checker to replace the toybox config when CONFIG_SH=y
 isn't set, so "make defconfig; mkroot/mkroot.sh" should work now.
@@ -909,7 +909,7 @@ file metadata comparisons. (If you're wondering why something so simple should
 have a function encapsulating the logic, this release also has at least 3
 different bugfix commits for thinkos from switching all the commands over
 to use them instead of doing the test ourselves. All missing/extra ! or
-&& vs || level stuff.)</p>
+&amp;&amp; vs || level stuff.)</p>
 
 <p>The <b>exit_signal()</b> handler now blocks signals so <b>sigatexit()</b> won't
 re-enter the list when it receives two different killer signals. (Since
@@ -1056,9 +1056,6 @@ talk to).</p>
 <p>One command was removed: <b>catv</b> didn't really serve a purpose
 (everybody just uses <b>cat -v</b>).</p>
 
-
-
-
 <p><u>Features</u>:
 <b>top</b> can now move the list with the LEFT/RIGHT cursor keys (changing the
 sort field is now SHIFT LEFT/RIGHT). Added <b>find -samefile</b>,
@@ -1142,7 +1139,7 @@ Minor cleanups to ping, fsync, ionice, pmap, truncate, timeout, tty,
 factor, mount.
 Went through and replaced \033 with \e in strings (since clang supports
 it and \033 is just awkward). Added LL to constant 0 in the FLAG macros
-to prevent gcc from warning that 0<<32 might produce 0.
+to prevent gcc from warning that 0&lt;&lt;32 might produce 0.
 Moved llvm's -Wno-string-plus-int into configure instead of probing
 for it, since gcc no longer dies when asked to suppress an unknown warning.</p>
 
@@ -1674,7 +1671,7 @@ with toysh making it all the way through toyroot's init script.
 
 <p><u>Toyroot</u>: <b>make root</b> now does what it says on the tin, it
 builds a bootable toybox-based Linux system using two source
-packages (toybox and linux). The trivial version is "make root && sudo chroot
+packages (toybox and linux). The trivial version is "make root &amp;&amp; sudo chroot
 root/host/fs /init". Here's
 a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2020-April/011667.html>post with instructions</a> if you want to know how to build the
 cross compilers for testing the various architectures. The self-contained
@@ -2407,7 +2404,7 @@ needs that for the s390x target).</p>
 <p><u>Coding style</u>:
 Rob converted the rest of the option GLOBALS() to the new single letter
 coding style, and the new FLAG(x) macro is a slightly tidier way to say
-"toys.optflags&FLAG_x".
+"toys.optflags&amp;FLAG_x".
 Removed CFG_SORT_BIG (the sort command always
 has the full functionality now. The general future direction or toybox
 is to either have a command or not have it; multiple versions of the
@@ -2623,7 +2620,7 @@ uppercase characters.
 Elliott fixed several things in <b>top</b> (removed spurious '\r' characters from -b
 output, removed interactive flicker, made running processes bold), and
 pushed Rob to make <b>file</b> work better recognizing things on stdin
-("cat /bin/ls | file -" still won't work but "file - < /bin/ls" should).
+("cat /bin/ls | file -" still won't work but "file - &lt; /bin/ls" should).
 Rob fixed a bug in <b>netstat</b> on 64 bit big endian systems,
 and fixed <b>cut</b> -DF
 (a posix compliance fix broke its ability to act as a decent awk replacment
@@ -2637,7 +2634,7 @@ to two columns.</p>
 
 <p><u>Library</u>:
 FLAGS_NODASH is now set in toys.optargs when an optstring starting
-with & has no dash in its first argument. (This lets "ps -ax" and "ps ax"
+with &amp; has no dash in its first argument. (This lets "ps -ax" and "ps ax"
 behave differently.) Factored out xtestfile() into lib/.
 The comma-separated-list parsing infrastructure moved to lib/commas.c.
 Added mkpath() for the common case of mkpathat() and #defined MKPATHAT_*
@@ -2875,7 +2872,7 @@ simple range checks for fields (to avoid false positives from things like
 timezones and daylight savings time), removed %s from date's help (we
 didn't implement it, we have @seconds[.nanoseconds] instead), fixed
 zcat's buffer flush logic (which was always failing on files larger
-than 32k), and factor now detects requests for numbers >64 bits and fails
+than 32k), and factor now detects requests for numbers &gt;64 bits and fails
 loudly instead of producing incorrect answers.
 Elliott fixed touch -a/-m (they were backwards), and allowed ':' in
 setprop's property names. Grep now exits with 2 for errors (so -q can
@@ -3398,7 +3395,7 @@ to explain what they're for.</p>
 <li><p>Expanded toys.optargs to 64 bits so a command can have more than 32 options.</p></li>
 <li><p>Added NOEXIT() wrapper to turn xwrap() functions into warning versions
 using the existing longjump(toys.rebound) infrastructure.</p></li>
-<li><p>Renamed dirtree->data to dirfd and stopped storing symlink length
+<li><p>Renamed dirtree-&gt;data to dirfd and stopped storing symlink length
 into it (this fixed a bug where following symlinks to directories
 didn't give a valid directory filehandle, noticeable with ls -Z).</p></li>
 <li><p>New TAGGED_ARRAY() infrastructure generates index and bitmask macros
@@ -4170,7 +4167,7 @@ got enough OS bits working to run a full configureand make.</p>
 
 <p>Library code: xcreate/xopen now O_CLOEXEC by default to avoid leaking
 filehandles to child processes. DIRTREE_COMEAGAIN's second callback is now
-done with the directory filehandle still open (new dir->again variable added
+done with the directory filehandle still open (new dir-&gt;again variable added
 to distinguish first from second callback, and requesting DIRTREE_RECURSE now
 requires passing in the specific macro value, not just a true/false).
 Use daemon() out of libc instead of hand-rolled daemonize() in various
@@ -4613,7 +4610,7 @@ didn't match anybody else's behavior and thus made the test suite hiccup
 between TEST_HOST and testing toybox. (If you go "TEST_HOST=1 scripts/test.sh
 command" it sanity checks the tests against the host implementation.)</p>
 
-<p>Last release, "mkdir sub/sub && chmod 007 sub/sub && rm -rf sub" didn't
+<p>Last release, "mkdir sub/sub &amp;&amp; chmod 007 sub/sub &amp;&amp; rm -rf sub" didn't
 delete sub and didn't exit with an error either. Neither was correct, rm
 should now be fixed.</p>
 
@@ -4988,7 +4985,7 @@ you need a quarter-second sleep, it can do that now), and fixed a build bug
 on slackware.</p>
 
 <p>Daniel Walter contributed a string to mode_t parser (in use by chmod and
-mkdir -m).  Ilya Kuzmich contributed comm. Elie De Brauwer added mountpoint,
+mkdir -m). Ilya Kuzmich contributed comm. Elie De Brauwer added mountpoint,
 vmstat, logname, login, and mktemp. Kevin Chase did some portability cleanups.
 Pere Orga fixed some documentation.</p>
 
