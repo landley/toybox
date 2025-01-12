@@ -598,8 +598,8 @@ static void schedule_jobs(time_t ctime, time_t ptime)
         if (FLAG(d)) loginfo(5, " line %s", job->cmd);
 
         if (job->min[lt->tm_min] && job->hour[lt->tm_hour]
-            && (job->dom[lt->tm_mday] || job->dow[lt->tm_wday])
-            && job->mon[lt->tm_mon-1]) {
+            && (job->dom[lt->tm_mday-1] && job->dow[lt->tm_wday])
+            && job->mon[lt->tm_mon]) {
           if (FLAG(d))
             loginfo(5, " job: %d %s\n", (int)job->pid, job->cmd);
           if (job->pid > 0) {
