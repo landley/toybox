@@ -27,13 +27,11 @@ config CROND
 #include "toys.h"
 
 GLOBALS(
-  char *crontabs_dir;
-  char *logfile;
+  char *c, *l;
   int loglevel_d;
   int loglevel;
 
   time_t crontabs_dir_mtime;
-  uint8_t flagd;
 )
 
 typedef struct _var {
@@ -60,44 +58,37 @@ static char months[]={"jan""feb""mar""apr""may""jun""jul"
   "aug""sep""oct""nov""dec"};
 CRONFILE *gclist;
 
-#define LOG_EXIT 0
-#define LOG_LEVEL5 5
-#define LOG_LEVEL7 7
-#define LOG_LEVEL8 8
-#define LOG_LEVEL9 9 // warning
-#define LOG_ERROR 20
-
-static void loginfo(uint8_t loglevel, char *msg, ...)
+static void loginfo(int loglevel, char *msg, ...)
 {
   va_list s, d;
+  int used;
+  char *smsg;
+
+  if (loglevel < TT.loglevel) return;
 
   va_start(s, msg);
   va_copy(d, s);
-  if (loglevel >= TT.loglevel) {
-    int used;
-    char *smsg;
 
-    if (!TT.flagd && TT.logfile) {
-      int fd = open(TT.logfile, O_WRONLY | O_CREAT | O_APPEND, 0666);
-      if (fd==-1) perror_msg("'%s", TT.logfile);
-      else {
-        dup2(fd, 2);
-        close(fd);
-      }
+  if (!FLAG(d) && TT.l) {
+    int fd = open(TT.l, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd==-1) perror_msg("%s", TT.l);
+    else {
+      dup2(fd, 2);
+      close(fd);
     }
-    used = vsnprintf(NULL, 0, msg, d);
-    smsg = xzalloc(++used);
-    vsnprintf(smsg, used, msg, s);
-    if (TT.flagd || TT.logfile) {
-      fflush(NULL);
-      smsg[used-1] = '\n';
-      writeall((loglevel > 8) ? 2 : 1, smsg, used);
-    } else syslog((loglevel > 8) ? LOG_ERR : LOG_INFO, "%s", smsg);
-    free(smsg);
   }
+  used = vsnprintf(NULL, 0, msg, d);
+  smsg = xzalloc(++used);
+  vsnprintf(smsg, used, msg, s);
+  if (FLAG(d) || TT.l) {
+    fflush(NULL);
+    smsg[used-1] = '\n';
+    writeall((loglevel > 8) ? 2 : 1, smsg, used);
+  } else syslog((loglevel > 8) ? LOG_ERR : LOG_INFO, "%s", smsg);
+  free(smsg);
+
   va_end(d);
   va_end(s);
-  if (!loglevel) exit(20);
 }
 
 /*
@@ -187,14 +178,14 @@ static int parse_and_fillarray(char *dst, int min, int max, char *src)
     }
   }
 
-  if (TT.flagd && (TT.loglevel <= 5)) {
+  if (FLAG(d) && (TT.loglevel <= 5)) {
     for (start = 0; start < max; start++)
       fprintf(stderr, "%d", (unsigned char)dst[start]);
     fputc('\n', stderr);
   }
   return 0;
 ERROR:
-  loginfo(LOG_LEVEL9, "parse error at %s", src);
+  loginfo(9, "parse error at %s", src);
   return -1;
 }
 
@@ -226,7 +217,7 @@ static void parse_line(char *line, CRONFILE *cfile)
    * @hourly -> Run once an hour (0 * * * *).
    */
   if (*line == '@') return;
-  if (TT.flagd) loginfo(LOG_LEVEL5, "user:%s entry:%s", cfile->username, line);
+  if (FLAG(d)) loginfo(5, "user:%s entry:%s", cfile->username, line);
   while (count<5) {
     int len = strcspn(line, " \t");
 
@@ -276,7 +267,7 @@ static void parse_line(char *line, CRONFILE *cfile)
         goto STOP_PARSING;
       j->cmd = xstrdup(line);
 
-      if (TT.flagd) loginfo(LOG_LEVEL5, " command:%s", j->cmd);
+      if (FLAG(d)) loginfo(5, " command:%s", j->cmd);
       dlist_add_nomalloc((struct double_list **)&cfile->job, (struct double_list *)j);
       return;
 STOP_PARSING:
@@ -367,8 +358,11 @@ static void scan_cronfiles()
   struct dirent *entry;
 
   remove_completed_jobs();
-  if (chdir(TT.crontabs_dir)) loginfo(LOG_EXIT, "chdir(%s)", TT.crontabs_dir);
-  if (!(dp = opendir("."))) loginfo(LOG_EXIT, "chdir(%s)", ".");
+  if (!(dp = opendir(TT.c))) {
+    loginfo(10, "chdir(%s)", TT.c);
+    toys.exitval = 20;
+    xexit();
+  }
 
   while ((entry = readdir(dp))) {
     CRONFILE *cfile;
@@ -379,7 +373,7 @@ static void scan_cronfiles()
     if (isdotdot(entry->d_name)) continue;
 
     if (!getpwnam(entry->d_name)) {
-      loginfo(LOG_LEVEL7, "ignoring file '%s' (no such user)", entry->d_name);
+      loginfo(7, "ignoring file '%s' (no such user)", entry->d_name);
       continue;
     }
 
@@ -430,7 +424,7 @@ static void do_fork(CRONFILE *cfile, JOB *job, int fd, char *prog)
     VAR *v, *vstart = (VAR *)cfile->var;
     struct passwd *pwd = getpwnam(cfile->username);
 
-    if (!pwd) loginfo(LOG_LEVEL9, "can't get uid for %s", cfile->username);
+    if (!pwd) loginfo(9, "can't get uid for %s", cfile->username);
     else {
       char *file = "/bin/sh";
 
@@ -445,9 +439,9 @@ static void do_fork(CRONFILE *cfile, JOB *job, int fd, char *prog)
           _exit(1);
       }
       xsetuser(pwd);
-      if (chdir(pwd->pw_dir)) loginfo(LOG_LEVEL9, "chdir(%s)", pwd->pw_dir);
+      if (chdir(pwd->pw_dir)) loginfo(9, "chdir(%s)", pwd->pw_dir);
       if (prog) file = prog;
-      if (TT.flagd) loginfo(LOG_LEVEL5, "child running %s", file);
+      if (FLAG(d)) loginfo(5, "child running %s", file);
 
       if (fd >= 0) {
         int newfd = prog ? 0 : 1;
@@ -459,14 +453,14 @@ static void do_fork(CRONFILE *cfile, JOB *job, int fd, char *prog)
       }
       setpgrp();
       execlp(file, file, (prog ? "-ti" : "-c"), (prog ? NULL : job->cmd), (char *) NULL);
-      loginfo(LOG_ERROR, "can't execute '%s' for user %s", file, cfile->username);
+      loginfo(10, "can't execute '%s' for user %s", file, cfile->username);
 
       if (!prog) dprintf(1, "Exec failed: %s -c %s\n", file, job->cmd);
       _exit(EXIT_SUCCESS);
     }
   }
   if (pid < 0) {
-    loginfo(LOG_ERROR, "can't vfork");
+    loginfo(10, "can't vfork");
     pid = 0;
   }
   if (fd >=0) close(fd);
@@ -554,7 +548,7 @@ static void execute_jobs(void)
               cfile->username, getpid());
           if ((mailfd = open(toybuf, O_CREAT|O_TRUNC|O_WRONLY|O_EXCL|O_APPEND,
                   0600)) < 0) {
-            loginfo(LOG_ERROR, "can't create mail file %s for user %s, "
+            loginfo(10, "can't create mail file %s for user %s, "
                 "discarding output", toybuf, cfile->username);
           } else {
             dprintf(mailfd, "To: %s\nSubject: cron: %s\n\n", cfile->mailto, job->cmd);
@@ -570,7 +564,7 @@ static void execute_jobs(void)
               free(mailfile);
             }
           }
-          loginfo(LOG_LEVEL8, "USER %s pid %3d cmd %s",
+          loginfo(8, "USER %s pid %3d cmd %s",
               cfile->username, job->pid, job->cmd);
           if (job->pid < 0) job->needstart = 1;
           else job->isrunning = 1;
@@ -596,20 +590,20 @@ static void schedule_jobs(time_t ctime, time_t ptime)
     lt = localtime(&tm);
 
     while (cfile) {
-      if (TT.flagd) loginfo(LOG_LEVEL5, "file %s:", cfile->username);
+      if (FLAG(d)) loginfo(5, "file %s:", cfile->username);
       if (cfile->invalid) goto NEXT_CRONFILE;
       job = jstart = (JOB *)cfile->job;
 
       while (job) {
-        if (TT.flagd) loginfo(LOG_LEVEL5, " line %s", job->cmd);
+        if (FLAG(d)) loginfo(5, " line %s", job->cmd);
 
         if (job->min[lt->tm_min] && job->hour[lt->tm_hour]
             && (job->dom[lt->tm_mday] || job->dow[lt->tm_wday])
             && job->mon[lt->tm_mon-1]) {
-          if (TT.flagd)
-            loginfo(LOG_LEVEL5, " job: %d %s\n", (int)job->pid, job->cmd);
+          if (FLAG(d))
+            loginfo(5, " job: %d %s\n", (int)job->pid, job->cmd);
           if (job->pid > 0) {
-            loginfo(LOG_LEVEL8, "user %s: process already running: %s",
+            loginfo(8, "user %s: process already running: %s",
                 cfile->username, job->cmd);
           } else if (!job->pid) {
             job->pid = -1;
@@ -627,53 +621,47 @@ NEXT_CRONFILE:
 
 void crond_main(void)
 {
-  time_t ctime, ptime;
+  long long ctime, ptime, tdiff;
   int sleepfor = 60;
   struct stat sb;
 
-  TT.flagd = (toys.optflags & FLAG_d);
+  // We do this twice on nommu (because xvdaemon restart) but here for error msg
+  if (TT.c) {
+    if (!strend(TT.c, "/")) TT.c = xmprintf("%s/", TT.c);
+  } else TT.c = "/var/spool/cron/crontabs/";
+  xchdir(TT.c);
+
+  if (!FLAG(f)) xvdaemon();
 
   // Setting default params.
-  if (TT.flagd) TT.loglevel = TT.loglevel_d;
-  if (!(toys.optflags & (FLAG_f | FLAG_b))) toys.optflags |= FLAG_b;
-  if (!(toys.optflags & (FLAG_S | FLAG_L))) toys.optflags |= FLAG_S;
+  if (FLAG(d)) TT.loglevel = TT.loglevel_d;
 
-  if ((toys.optflags & FLAG_c)
-      && (TT.crontabs_dir[strlen(TT.crontabs_dir)-1] != '/'))
-    TT.crontabs_dir = xmprintf("%s/", TT.crontabs_dir);
-
-  if (!TT.crontabs_dir) TT.crontabs_dir = xstrdup("/var/spool/cron/crontabs/");
-  if (toys.optflags & FLAG_b) daemon(0,0);
-
-  if (!TT.flagd && !TT.logfile)
+  if (!FLAG(d) && !TT.l)
     openlog(toys.which->name, LOG_CONS | LOG_PID, LOG_CRON);
 
   // Set default shell once.
-  if (setenv("SHELL", "/bin/sh", 1)) error_exit("Can't set default shell");
-  xchdir(TT.crontabs_dir);
-  loginfo(LOG_LEVEL8, "crond started, log level %d", TT.loglevel);
+  setenv("SHELL", "/bin/sh", 1);
+  loginfo(8, "crond started, log level %d", TT.loglevel);
 
-  if (stat(TT.crontabs_dir, &sb)) sb.st_mtime = 0;
+  if (stat(TT.c, &sb)) sb.st_mtime = 0;
   TT.crontabs_dir_mtime = sb.st_mtime;
   scan_cronfiles();
-  ctime = time(NULL);
+  ctime = time(0);
 
-  while (1) {
-    long tdiff;
-
+  for (;;) {
     ptime = ctime;
     sleep(sleepfor - (ptime%sleepfor) +1);
-    tdiff =(long) ((ctime = time(NULL)) - ptime);
+    tdiff = (ctime = time(0)) - ptime;
 
-    if (stat(TT.crontabs_dir, &sb)) sb.st_mtime = 0;
+    if (stat(TT.c, &sb)) sb.st_mtime = 0;
     if (TT.crontabs_dir_mtime != sb.st_mtime) {
       TT.crontabs_dir_mtime = sb.st_mtime;
       scan_cronfiles();
     }
 
-    if (TT.flagd) loginfo(LOG_LEVEL5, "wakeup diff=%ld\n", tdiff);
+    if (FLAG(d)) loginfo(5, "wakeup diff=%ld\n", tdiff);
     if (tdiff < -60 * 60 || tdiff > 60 * 60)
-      loginfo(LOG_LEVEL9, "time disparity of %ld minutes detected", tdiff / 60);
+      loginfo(9, "time disparity of %ld minutes detected", tdiff / 60);
     else if (tdiff > 0) {
       schedule_jobs(ctime, ptime);
       execute_jobs();
