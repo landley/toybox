@@ -13,7 +13,9 @@ config KLOGD
   help
   usage: klogd [-n] [-c PRIORITY]
 
-  -c	Print to console messages more urgent than PRIORITY (1-8)"
+  Forward messages from the kernel ring buffer (read by dmesg) to syslogd.
+
+  -c	Print to console messages more urgent than PRIORITY (1-8)
   -n	Run in foreground
   -s	Use syscall instead of /proc
 */
@@ -41,11 +43,10 @@ static void set_log_level(int level)
 
 static void handle_signal(int sig)
 {
-  if (FLAG(s)) {
-    klogctl(7, 0, 0);
-    klogctl(0, 0, 0);
-  } else {
-    set_log_level(7); // TODO: hardwired? Old value...?
+  // TODO: level 7 hardwired? How to read old value...?
+  if (FLAG(s)) klogctl(8, 0, 7);
+  else {
+    if (FLAG(c)) set_log_level(7);
     xclose(TT.fd);
   }
   syslog(LOG_NOTICE, "KLOGD: Daemon exiting......");
@@ -61,12 +62,11 @@ void klogd_main(void)
   int prio, size, used = 0;
   char *start, *line_start;
 
-  if (!FLAG(n) xvdaemon();
+  if (!FLAG(n)) xvdaemon();
   sigatexit(handle_signal);
   if (FLAG(c)) set_log_level(TT.level);    //set log level
 
-  if (FLAG(s)) klogctl(1, 0, 0);
-  else TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
+  if (!FLAG(s)) TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
   syslog(LOG_NOTICE, "KLOGD: started with %s as log source\n",
     FLAG(s) ? "Kernel ring buffer" : "/proc/kmsg");
   openlog("Kernel", 0, LOG_KERN);    //open connection to system logger..
@@ -81,9 +81,8 @@ void klogd_main(void)
     if (used) start = toybuf;
     while (start) {
       if ((line_start = strsep(&start, "\n")) && start) used = 0;
-      else {      //Incomplete line, copy it to start of buff.
-        used = strlen(line_start);
-        strcpy(toybuf, line_start);
+      else {      //Incomplete line, copy it to start of buf
+        used = stpcpy(toybuf, line_start)-toybuf;
         if (used < (sizeof(toybuf) - 1)) break;
         used = 0; //we have buffer full, log it as it is.
       }
