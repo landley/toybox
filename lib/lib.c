@@ -532,6 +532,17 @@ int anystart(char *s, char **try)
   return 0;
 }
 
+// does this entire string match one of the strings in try[]?
+// Returns 0 if not, index+1 if so
+int anystr(char *s, char **try)
+{
+  char **and = try;
+
+  while (*try) if (!strcmp(s, *try++)) return try-and;
+
+  return 0;
+}
+
 int same_file(struct stat *st1, struct stat *st2)
 {
   return st1->st_ino==st2->st_ino && st1->st_dev==st2->st_dev;

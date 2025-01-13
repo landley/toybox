@@ -849,14 +849,6 @@ static int utf8chr(char *wc, char *chrs, int *len)
   return 0;
 }
 
-// does this entire string match one of the strings in try[]
-static int anystr(char *s, char **try)
-{
-  while (*try) if (!strcmp(s, *try++)) return 1;
-
-  return 0;
-}
-
 // Update $IFS cache in function call stack after variable assignment
 static void cache_ifs(char *s, struct sh_fcall *ff)
 {
