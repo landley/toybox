@@ -275,6 +275,8 @@ STOP_PARSING:
       return;
     default: return;
   }
+  // strip the newline from val, if any
+  strtok(val, "\n");
   if (!strcmp(name, "MAILTO")) cfile->mailto = xstrdup(val);
   else {
     v = xzalloc(sizeof(VAR));
@@ -429,14 +431,12 @@ static void do_fork(CRONFILE *cfile, JOB *job, int fd, char *prog)
       char *file = "/bin/sh";
 
       if (setenv("USER", pwd->pw_name, 1)) _exit(1);
+      if (setenv("LOGNAME", pwd->pw_name, 1)) _exit(1);
+      if (setenv("HOME", pwd->pw_dir, 1)) _exit(1);
       for (v = vstart; v;) {
         if (!strcmp("SHELL", v->name)) file = v->val;
         if (setenv(v->name, v->val, 1)) _exit(1);
         if ((v=v->next) == vstart) break;
-      }
-      if (!getenv("HOME")) {
-        if (setenv("HOME", pwd->pw_dir, 1))
-          _exit(1);
       }
       xsetuser(pwd);
       if (chdir(pwd->pw_dir)) loginfo(9, "chdir(%s)", pwd->pw_dir);
