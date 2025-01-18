@@ -6,7 +6,7 @@
 
 <ul>
 <li><a href=#goals>Introduction</a></li>
-<li><a href=#susv4>POSIX-2008/SUSv4</a></li>
+<li><a href=#susv5>POSIX-2024/SUSv5</a></li>
 <li><a href=#sigh>Linux "Standard" Base</a></li>
 <li><a href=#rfc>IETF RFCs and Man Pages</a></li>
 <li><a href=#dev_env>Development Environment</a></li>
@@ -32,72 +32,80 @@ for Toybox's 1.0 release. Most of these have their own section in the
 <a href=status.html>status page</a>, showing current progress towards
 commplation.</p>
 
-<p>The most interesting publicly available standards are A) POSIX-2008 (also
-known as SUSv4), B) the Linux Standard Base version 4.1, and C) the official
-<a href=https://www.kernel.org/doc/man-pages/>Linux man pages</a>.
-But each of those include commands we've decided not implement, exclude
-commands or features we have, and don't always entirely match reality.</p>
+<p>The most interesting publicly available command line standards are:</p>
+<ol>
+<li>POSIX-2024 (also known as SUSv5)</li>
+<li>the Linux Standard Base version 4.1 (frozen, becoming obsolete)</li>
+<li>the official <a href=https://www.kernel.org/doc/man-pages/>Linux man pages</a></li>
+</ol>
+But each of those include commands we've decided not implement and/or exclude
+commands or features we have, nor do they always entirely match reality.</p>
 
 <p>The most thorough real world test (other than a large interactive
-userbase) is using toybox as the command line in a build system such as
-<a href=https://landley.net/aboriginal/about.html>Aboriginal
-Linux</a>, having it rebuild itself from source code, and using the result
+userbase) is using toybox as the command line in a
+<a href=https://landley.net/aboriginal/about.html>build system</a> container
+where it can rebuild itself from source code, then using the result
 to <a href=https://github.com/landley/control-images>build Linux From Scratch</a>.
 The current "minimal native development system" goal is to use
 <a href=faq.html#mkroot>mkroot</a>
 plus <a href=faq.html#cross>musl-cross-make</a> to hermetically build
 <a href=https://source.android.com>AOSP</a>.</p>
 
-<p>We've also checked what commands were provided by similar projects
-(klibc, sash, sbase, embutils, nash, beastiebox...), looked at various
+<p>Over the years we've also checked what commands were provided by similar
+projects (klibc, sash, sbase, embutils, nash, beastiebox...), looked at various
 vendor configurations of busybox, and collected end user requests.</p>
 
 <p>Finally, we'd like to provide a good replacement for the Bash shell,
 which was the first program Linux ever ran (leading up to the 0.0.1 release
 in 1991) and remains the standard shell of Linux (no matter what Ubuntu says).
 This doesn't necessarily mean including every last Bash 5.x feature, but
-does involve {various,features} &lt(beyond) posix.</p>
+does involve {various,features} &lt;(beyond) posix.</p>
 
-<p>See the <a href=status.html>status page</a> for the categorized command list
-and progress towards implementing it.</p>
+<p>See the <a href=status.html>status page</a> for the current categorized
+command list and progress towards implementing it.</p>
 
 <hr />
 <a name="standards">
 <h2>Use case: standards compliance.</h2>
 
-<h3><a name=susv4 /><a href="#susv4">POSIX-2008/SUSv4</a></h3>
+<h3><a name=susv4 /><a name=susv5 /><a href="#susv5">POSIX-2024/SUSv5</a></h3>
 <p>The best standards describe reality rather than attempting to impose a
 new one. I.E. "A good standard should document, not legislate."
 Standards which document existing reality tend to be approved by
-more than one standards body, such as ANSI and ISO both approving <a href=https://landley.net/c99-draft.html>C99</a>. That's why IEEE 1003.1-2008,
-the Single Unix Specification version 4, and the Open Group Base Specification
-edition 7 are all the same standard from three sources, which most people just
+more than one standards body, such as ANSI and ISO both approving <a href=https://landley.net/c99-draft.html>C99</a>. That's why IEEE 1003.1-2024,
+the Single Unix Specification version 5, and the Open Group Base Specification
+Issue 8 are all the same standard from three sources, which most people just
 call "posix" (short for "portable operating system that works like unix").
-It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball.
-Previous versions (<a href=https://pubs.opengroup.org/onlinepubs/009695399/>SUSv3</a> and
+It's available <a href=https://pubs.opengroup.org/onlinepubs/9799919799/>online
+in full</a>
+https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may
+be <a href=https://pubs.opengroup.org/onlinepubs/9799919799/download>downloaded</a>
+as a tarball. Previous versions
+(<a href=https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/>SUSv4</a>,
+<a href=https://pubs.opengroup.org/onlinepubs/009695399/>SUSv3</a> and
 <a href=https://pubs.opengroup.org/onlinepubs/7990989775/>SUSv2</a>)
 are also available.</p>
 
 <p>The original Posix was a collection of different standards (POSIX.1
 from 1988, POSIX.1b from 1993, and POSIX.1c from 1995). The unified
-SUSv2 came out in 1997 and SUSv3 came out in 2001.
-<a href=https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/>Posix
-2008</a> was then reissued in 2013 and 2018, the first was minor wordsmithing
-with no behavioral changes, the second was to renew a ten year timeout
-to still be considered a "current standard" by some government regulations,
-but isn't officially a new standard. It's still posix-2008/SUSv4/Issue 7.
-The endless committee process to produce
-"Issue 8" has been ongoing for over 15 years now, with conference
-calls on mondays and thursdays, mostly to discuss recent bug tracker
-entries then publish the minutes of the meeting on the mailing list.
-Prominent committee members have died during this time.</p>
+SUSv2 came out in 1997 and SUSv3 came out in 2001. SUSv4 came out in 2008
+and remained the current version for 16 years (although it was
+re-released in 2013, 2016, and 2018 with basically typo fixes, but was
+still SUSv4 and Issue 7), until the current SUSv5 (Issue 8) finally came out
+in 2024.</p>
 
 <h3>Why not just use posix for everything?</h3>
 
 <p>Unfortunately, Posix describes an incomplete subset of reality, because
-it was designed to. It started with proprietary unix vendors collaborating to
-describe the functionality their fragmented APIs could agree on, which was then
-incorporated into <a href=https://nvlpubs.nist.gov/nistpubs/Legacy/FIPS/fipspub151-2-1993.pdf>US federal procurement standards</a>
+it was designed to. Those first few pre-SUSv2 Posix standards that remain
+unavailable on the Open Group's wesite were produced during a period known as
+"<a href=https://en.wikipedia.org/wiki/Unix_wars>the unix wars</a>" when
+AT&amp;T's prioprietary control over the original UNIX(tm) intellectual property
+sucked the old UNIX(tm) ecosystem dry until Linux and FreeBSD swept away
+the irrelevant debris. That's why the standards process started with proprietary
+unix vendors collaborating to describe what little functionality their
+fragmented APIs could agree on, which was then incorporated into
+<a href=https://nvlpubs.nist.gov/nistpubs/Legacy/FIPS/fipspub151-2-1993.pdf>US federal procurement standards</a>
 as a <a href=https://www.youtube.com/watch?v=nwrTTXOg-KI>compliance requirement</a>
 for things like navy contracts, giving large corporations
 like IBM and Microsoft millions of dollars of incentive
@@ -105,9 +113,10 @@ to punch holes in the standard big enough to drive
 <a href=https://en.wikipedia.org/wiki/Microsoft_POSIX_subsystem>Windows NT</a> and
 <a href=http://www.naspa.net/magazine/1996/May/T9605006.PDF>OS/360</a> through.
 When open source projects like Linux started developing on the internet
-(enabled by the 1993 relaxation of the National Science Foundation's
+(enabled by the 1993 <a href=https://en.wikipedia.org/wiki/Eternal_September>relaxation</a> of the National Science Foundation's
 "Acceptable Use Policy" allowing everyone to connect to the internet,
-previously restricted to approved government/military/university organizations),
+previously restricted to approved government/military/university organizations
+until the budget funding its backbone links passed from DARPA to NSF),
 Posix <a href=http://www.opengroup.org/testing/fips/policy_info.html>ignored
 the upstarts</a> and Linux eventually
 <a href=https://www.linuxjournal.com/article/3417>returned the favor</a>,
@@ -286,12 +295,16 @@ have developed a certain amount of <a href=https://www.ietf.org/rfc/rfc8179.txt>
 they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.
 (This is an example of the greybeard community problem, where all current
 documentation was written by people who don't remember NOT already knowing
-this stuff and the resources they originally learned from are long gone.)</p>
+this stuff and the resources they originally learned from are long gone,
+and <a href=https://tldp.org/HOWTO/Bootdisk-HOWTO/buildroot.html>excellent</a>
+<a href=https://landley.net/kdocs/mirror/lki-single.html>historical</a>
+<a href=https://linuxfromscratch.org/hints/downloads/files/OLD/bsd-init.txt>documents</a>
+have no obvious modern alternative.)</p>
 
 <p>That said, RFC documents can be useful (especially for networking protocols)
-and the four URL templates the recommended starting files
+and the four URL templates provided by the recommended starting files
 for new commands (hello.c and skeleton.c in the toys/example directory)
-provide point to example posix, lsb, man, and rfc pages online.</p>
+point to example posix, lsb, man, and rfc pages online.</p>
 
 <hr />
 <a name="dev_env">
@@ -367,6 +380,17 @@ significantly affect the rest of this analysis (although the "rebuild itself
 from source" test should now include building musl-cross-make under either
 mkroot or toybox's "make airlock" host environment).</p>
 
+<p>Toybox source includes
+a <b>scripts/mcm-buildall.sh</b> wrapper script around musl-cross-make, which
+builds cross and native versions of gcc+musl toolchains for a dozen
+different architectures, and a <b>mkroot/testroot.sh</b> that boots
+all the <b>mkroot/mkroot CROSS=allnonstop LINUX=~/linux</b> systems under
+qemu and performs basic automated smoketesting that they run, have a current
+clock, and their network and block device support works. The "make airlock"
+target is implemented by <b>scripts/install.sh</b> which sets the
+$PENDING and $TOOLCHAIN variables to lists of commands to symlink out of the
+host.</p>
+
 <p>Building Linux From Scratch is not the same as building the
 <a href=https://source.android.com>Android Open Source Project</a>,
 but after toybox 1.0 we plan to try
@@ -383,7 +407,7 @@ this goal.</p>
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
 
 <p>Android has a policy against GPL in userspace, so even though BusyBox
-predates Android by many years, they couldn't use it. Instead they grabbed
+predates Android by many years, they didn't use it. Instead they grabbed
 an old version of ash (later replaced by
 <a href="https://www.mirbsd.org/mksh.htm">mksh</a>)
 and implemented their own command line utility set
@@ -467,15 +491,12 @@ getevent gzip modprobe newfs_msdos sh
 </span>
 </b></blockquote>
 
-<p>Update: <a href=https://android.googlesource.com/platform/system/core/+/master/system/core/Android.bp>
-external/toybox/Android.bp</a> has symlinks for the following toys out
-of "pending". (The toybox modprobe is also built for the device, but
-it isn't actually used and is only there for sanity checking against
-the libmodprobe-based implementation.) These should be a priority for
-cleanup:</p>
+<p>Update: Android's <a href=https://android.googlesource.com/platform/external/toybox/+/refs/heads/main/Android.bp>external/toybox/Android.bp</a>
+builds the following commands out of "pending", which
+should be a priority for cleanup:</p>
 
 <blockquote><b>
-diff expr getopt tr brctl getfattr lsof modprobe more stty traceroute vi
+diff expr tr brctl getfattr lsof modprobe more stty traceroute vi
 </b></blockquote>
 
 <p>Android wishlist:</p>
@@ -1258,6 +1279,7 @@ rsync
 linux32 hd strace
 gpiodetect gpiofind gpioget gpioinfo gpioset httpd uclampset
 nbd-server
+memeater
 </span>
 </b></blockquote>
 
