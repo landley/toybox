@@ -234,6 +234,7 @@ static void update_crontab(char *src, char *dest)
   int fdin, fdout;
 
   snprintf(toybuf, sizeof(toybuf), "%s%s", TT.cdir, dest);
+  unlink(toybuf);
   fdout = xcreate(toybuf, O_WRONLY|O_CREAT|O_TRUNC, 0600);
   fdin = xopenro(src);
   xsendfile(fdin, fdout);
