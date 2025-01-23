@@ -302,9 +302,6 @@ struct zmap {
 
 #define NO_EXIT_STATUS  (9999987)  // value unlikely to appear in exit stmt
 
-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
-ssize_t getdelim(char ** restrict lineptr, size_t * restrict n, int delimiter, FILE *stream);
-
 
 
 ////////////////////
@@ -752,8 +749,6 @@ static int get_char(void)
     if (TT.scs->line == nl) return EOF;
     if (!TT.scs->fp) {
       progfile_open();
-    // The "  " + 1 is to set p to null string but allow ref to prev char for
-    // "lastchar" test below.
     }
     // Save last char to allow faking final newline.
     int lastchar = (TT.scs->p)[-2];
@@ -991,7 +986,7 @@ static void ascan_opt_div(int div_op_allowed_here)
       TT.scs->toktype = BUILTIN;
       TT.scs->tok = tkbuiltin;
       TT.scs->tokbuiltin = n;
-    } else if ((TT.scs->ch == '(')) {
+    } else if (TT.scs->ch == '(') {
       TT.scs->toktype = USERFUNC;
       TT.scs->tok = tkfunc;
     } else {
@@ -2716,6 +2711,7 @@ static void set_zvalue_str(struct zvalue *v, char *s, size_t size)
 // All changes to NF go through here!
 static void set_nf(int nf)
 {
+  if (nf < 0) FATAL("NF set negative");
   STACK[NF].num = TT.nf_internal = nf;
   STACK[NF].flags = ZF_NUM;
 }
@@ -2757,7 +2753,7 @@ static int splitter(void (*setter)(struct zmap *, int, char *, size_t), struct z
         char cbuf[8];
         unsigned wc;
         int nc = utf8towc(&wc, s, strlen(s));
-        if (nc < 2) FATAL("bad string for split: \"%s\"\n", s0);
+        if (nc < 2) FFATAL("bad string for split: \"%s\"\n", s0);
         s += nc;
         nc = wctoutf8(cbuf, wc);
         setter(m, ++nf, cbuf, nc);
@@ -2803,6 +2799,10 @@ static void rebuild_field0(void)
 {
   struct zstring *s = FIELD[0].vst;
   int nf = TT.nf_internal;
+  if (!nf) {
+    zvalue_copy(&FIELD[0], &uninit_string_zvalue);
+    return;
+  }
   // uninit value needed for eventual reference to .vst in zstring_release()
   struct zvalue tempv = uninit_zvalue;
   zvalue_copy(&tempv, to_str(&STACK[OFS]));

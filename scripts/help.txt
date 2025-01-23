@@ -12,8 +12,8 @@
                     to show all failures.
   clean           - Delete temporary files.
   distclean       - Delete everything that isn't shipped.
-  install_airlock - Install toybox and host toolchain into $PREFIX directory
-                    (providing $PATH for hermetic builds).
+  install_airlock - Install toybox and host toolchain (plus $TOOLCHAIN if any)
+                    into $PREFIX directory, providing $PATH for hermetic builds.
   install_flat    - Install toybox into $PREFIX directory.
   install         - Install toybox into subdirectories of $PREFIX.
   uninstall_flat  - Remove toybox from $PREFIX directory.

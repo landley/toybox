@@ -218,7 +218,7 @@ $SED -ne '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/p' \
 while read i; do
   [ "$i" = "${i#_}" ] && { HEAD="$i"; X=0; LL=; continue;}
   for j in $i; do
-    [ $X -eq 32 ] && LL=LL
+    [ $X -eq 31 ] && LL=LL
     NAME="$HEAD$j"
     printf "#define $NAME %*s%s\n#define _$NAME %*s%s\n" \
       $((32-${#NAME})) "" "$X" $((31-${#NAME})) "" "(1$LL<<$((X++)))" || exit 1

@@ -105,7 +105,7 @@ void host_main(void)
     }
     if (i == ARRAY_LEN(rrt)) error_exit("bad -t: %s", TT.t);
   }
-  qlen = res_mkquery(0, name, 1, type, 0, 0, 0, t2, 280); //t2len);
+  qlen = res_mkquery(0, name, 1, type, 0, 0, 0, t2, t2len);
   if (qlen<0) error_exit("bad NAME: %s", name);
 
   // Grab nameservers
@@ -122,9 +122,10 @@ void host_main(void)
     setsockopt(i, SOL_SOCKET, SO_RCVTIMEO, &(struct timeval){ .tv_sec = 5 },
       sizeof(struct timeval));
     send(i, t2, qlen, 0);
-    if (16 < (alen = recv(i, abuf, abuf_len, 0))) break;
-    if (!*++TT.nsname) error_exit("Host not found.");
+    alen = recv(i, abuf, abuf_len, 0);
     close(i);
+    if (16<alen) break;
+    if (!*++TT.nsname) error_exit("Host not found.");
   }
 
   // Did it error?
@@ -136,19 +137,20 @@ void host_main(void)
   if (rcode) error_exit("Host not found: %s",
     (char *[]){ "Format error", "Server failure",
     "Non-existant domain", "Not implemented", "Refused", ""}[rcode-1]);
+  if (abuf[2]&2) puts("Truncated");
 
   // Print the result
   p = abuf + 12;
   qlen = 0;
   for (sec = 0; sec<(2<<verbose); sec++) {
     count = peek_be(abuf+4+2*sec, 2);
-    if (verbose && count>0 && sec>1)
+    if (verbose && count && sec>1)
       puts(sec==2 ? "For authoritative answers, see:"
         : "Additional information:");
 
     for (; count--; p += pllen) {
-      p += xdn_expand(abuf, abuf+alen, p, toybuf, 4096-t2len);
-      if (alen-(p-abuf)<10) error_exit("tilt");
+      p += xdn_expand(abuf, abuf+alen, p, toybuf, sizeof(toybuf)-t2len);
+      if (alen-(p-abuf)<10) error_exit("bad header");
       type = peek_be(p, 2);
       p += 4;
       if (!sec) continue;
@@ -156,13 +158,14 @@ void host_main(void)
       p += 4;
       pllen = peek_be(p, 2);
       p += 2;
-      if ((p-abuf)+pllen>alen) error_exit("tilt");
+      if ((p-abuf)+pllen>alen) error_exit("bad header");
       if (type==1 || type == 28)
         inet_ntop(type==1 ? AF_INET : AF_INET6, p, t2, t2len);
       else if (type==2 || type==5) xdn_expand(abuf, abuf+alen, p, t2, t2len);
-      else if (type==13 || type==16)
+      else if (type==13 || type==16) {
+        if (pllen && pllen-1==*p) p++, pllen--;
         sprintf(t2, "\"%.*s\"", minof(pllen, t2len), p);
-      else if (type==6) {
+      } else if (type==6) {
         ss = p+xdn_expand(abuf, abuf+alen, p, t2, t2len-1);
         j = strlen(t2);
         t2[j++] = ' ';

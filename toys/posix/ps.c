@@ -864,14 +864,9 @@ static int get_ps(struct dirtree *new)
       while ((line = xgetline(fp))) {
         if ((s = strstr(line, ":cpuset:/"))) {
           s += strlen(":cpuset:/");
-          if (!*s || !strcmp(s, "foreground")) strcpy(tb->pcy, "fg");
-          else if (!strcmp(s, "system-background")) strcpy(tb->pcy, "  ");
-          else if (!strcmp(s, "background")) strcpy(tb->pcy, "bg");
-          else if (!strcmp(s, "top-app")) strcpy(tb->pcy, "ta");
-          else if (!strcmp(s, "restricted")) strcpy(tb->pcy, "rs");
-          else if (!strcmp(s, "foreground_window")) strcpy(tb->pcy, "wi");
-          else if (!strcmp(s, "camera-daemon")) strcpy(tb->pcy, "cd");
-          else strcpy(tb->pcy, "?");
+          sprintf(tb->pcy, "%.2s","? fgfg  bgtarswicd"+2*anystr(s, (char *[]){
+            "", "foreground", "system-background", "background", "top-app",
+            "restricted", "foreground_window", "camera-daemon", 0}));
         }
         free(line);
       }

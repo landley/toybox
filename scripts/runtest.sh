@@ -102,7 +102,9 @@ skipnot()
 # Skip this test (rest of command line) when not running toybox.
 toyonly()
 {
-  IS_TOYBOX="$("$C" --version 2>/dev/null)"
+  [ -z "$TEST_HOST" ] && IS_TOYBOX=toybox
+  : ${IS_TOYBOX:=$("$C" --version 2>/dev/null | grep -o toybox)} \
+    ${IS_TOYBOX:="$(basename $(readlink -f "$C"))"}
   # Ideally we'd just check for "toybox", but toybox sed lies to make autoconf
   # happy, so we have at least two things to check for.
   case "$IS_TOYBOX" in

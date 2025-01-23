@@ -201,7 +201,7 @@ int dirtree_recurse(struct dirtree *node,
   }
 
 done:
-  closedir(dir);
+  if (dir) closedir(dir);
   node->dirfd = -1;
 
   return (new == DIRTREE_ABORTVAL) ? DIRTREE_ABORT : flags;

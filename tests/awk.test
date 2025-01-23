@@ -420,6 +420,9 @@ testcmd "awk -v myvar=val -f file1 file" "-v myvar=$2 -f test.awk testfile1.txt 
 
 # 2024: New tests -- not in Divya Kothari's original ...
 
+# Assigning NF=0 caused trouble
+testcmd "assign NF=0" "'BEGIN { \$0 = \"a b\"; print NF, \"x\" \$0 \"y\"; NF = 0; print NF, \"x\" \$0 \"y\" }'" "2 xa by\n0 xy\n" "" ""
+
 # The following has never had a problem but is a good test anyway
 testcmd "split on empty string" "'BEGIN { n = split(\"abc\", a, \"\");print n, length(a)}'" "3 3\n" "" ""
 # The following must be run with ASAN=1 to cause failure with older versions

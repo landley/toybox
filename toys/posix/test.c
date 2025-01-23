@@ -98,10 +98,12 @@ static int do_test(char **args, int *count)
       if (i==8) return a < b;
       if (i==10) return a<= b;
       if (i==12) return (st1.st_dev==st2.st_dev) && (st1.st_ino==st2.st_ino);
-      if (i==14) return (st1.st_atim.tv_sec < st2.st_atim.tv_sec) ||
-        (st1.st_atim.tv_nsec < st2.st_atim.tv_nsec);
-      if (i==16) return (st1.st_atim.tv_sec > st2.st_atim.tv_sec) ||
-        (st1.st_atim.tv_nsec > st2.st_atim.tv_nsec);
+      if (i==14) return (st1.st_mtim.tv_sec < st2.st_mtim.tv_sec) ||
+        (st1.st_mtim.tv_sec == st2.st_mtim.tv_sec &&
+        st1.st_mtim.tv_nsec < st2.st_mtim.tv_nsec);
+      if (i==16) return (st1.st_mtim.tv_sec > st2.st_mtim.tv_sec) ||
+        (st1.st_mtim.tv_sec == st2.st_mtim.tv_sec &&
+        st1.st_mtim.tv_nsec > st2.st_mtim.tv_nsec);
     }
   }
   s = *args;

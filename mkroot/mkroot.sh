@@ -203,9 +203,9 @@ get_target_config()
     # This could use the same VIRT board as armv7, but let's demonstrate a
     # different one requiring a separate device tree binary.
     KARCH=arm KARGS=ttyAMA0 VMLINUX=zImage
-    QEMU="arm -M versatilepb -net nic,model=rtl8139 -net user"
+    QEMU="arm -M versatilepb"
     KCONF="$(be2csv CPU_ARM926T MMU VFP ARM_THUMB AEABI ARCH_VERSATILE ATAGS \
-      DEPRECATED_PARAM_STRUCT BLK_DEV_SD NET_VENDOR_REALTEK 8139CP \
+      DEPRECATED_PARAM_STRUCT BLK_DEV_SD GPIOLIB NET_VENDOR_SMSC SMC91X \
       ARM_ATAG_DTB_COMPAT{,_CMDLINE_EXTEND} PCI{,_VERSATILE} \
       SERIAL_AMBA_PL011{,_CONSOLE} RTC_{CLASS,DRV_PL031,HCTOSYS} \
       SCSI{,_LOWLEVEL,_SYM53C8XX_{2,MMIO,DMA_ADDRESSING_MODE=0}})"
@@ -245,7 +245,8 @@ get_target_config()
   elif [ "$CROSS" == microblaze ]; then
     QEMU_M=petalogix-s3adsp1800 KARCH=microblaze KARGS=ttyUL0
     KCONF="$(be2csv MMU CPU_BIG_ENDIAN SERIAL_UARTLITE{,_CONSOLE} \
-      XILINX_{EMACLITE,MICROBLAZE0_{FAMILY="spartan3adsp",USE_{{MSR,PCMP}_INSTR,BARREL,HW_MUL}=1}})"
+      XILINX_{EMACLITE,MICROBLAZE0_{FAMILY="spartan3adsp",USE_{{MSR,PCMP}_INSTR,BARREL,HW_MUL}=1}} \
+      NET_VENDOR_XILINX)"
   elif [ "${CROSS#mips}" != "$CROSS" ]; then # mips mipsel mips64 mips64el
     QEMU_M=malta KARCH=mips
     KCONF="$(be2csv MIPS_MALTA CPU_MIPS32_R2 BLK_DEV_SD NET_VENDOR_AMD PCNET32 \
@@ -254,9 +255,9 @@ get_target_config()
       KCONF+=,64BIT,CPU_MIPS64_R1,MIPS32_O32
     [ "${CROSS%el}" != "$CROSS" ] && KCONF+=,CPU_LITTLE_ENDIAN
   elif [ "$CROSS" == or1k ]; then
-    KARCH=openrisc QEMU_M=or1k-sim KARGS=FIXME BUILTIN=1
-    KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE})"
-    KCONF+=,OPENRISC_BUILTIN_DTB=\"or1ksim\"
+    KARCH=openrisc QEMU_M=virt KARGS=ttyS0
+    KCONF="$(be2csv ETHOC SERIO SERIAL_OF_PLATFORM SERIAL_8250{,_CONSOLE} \
+      VIRTIO_{MENU,NET,BLK,PCI,MMIO} POWER_RESET{,_SYSCON{,_POWEROFF}} SYSCON_REBOOT_MODE)"
   elif [ "$CROSS" == powerpc ]; then
     KARCH=powerpc QEMU="ppc -M g3beige"
     KCONF="$(be2csv ALTIVEC PATA_MACIO BLK_DEV_SD MACINTOSH_DRIVERS SERIO \
@@ -298,7 +299,7 @@ get_target_config()
     KCONF="$(be2csv CPU_SUBTYPE_SH7751R MMU VSYSCALL SH_{FPU,RTS7751R2D} PCI \
       RTS7751R2D_PLUS SERIAL_SH_SCI{,_CONSOLE} NET_VENDOR_REALTEK 8139CP \
       BLK_DEV_SD ATA{,_SFF,_BMDMA} PATA_PLATFORM BINFMT_ELF_FDPIC \
-      MEMORY_START=0x0c000000)"
+      CMDLINE_FROM_BOOTLOADER MEMORY_START=0x0c000000)"
 #see also SPI{,_SH_SCI} MFD_SM501 RTC_{CLASS,DRV_{R9701,SH},HCTOSYS}
     [ "$CROSS" == sh4eb ] && KCONF+=,CPU_BIG_ENDIAN
   else die "Unknown \$CROSS=$CROSS"
@@ -307,7 +308,7 @@ get_target_config()
 }
 
 # Linux kernel .config symbols common to all architectures
-: ${GENERIC_KCONF:=$(be2csv PANIC_TIMEOUT=1 NO_HZ HIGH_RES_TIMERS RD_GZIP \
+: ${GENERIC_KCONF:=$(be2csv PANIC_TIMEOUT=1 NO_HZ_IDLE HIGH_RES_TIMERS RD_GZIP \
   BINFMT_{ELF,SCRIPT} BLK_DEV{,_INITRD,_LOOP} EXT4_{FS,USE_FOR_EXT2} \
   VFAT_FS FAT_DEFAULT_UTF8 MISC_FILESYSTEMS NLS_{CODEPAGE_437,ISO8859_1} \
   SQUASHFS{,_XATTR,_ZLIB} TMPFS{,_POSIX_ACL} DEVTMPFS{,_MOUNT} \
