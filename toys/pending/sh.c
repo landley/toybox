@@ -60,6 +60,7 @@ USE_SH(NEWTOY(set, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(trap, "lp", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(wait, "n", TOYFLAG_NOFORK))
 
@@ -313,6 +314,21 @@ config SOURCE
 
     Read FILE and execute commands. Any ARGS become positional parameters.
 
+config TRAP
+  bool
+  default n
+  depends on SH
+  help
+    usage: trap [-l] [[COMMAND] SIGNAL]
+
+    Run COMMAND as handler for signal. With no arguments, list active handlers.
+    The COMMAND "-" resets the signal to default.
+
+    -l	List signals.
+
+    The special signal EXIT gets called before the shell exits, RETURN when
+    a function or source returns, and DEBUG is called before each command.
+
 config WAIT
   bool
   default n
@@ -341,7 +357,7 @@ GLOBALS(
 
   // keep SECONDS here: used to work around compiler limitation in run_command()
   long long SECONDS;
-  char *isexec, *wcpat;
+  char *isexec, *wcpat, *traps[NSIG+2];
   unsigned options, jobcnt;
   int hfd, pid, bangpid, recursion;
   jmp_buf forkchild;
@@ -445,12 +461,17 @@ static void sherror_msg(char *msg, ...)
   va_end(va);
 }
 
+static int dashi(void)
+{
+  return TT.options&FLAG_i;
+}
+
 static void syntax_err(char *s)
 {
 // TODO: script@line only for script not interactive.
   sherror_msg("syntax error: %s", s);
   toys.exitval = 2;
-  if (!(TT.options&FLAG_i)) xexit();
+  if (!dashi()) xexit();
 }
 
 void debug_show_fds()
@@ -2829,7 +2850,8 @@ static struct sh_process *run_command(void)
 {
   char *s, *ss, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
-  int envlen, skiplen, funk = TT.funcslen, ii, jj, prefix = 0;
+  int envlen, skiplen, funk = TT.funcslen, ii, jj, prefix = 0,
+      pipe = TT.ff->blk->pipe;
   struct sh_process *pp;
 
   // Count leading variable assignments
@@ -2859,19 +2881,19 @@ static struct sh_process *run_command(void)
 // TODO: [[ ~ ] expands but ((~)) doesn't, what else?
         if (expand_arg(&pp->arg, arg->v[envlen+ii], NO_PATH|NO_SPLIT, &pp->delete))
           break;
-      if (ii != skiplen) pp->exit = toys.exitval = 1;
+      if (ii!=skiplen) pp->exit = toys.exitval = 1;
     }
     if (pp->exit) return pp;
+  }
 
   // Are we calling a shell function?  TODO binary search
-  } else if (pp->arg.c)
-    if (!strchr(s, '/')) for (funk = 0; funk<TT.funcslen; funk++)
-       if (!strcmp(s, TT.functions[funk]->name)) break;
+  if (pp->arg.c && !strchr(s, '/')) for (funk = 0; funk<TT.funcslen; funk++)
+    if (!strcmp(s, TT.functions[funk]->name)) break;
 
   // If calling a function, or prefix assignment, or output is piped,
   // create new function context to hold local vars
+  prefix = (envlen && pp->arg.c) || pipe;
   (call_function()->pp = pp)->refcount++;
-  if (funk!=TT.funcslen || (envlen && pp->arg.c) || TT.ff->blk->pipe) prefix++;
 // TODO function needs to run asynchronously in pipeline, and backgrounded
 
   // perform any assignments
@@ -2887,39 +2909,35 @@ static struct sh_process *run_command(void)
     } else pp->exit = 1;
   }
 
-  // Do the thing
-  if (pp->exit) s = 0; // leave $_ alone
-  else if (!pp->arg.c || envlen==arg->c) s = ""; // nothing to do but blank $_
-
-// TODO: call functions() FUNCTION
 // TODO what about "echo | x=1 | export fruit", must subshell? Test this.
 //   Several NOFORK can just NOP in a pipeline? Except ${a?b} still errors
 
+  // If variable expansion or assignment errored, do nothing
+  if (pp->exit);
+  // If nothing to do after assignments, blank $_
+  else if (!pp->arg.c) TT.ff->_ = "";
   // ((math))
-  else if (!smemcmp(s = *pp->arg.v, "((", 2)) {
+  else if (skiplen && !smemcmp(s = *pp->arg.v, "((", 2)) {
     char *ss = s+2;
     long long ll;
 
-    funk = TT.funcslen;
     ii = strlen(s)-2;
     if (!recalculate(&ll, &ss, 0) || ss!=s+ii)
       sherror_msg("bad math: %.*s @ %ld", ii-2, s+2, (long)(ss-s)-2);
     else toys.exitval = !ll;
     pp->exit = toys.exitval;
-    s = 0; // Really!
-
   // call shell function
   } else if (funk != TT.funcslen) {
-    s = 0; // $_ set on return, not here
     (TT.ff->function = TT.functions[funk])->refcount++;
     TT.ff->pl = TT.ff->function->pipeline;
     TT.ff->arg = pp->arg;
+    TT.ff->_ = pp->arg.v[pp->arg.c-1];
   // call command from $PATH or toybox builtin
   } else {
     struct toy_list *tl = toy_find(*pp->arg.v);
 
     jj = tl ? tl->flags : 0;
-    s = pp->arg.v[pp->arg.c-1];
+    TT.ff->_ = pp->arg.v[pp->arg.c-1];
 //dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds();
 // TODO: figure out when can exec instead of forking, ala sh -c blah
 
@@ -2954,12 +2972,8 @@ static struct sh_process *run_command(void)
         perror_msg("%s: vfork", *pp->arg.v);
   }
 
-  // cleanup
-  // TODO test "_=hello echo thing" sequencing: parent is updated despite local
-  if (!TT.ff->source && !TT.ff->pl) {
-    if (s && !TT.ff->_) TT.ff->_ = s;
-    end_fcall();
-  }
+  // pop the new function context if nothing left for it to do
+  if (!TT.ff->source && !TT.ff->pl) end_fcall();
 
   return pp;
 }
@@ -3505,7 +3519,7 @@ char *show_job(struct sh_process *pp, char dash)
 // Wait for pid to exit and remove from jobs table, returning process or 0.
 struct sh_process *wait_job(int pid, int nohang)
 {
-  struct sh_process *pp = pp;
+  struct sh_process *pp QUIET;
   int ii, status, minus, plus;
 
   if (TT.jobs.c<1) return 0;
@@ -3546,7 +3560,7 @@ static int wait_pipeline(struct sh_process *pp)
     rc = (pp->flags&PFLAG_NOT) ? !pp->exit : pp->exit;
   }
 
-  while ((pp = wait_job(-1, 1)) && (TT.options&FLAG_i)) {
+  while ((pp = wait_job(-1, 1)) && dashi()) {
     char *s = show_job(pp, pp->dash);
 
     dprintf(2, "%s\n", s);
@@ -3624,7 +3638,7 @@ static char *get_next_line(FILE *fp, int prompt)
   unsigned uu;
 
   if (!fp) return 0;
-  if (prompt>2 || (fp==stdin && (TT.options&FLAG_i))) {
+  if (prompt>2 || (fp==stdin && dashi())) {
     char ps[16];
 
     sprintf(ps, "PS%d", prompt);
@@ -4017,7 +4031,7 @@ do_then:
         if (!TT.jobs.c) TT.jobcnt = 0;
         pplist->job = ++TT.jobcnt;
         arg_add(&TT.jobs, (void *)pplist);
-        if (TT.options&FLAG_i) dprintf(2, "[%u] %u\n", pplist->job,pplist->pid);
+        if (dashi()) dprintf(2, "[%u] %u\n", pplist->job,pplist->pid);
       } else {
         toys.exitval = wait_pipeline(pplist);
         llist_traverse(pplist, (void *)free_process);
@@ -4244,7 +4258,7 @@ static void subshell_setup(void)
     sprintf(buf, "%u", atoi(ss+6)+1);
     setvarval("SHLVL", buf)->flags |= VAR_EXPORT;
   }
-  if (TT.options&FLAG_i) {
+  if (dashi()) {
     if (!getvar("PS1")) setvarval("PS1", "$ "); // "\\s-\\v$ "
     // TODO Set up signal handlers and grab control of this tty.
     // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
@@ -4511,6 +4525,45 @@ void set_main(void)
     while (toys.optargs[ii])
       arg_add(arg, push_arg(&ff->pp->delete, xstrdup(toys.optargs[ii++])));
     push_arg(&ff->pp->delete, arg->v);
+  }
+}
+
+#define FOR_trap
+#include "generated/flags.h"
+
+void trap_main(void)
+{
+  int ii, jj;
+  void *sig = *toys.optargs, *old;
+  struct signame sn[] = {{0, "EXIT"}, {NSIG, "DEBUG"}, {NSIG+1, "RETURN"}};
+
+  // Display data when asked
+  if (FLAG(l)) list_signals();
+  else if (FLAG(p) || !toys.optc) {
+    for (ii = 0; ii<NSIG+2; ii++) if (TT.traps[ii]) {
+      if (!(sig = num_to_sig(ii))) for (jj = 0; jj<ARRAY_LEN(sn); jj++)
+        if (ii==sn[jj].num) sig = sn[jj].name;
+      if (sig) printf("trap -- '%s' %s\n", TT.traps[ii], sig); // TODO $'' esc
+    }
+  } else {
+    // Assign new handler to each listed signal
+    if (toys.optc==1 || !**toys.optargs || !strcmp(*toys.optargs, "-")) sig = 0;
+    for (ii = toys.optc>1; toys.optargs[ii]; ii++) {
+      if (1>(jj = sig_to_num(*toys.optargs))) {
+       while (++jj<ARRAY_LEN(sn))
+         if (!strcasecmp(toys.optargs[ii], sn[jj].name)) break;
+       if (jj==ARRAY_LEN(sn)) {
+         sherror_msg("%s: bad signal", toys.optargs[ii]);
+         continue;
+       } else jj = sn[jj].num;
+      }
+      // Free after replacing just in case a signal comes in
+      old = TT.traps[jj];
+      TT.traps[jj] = xstrdup(sig);
+      free(old);
+      if (jj && jj<_NSIG) xsignal(jj, sig ? :
+        (jj==SIGPIPE || (jj==SIGINT && dashi())) ? SIG_IGN : SIG_DFL);
+    }
   }
 }
 
