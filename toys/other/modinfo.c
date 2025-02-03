@@ -64,7 +64,7 @@ static void modinfo_file(char *full_name)
 
   for (i=0; i<ARRAY_LEN(modinfo_tags); i++) {
     char *field = modinfo_tags[i], *p = buf;
-    int slen = sprintf(toybuf, "%s=", field);
+    int slen = sprintf(toybuf, "%c%s=", 0, field);
 
     while (p && p < end) {
       p = memmem(p, end-p, toybuf, slen);
