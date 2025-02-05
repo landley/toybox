@@ -11,7 +11,7 @@ killall yes >/dev/null 2>&1
 #testing "name" "command" "result" "infile" "stdin"
 
 # Starting processes to test pgrep command
-yes >/dev/null &
+yes and no >/dev/null &
 proc=$!
 #echo "# Process created with id: $proc"
 sleep .1
@@ -24,10 +24,20 @@ testing "pattern" "pgrep yes" "$proc\n" "" ""
 testing "wildCardPattern" "pgrep ^y.*s$" "$proc\n" "" ""
 testing "-l pattern" "pgrep -l yes" "$proc yes\n" "" ""
 testing "-f pattern" "pgrep -f yes" "$proc\n" "" ""
+testing "-a pattern" "pgrep -a yes" "$proc yes and no\n" "" ""
+testing "-la pattern" "pgrep -la yes" "$proc yes and no\n" "" ""
+testing "-fa pattern" "pgrep -fa yes" "$proc yes and no\n" "" ""
+testing "-lf pattern" "pgrep -lf yes" "$proc yes\n" "" ""
+testing "-fa pattern" "pgrep -fa yes" "$proc yes and no\n" "" ""
+testing "-lfa pattern" "pgrep -lfa yes" "$proc yes and no\n" "" ""
 testing "-n pattern" "pgrep -n yes" "$proc\n" "" ""
 testing "-o pattern" "pgrep -o yes" "$proc\n" "" ""
 testing "-s" "pgrep -s $session_id yes" "$proc\n" "" ""
 testing "-P" "pgrep -P $proc_parent yes" "$proc\n" "" ""
+
+testing "-f 'full command line'" "pgrep -f 'yes and no'" "$proc\n" "" ""
+testing "-l 'full command line nomatch'" "pgrep -l 'yes and no'" "" "" ""
+testing "-a 'full command line nomatch'" "pgrep -a 'yes and no'" "" "" ""
 
 testing "return success" "pgrep yes && echo success" "$proc\nsuccess\n" "" ""
 testing "return failure" "pgrep almost-certainly-not || echo failure" \

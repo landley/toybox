@@ -51,7 +51,7 @@ USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][
 // the default values are different but the flags are in the same order.
 USE_TOP(NEWTOY(top, ">0O*h" "Hk*o*p*u*s#<1d%<100=3000m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "Hk*o*p*u*s#<1=7d%<100=3000m#n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
-USE_PGREP(NEWTOY(pgrep, "cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PGREP(NEWTOY(pgrep, "acld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,    "?Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
@@ -142,11 +142,12 @@ config PGREP
   bool "pgrep"
   default y
   help
-    usage: pgrep [-clfnovx] [-d DELIM] [-L SIGNAL] [PATTERN] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
+    usage: pgrep [-aclfnovx] [-d DELIM] [-L SIGNAL] [PATTERN] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
 
     Search for process(es). PATTERN is an extended regular expression checked
     against command names.
 
+    -a	Show the full command line
     -c	Show only count of matches
     -d	Use DELIM instead of newline
     -L	Send SIGNAL instead of printing name
@@ -1902,7 +1903,7 @@ static void do_pgk(struct procpid *tb)
   }
   if (!FLAG(c) && (!TT.pgrep.signal || TT.tty)) {
     printf("%lld", *tb->slot);
-    if (FLAG(l)) printf(" %s", tb->str+tb->offset[4]*FLAG(f));
+    if (FLAG(a)|FLAG(l)) printf(" %s", tb->str+tb->offset[4]*FLAG(a));
     printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
   }
 }
@@ -1971,7 +1972,7 @@ void pgrep_main(void)
       !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
     if (!toys.optc) help_exit("No PATTERN");
 
-  if (FLAG(f)) TT.bits |= _PS_CMDLINE;
+  if (FLAG(f)|FLAG(a)) TT.bits |= _PS_CMDLINE;
   for (arg = toys.optargs; *arg; arg++) {
     reg = xmalloc(sizeof(struct regex_list));
     xregcomp(&reg->reg, *arg, REG_EXTENDED);
