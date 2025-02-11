@@ -360,6 +360,7 @@ GLOBALS(
   char *isexec, *wcpat, *traps[NSIG+2];
   unsigned options, jobcnt;
   int hfd, pid, bangpid, recursion;
+  struct double_list *nextsig;
   jmp_buf forkchild;
 
   // Callable function array
@@ -387,7 +388,7 @@ GLOBALS(
       long flags;
       char *str;
     } *vars;
-    long varslen, varscap, shift, lineno;
+    long varslen, varscap, shift, lineno, signal;
 
     struct sh_function *function;
     FILE *source;
@@ -1405,6 +1406,16 @@ static void end_fcall(void)
     ff->pp->urd = 0;
     free_process(ff->pp);
   }
+
+  // Unblock signal we just finished handling
+  if (TT.ff->signal) {
+    sigset_t set;
+
+    sigemptyset(&set);
+    sigaddset(&set, TT.ff->signal);
+    sigprocmask(SIG_UNBLOCK, &set, 0);
+  }
+
   free(dlist_pop(&TT.ff));
 }
 
@@ -2775,6 +2786,48 @@ notfd:
   return pp;
 }
 
+// Handler called with all signals blocked, so no special locking needed.
+static void sig_fcall(int sig, siginfo_t *info, void *ucontext)
+{
+  // Tell run_lines() to eval trap, keep signal blocked until trap func ends
+  dlist_add(&TT.nextsig, (void *)(long)sig);
+  sigaddset(&((struct ucontext_t *)ucontext)->uc_sigmask, sig);
+}
+
+// Set signal handler to exec string, or reset to default if NULL
+static void signify(int sig, char *throw)
+{
+  void *ign = (sig==SIGPIPE || (sig==SIGINT && dashi())) ? SIG_IGN : SIG_DFL;
+  struct sigaction act = {0};
+  struct sh_fcall *ff;
+
+  if (throw && !*throw) throw = 0, ign = SIG_IGN;
+
+  // If we're replacing a running trap handler, garbe collect in fcall pop.
+  for (ff = TT.ff; ff && ff!=TT.ff->prev; ff = ff->next) if (ff->signal==sig) {
+    push_arg(&ff->delete, TT.traps[sig]);
+    TT.traps[sig] = 0;
+    break;
+  }
+  free(TT.traps[sig]);
+  TT.traps[sig] = throw;
+
+  // Set signal handler (not for synthetic signals like EXIT)
+  if (sig && sig<NSIG) {
+    if (!TT.traps[sig]) {
+      act.sa_handler = ign;
+      act.sa_flags = SA_RESTART;
+    } else {
+      sigfillset(&act.sa_mask);
+      act.sa_flags = SA_SIGINFO;
+      act.sa_sigaction = sig_fcall;
+    }
+    sigaction(sig, &act, 0);
+  }
+}
+
+
+
 // Call binary, or run script via xexec("sh --")
 static void sh_exec(char **argv)
 {
@@ -2784,7 +2837,7 @@ static void sh_exec(char **argv)
   struct string_list *sl = 0;
   struct toy_list *tl = 0;
 
-  if (getpid() != TT.pid) signal(SIGINT, SIG_DFL); // TODO: restore all?
+  if (getpid() != TT.pid) signify(SIGINT, 0); // TODO: restore all?
   errno = ENOENT;
   if (strchr(ss, '/')) {
     if (access(ss, X_OK)) ss = 0;
@@ -3708,11 +3761,26 @@ static void run_lines(void)
 
   // iterate through pipeline segments
   for (;;) {
+    // Call functions for pending signals, in order received
+    while (TT.nextsig) {
+      struct double_list *dl;
+      sigset_t set;
+
+      // Block signals so list doesn't change under us
+      sigemptyset(&set);
+      sigprocmask(SIG_SETMASK, &set, &set);
+      dl = dlist_pop(&TT.nextsig);
+      sigprocmask(SIG_SETMASK, &set, 0);
+      ss = TT.traps[call_function()->signal = (long)dl->data];
+      free(dl);
+      TT.ff->source = fmemopen(ss, strlen(ss), "r");
+    }
     if (!TT.ff->pl) {
       if (TT.ff->source) break;
+      i = TT.ff->signal;
       end_fcall();
 // TODO can we move advance logic to start of loop to avoid straddle?
-      goto advance;
+      if (!i || !TT.ff || !TT.ff->pl) goto advance;
     }
 
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
@@ -4258,13 +4326,11 @@ static void subshell_setup(void)
     sprintf(buf, "%u", atoi(ss+6)+1);
     setvarval("SHLVL", buf)->flags |= VAR_EXPORT;
   }
-  if (dashi()) {
-    if (!getvar("PS1")) setvarval("PS1", "$ "); // "\\s-\\v$ "
-    // TODO Set up signal handlers and grab control of this tty.
-    // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
-    // setsid(), setpgid(), tcsetpgrp()...
-    xsignal(SIGINT, SIG_IGN);
-  }
+  if (dashi() && !getvar("PS1")) setvarval("PS1", "$ "); // "\\s-\\v$ "
+  // TODO Set up signal handlers and grab control of this tty.
+  // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
+  // setsid(), setpgid(), tcsetpgrp()...
+  signify(SIGINT, 0);
 
   // Add additional input sources (in reverse order so they pop off stack right)
 
@@ -4284,7 +4350,7 @@ void sh_main(void)
 
 //dprintf(2, "%d main", getpid()); for (unsigned uu = 0; toys.argv[uu]; uu++) dprintf(2, " %s", toys.argv[uu]); dprintf(2, "\n");
 
-  signal(SIGPIPE, SIG_IGN);
+  signify(SIGPIPE, 0);
   TT.options = OPT_B;
   TT.pid = getpid();
   srandom(TT.SECONDS = millitime());
@@ -4534,36 +4600,32 @@ void set_main(void)
 void trap_main(void)
 {
   int ii, jj;
-  void *sig = *toys.optargs, *old;
+  char *sig = *toys.optargs;
   struct signame sn[] = {{0, "EXIT"}, {NSIG, "DEBUG"}, {NSIG+1, "RETURN"}};
 
   // Display data when asked
-  if (FLAG(l)) list_signals();
+  if (FLAG(l)) return list_signals();
   else if (FLAG(p) || !toys.optc) {
     for (ii = 0; ii<NSIG+2; ii++) if (TT.traps[ii]) {
       if (!(sig = num_to_sig(ii))) for (jj = 0; jj<ARRAY_LEN(sn); jj++)
         if (ii==sn[jj].num) sig = sn[jj].name;
       if (sig) printf("trap -- '%s' %s\n", TT.traps[ii], sig); // TODO $'' esc
     }
-  } else {
-    // Assign new handler to each listed signal
-    if (toys.optc==1 || !**toys.optargs || !strcmp(*toys.optargs, "-")) sig = 0;
-    for (ii = toys.optc>1; toys.optargs[ii]; ii++) {
-      if (1>(jj = sig_to_num(*toys.optargs))) {
-       while (++jj<ARRAY_LEN(sn))
-         if (!strcasecmp(toys.optargs[ii], sn[jj].name)) break;
-       if (jj==ARRAY_LEN(sn)) {
-         sherror_msg("%s: bad signal", toys.optargs[ii]);
-         continue;
-       } else jj = sn[jj].num;
-      }
-      // Free after replacing just in case a signal comes in
-      old = TT.traps[jj];
-      TT.traps[jj] = xstrdup(sig);
-      free(old);
-      if (jj && jj<_NSIG) xsignal(jj, sig ? :
-        (jj==SIGPIPE || (jj==SIGINT && dashi())) ? SIG_IGN : SIG_DFL);
+    return;
+  }
+
+  // Assign new handler to each listed signal
+  if (toys.optc==1 || !**toys.optargs || !strcmp(*toys.optargs, "-")) sig = 0;
+  for (ii = toys.optc>1; toys.optargs[ii]; ii++) {
+    if (1>(jj = sig_to_num(toys.optargs[ii]))) {
+      while (++jj<ARRAY_LEN(sn))
+        if (!strcasecmp(toys.optargs[ii], sn[jj].name)) break;
+      if (jj==ARRAY_LEN(sn)) {
+        sherror_msg("%s: bad signal", toys.optargs[ii]);
+        continue;
+      } else jj = sn[jj].num;
     }
+    signify(jj, (sig && *sig) ? xstrdup(sig) : sig);
   }
 }
 
