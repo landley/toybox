@@ -1412,8 +1412,9 @@ static void end_fcall(void)
     sigset_t set;
 
     sigemptyset(&set);
-    sigaddset(&set, TT.ff->signal);
+    sigaddset(&set, TT.ff->signal>>8);
     sigprocmask(SIG_UNBLOCK, &set, 0);
+    toys.exitval = TT.ff->signal&255;
   }
 
   free(dlist_pop(&TT.ff));
@@ -2804,10 +2805,12 @@ static void signify(int sig, char *throw)
   if (throw && !*throw) throw = 0, ign = SIG_IGN;
 
   // If we're replacing a running trap handler, garbe collect in fcall pop.
-  for (ff = TT.ff; ff && ff!=TT.ff->prev; ff = ff->next) if (ff->signal==sig) {
-    push_arg(&ff->delete, TT.traps[sig]);
-    TT.traps[sig] = 0;
-    break;
+  for (ff = TT.ff; ff && ff!=TT.ff->prev; ff = ff->next) {
+    if (ff->signal>>8==sig) {
+      push_arg(&ff->delete, TT.traps[sig]);
+      TT.traps[sig] = 0;
+      break;
+    }
   }
   free(TT.traps[sig]);
   TT.traps[sig] = throw;
@@ -3772,6 +3775,7 @@ static void run_lines(void)
       dl = dlist_pop(&TT.nextsig);
       sigprocmask(SIG_SETMASK, &set, 0);
       ss = TT.traps[call_function()->signal = (long)dl->data];
+      TT.ff->signal = (TT.ff->signal<<8)|(toys.exitval&255);
       free(dl);
       TT.ff->source = fmemopen(ss, strlen(ss), "r");
     }

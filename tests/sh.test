@@ -733,6 +733,9 @@ testing "\$'' suppresses variable expansion" \
 testing 'if; is a syntax error but if $EMPTY; is not' \
   'if $NONE; then echo hello; fi' 'hello\n' '' ''
 
+testing 'trap1' $'trap \'echo T=$?;false\' USR1;kill -s usr1 $$;echo A=$?' \
+  'T=0\nA=0\n' '' ''
+
 # TODO finish variable list from shell init
 
 # $# $? $- $! $0  # $$
