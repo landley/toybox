@@ -2792,7 +2792,7 @@ static void sig_fcall(int sig, siginfo_t *info, void *ucontext)
 {
   // Tell run_lines() to eval trap, keep signal blocked until trap func ends
   dlist_add(&TT.nextsig, (void *)(long)sig);
-  sigaddset(&((struct ucontext_t *)ucontext)->uc_sigmask, sig);
+  sigaddset(&((ucontext_t *)ucontext)->uc_sigmask, sig);
 }
 
 // Set signal handler to exec string, or reset to default if NULL
