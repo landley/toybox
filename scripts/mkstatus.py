@@ -55,7 +55,7 @@ conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/util
         ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
         ("beastiebox_cmd", "", '*%s*'), ("tizen_cmd", "", '$%s$'),
         ("fhs_cmd", "", '-%s-'), ("yocto_cmd", "", ".%s."),
-        ("shell", "", "%%%s%%"),
+        ("buildroot_cmd", "", "~%s~"), ("shell", "", "%%%s%%"),
         ("request", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '+%s+')]
 
 def categorize(reverse, i, skippy=""):
