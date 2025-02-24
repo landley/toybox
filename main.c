@@ -240,8 +240,12 @@ void toy_exec_which(struct toy_list *which, char *argv[])
   // so convert to integers. (LP64 says sizeof(long)==sizeof(pointer).)
   // Signed typecast so stack growth direction is irrelevant: we're measuring
   // the distance between two pointers on the same stack, hence the labs().
-  if (!CFG_TOYBOX_NORECURSE && toys.stacktop)
+  if (!CFG_TOYBOX_NORECURSE && toys.stacktop) {
+    int i;
+
     if (labs((long)toys.stacktop-(long)&which)>24000) return;
+    for (i = 0; i<NSIG; i++) signal(i, SIG_DFL);
+  }
 
   // Return if we need to re-exec to acquire root via suid bit.
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
