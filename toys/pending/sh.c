@@ -4327,7 +4327,7 @@ static void subshell_setup(void)
   else {
     char buf[16];
 
-    sprintf(buf, "%u", atoi(ss+6)+1);
+    sprintf(buf, "%u", atoi(ss)+1);
     setvarval("SHLVL", buf)->flags |= VAR_EXPORT;
   }
   if (dashi() && !getvar("PS1")) setvarval("PS1", "$ "); // "\\s-\\v$ "
