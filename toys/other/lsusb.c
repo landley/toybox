@@ -241,7 +241,7 @@ static int list_pci(struct dirtree *new)
     snprintf(toybuf, sizeof(toybuf), "/sys/bus/pci/devices/%s/config", new->name);
     fp = xfopen(toybuf, "r");
     while ((b = fgetc(fp)) != EOF) {
-      if ((col % 16) == 0) printf("%02x: ", col & 0xf0);
+      if ((col % 16) == 0) printf("%02x: ", col & ~0xf);
       printf("%02x ", (b & 0xff));
       if ((++col % 16) == 0) xputc('\n');
       if (col == max) break;
