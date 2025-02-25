@@ -2834,7 +2834,7 @@ static void signify(int sig, char *throw)
 // Call binary, or run script via xexec("sh --")
 static void sh_exec(char **argv)
 {
-  char *pp = getvar("PATH" ? : _PATH_DEFPATH), *ss = TT.isexec ? : *argv,
+  char *pp = getvar("PATH") ? : _PATH_DEFPATH, *ss = TT.isexec ? : *argv,
     **sss = 0, **oldenv = environ, **argv2;
   int norecurse = CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec;
   struct string_list *sl = 0;
@@ -4181,7 +4181,7 @@ FILE *fpathopen(char *name)
 
   if (fd==-1) {
     for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
-      if (-1==(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
+      if (-1!=(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
     if (sl) llist_traverse(sl, free);
   }
   if (fd != -1) {
@@ -4250,18 +4250,6 @@ static void subshell_setup(void)
                    xmprintf("PPID=%d", getppid())};
   struct sh_vars *shv;
   struct utsname uu;
-
-  // Find input source
-  if (TT.sh.c) {
-    TT.ff->source = fmemopen(TT.sh.c, strlen(TT.sh.c), "r");
-    TT.ff->name = "-c";
-  } else if (TT.options&FLAG_s) TT.ff->source = stdin;
-  else if (!(TT.ff->source = fpathopen(TT.ff->name = *toys.optargs)))
-    perror_exit_raw(*toys.optargs);
-
-  // Add additional input sources (in reverse order so they pop off stack right)
-
-  // /etc/profile, ~/.bashrc...
 
   // Initialize magic and read only local variables
   for (ii = 0; ii<ARRAY_LEN(magic) && (s = magic[ii]); ii++)
@@ -4335,6 +4323,14 @@ static void subshell_setup(void)
   // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
   // setsid(), setpgid(), tcsetpgrp()...
   signify(SIGINT, 0);
+
+  // Find input source
+  if (TT.sh.c) {
+    TT.ff->source = fmemopen(TT.sh.c, strlen(TT.sh.c), "r");
+    TT.ff->name = "-c";
+  } else if (TT.options&FLAG_s) TT.ff->source = stdin;
+  else if (!(TT.ff->source = fpathopen(TT.ff->name = *toys.optargs)))
+    perror_exit_raw(*toys.optargs);
 
   // Add additional input sources (in reverse order so they pop off stack right)
 
