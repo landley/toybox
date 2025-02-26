@@ -147,7 +147,7 @@ testing()
   if ! verbose_has quiet && { [ -n "$DIFF" ] || verbose_has spam; }
   then
     [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
-    printf "%s\n" "echo -ne '$5' |$EVAL $2"
+    printf "%s\n" "echo -ne '$5' |$EVAL ${2@Q}"
     [ -n "$DIFF" ] && printf "%s\n" "$DIFF"
   fi
 
