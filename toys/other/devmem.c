@@ -43,9 +43,10 @@ unsigned long xatolu(char *str, int bytes)
 void devmem_main(void)
 {
   int ii, writing = toys.optc > 2, bytes = 4, fd;
-  unsigned long data QUIET, map_len QUIET,
+  unsigned long data = 0, map_len QUIET,
     addr = xatolu(*toys.optargs, sizeof(long));
   void *map QUIET, *p QUIET;
+  char *pdata;
 
   // WIDTH?
   if (toys.optc>1) {
@@ -55,6 +56,7 @@ void devmem_main(void)
       error_exit("bad width: %s", toys.optargs[1]);
     bytes = 1<<ii;
   }
+  pdata = ((char *)&data)+IS_BIG_ENDIAN*(sizeof(long)-bytes);
 
   // Map in just enough.
   if (CFG_TOYBOX_FORK) {
@@ -73,28 +75,25 @@ void devmem_main(void)
   } else p = (void *)addr;
 
   // Not using peek()/poke() because registers care about size of read/write.
-  if (writing) {
-    for (ii = 2; ii<toys.optc; ii++) {
-      data = xatolu(toys.optargs[ii], bytes);
-      if (FLAG(no_mmap)) xwrite(fd, &data, bytes);
-      else {
-        if (bytes==1) *(char *)p = data;
-        else if (bytes==2) *(unsigned short *)p = data;
-        else if (bytes==4) *(unsigned int *)p = data;
-        else if (sizeof(long)==8 && bytes==8) *(unsigned long *)p = data;
-        p += bytes;
-      }
+  if (writing) for (ii = 2; ii<toys.optc; ii++) {
+    data = xatolu(toys.optargs[ii], bytes);
+    if (FLAG(no_mmap)) xwrite(fd, pdata, bytes);
+    else {
+      if (bytes==1) *(char *)p = data;
+      else if (bytes==2) *(unsigned short *)p = data;
+      else if (bytes==4) *(unsigned *)p = data;
+      else if (sizeof(long)==8 && bytes==8) *(unsigned long *)p = data;
+      p += bytes;
     }
   } else {
-    if (FLAG(no_mmap)) xread(fd, &data, bytes);
+    if (FLAG(no_mmap)) xread(fd, pdata, bytes);
     else {
       if (bytes==1) data = *(char *)p;
       else if (bytes==2) data = *(unsigned short *)p;
-      else if (bytes==4) data = *(unsigned int *)p;
+      else if (bytes==4) data = *(unsigned *)p;
       else if (sizeof(long)==8 && bytes==8) data = *(unsigned long *)p;
     }
-    printf((!strchr(*toys.optargs, 'x')) ? "%0*ld\n" : "0x%0*lx\n",
-      bytes*2, data);
+    printf(strchr(*toys.optargs, 'x') ? "0x%0*lx\n" : "%0*ld\n", bytes*2, data);
   }
 
   if (CFG_TOYBOX_FORK) {
