@@ -6,9 +6,13 @@
 
 <ul>
 <li><a href=#goals>Introduction</a></li>
+<li>Main Standards
+<ul>
 <li><a href=#susv5>POSIX-2024/SUSv5</a></li>
 <li><a href=#sigh>Linux "Standard" Base</a></li>
-<li><a href=#rfc>IETF RFCs and Man Pages</a></li>
+<li><a href=#man>Man Pages</a></li>
+<li><a href=#rfc>IETF RFCs</a></li>
+</ul></li>
 <li><a href=#dev_env>Development Environment</a></li>
 <li><a href=#android>Android Toolbox</a></li>
 <li><a href=#aosp>Building AOSP</a></li>
@@ -23,7 +27,7 @@
 <li><a href=#todo>TODO list</a></li>
 </ul>
 
-<a name="goals" />
+<a name="goals" /><!--Jan 2025-->
 <h2>Introduction (Goals and use cases)</h2>
 
 <p>We have several potential use cases for a new set of command line
@@ -37,6 +41,7 @@ commplation.</p>
 <li>POSIX-2024 (also known as SUSv5)</li>
 <li>the Linux Standard Base version 4.1 (frozen, becoming obsolete)</li>
 <li>the official <a href=https://www.kernel.org/doc/man-pages/>Linux man pages</a></li>
+<li>IETF Request For Comments>
 </ol>
 But each of those include commands we've decided not implement and/or exclude
 commands or features we have, nor do they always entirely match reality.</p>
@@ -68,7 +73,8 @@ command list and progress towards implementing it.</p>
 <a name="standards">
 <h2>Use case: standards compliance.</h2>
 
-<h3><a name=susv4 /><a name=susv5 /><a href="#susv5">POSIX-2024/SUSv5</a></h3>
+<a name=susv4 />
+<h3><a name=susv5 /><a href="#susv5">POSIX-2024/SUSv5</a></h3><!--REDO for SUSv5-->
 <p>The best standards describe reality rather than attempting to impose a
 new one. I.E. "A good standard should document, not legislate."
 Standards which document existing reality tend to be approved by
@@ -97,8 +103,8 @@ in 2024.</p>
 <h3>Why not just use posix for everything?</h3>
 
 <p>Unfortunately, Posix describes an incomplete subset of reality, because
-it was designed to. Those first few pre-SUSv2 Posix standards that remain
-unavailable on the Open Group's wesite were produced during a period known as
+it was designed to. Those first few pre-SUSv2 Posix standards (which remain
+unavailable on the Open Group's wesite) were produced during a period known as
 "<a href=https://en.wikipedia.org/wiki/Unix_wars>the unix wars</a>" when
 AT&amp;T's prioprietary control over the original UNIX(tm) intellectual property
 sucked the old UNIX(tm) ecosystem dry until Linux and FreeBSD swept away
@@ -188,10 +194,10 @@ who xargs zcat
 </span>
 </b></blockquote>
 
-<h3><a name=sigh /><a href="#sigh">Linux Standard Base</a></h3>
+<h3><a name=sigh /><a href="#sigh">Linux Standard Base</a></h3><!--Jan 2025-->
 
 <p>One attempt to supplement POSIX towards an actual usable system was the
-Linux Standard Base. Unfortunately, the quality of this "standard" is
+Linux Standard Base. Unfortunately, the quality of this "standard" was
 fairly low, largely due to the Free Standards Group that maintained it
 being consumed by <a href=https://landley.net/notes-2010.html#18-07-2010>the Linux Foundation</a> in 2007.</p>
 
@@ -202,33 +208,32 @@ the Linux Standard Base's failure mode was different. They responded to
 pressure by including anything their members paid them enough to promote,
 such as allowing Red Hat to push
 RPM into the standard even though all sorts of distros (Debian, Slackware, Arch,
-Gentoo, Android, Alpine...) don't use it and never will. This means anything in the LSB is
-at best a suggestion: arbitrary portions of this standard are widely
+Gentoo, Android, Alpine...) don't use it and never will. This means anything in LSB was
+at best a suggestion: arbitrary portions of this standard were widely
 ignored.</p>
 
 <p>The <a href=https://mjg59.dreamwidth.org/39546.html>community perception</a>
-seems to be that the Linux Standard Base is
-the best standard money can buy: the Linux Foundation is supported by
-financial donations from large companies and the LSB
-<a href=https://www.softwarefreedom.org/blog/2016/apr/11/lf/>represents the interests
-of those donors</a> regardless of technical merit. (The Linux Foundation, which
-maintains the LSB, is NOT a 501c3. It's a 501c6, the
+became that the Linux Standard Base was the best standard money can buy: the
+Linux Foundation was supported by financial donations from large companies and
+LSB <a href=https://www.softwarefreedom.org/blog/2016/apr/11/lf/>represented
+the interests of those donors</a> regardless of technical merit. (The Linux
+Foundation, which maintained the LSB, is NOT a 501c3. It's a 501c6, the
 same kind of legal entity as the Tobacco Institute and
 <a href=https://lwn.net/Articles/706585/>Microsoft's</a>
 old "<a href=https://en.wikipedia.org/wiki/Don%27t_Copy_That_Floppy>Don't Copy That Floppy</a>" campaign.) Debian officially
 <a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> by
 refusing to adopt release 5.0 in 2015, and no longer even pretends to support
-it (which affects Debian derivatives like Ubuntu and Knoppix). Toybox has
-stayed on 4.1 for similar reasons.</p>
+it (which affects Debian derivatives like Ubuntu and Knoppix).
+Toybox has stayed on 4.1 for similar reasons.</p>
 
-<p>That said, Posix by itself isn't enough, and this is the next most
+<p>That said, Posix by itself isn't enough, and this was the next most
 comprehensive standards effort for Linux so far, so we salvage what we can.
 A lot of historical effort went into producing the standard before the
 Linux Foundation took over.</p>
 
 <h3>Analysis</h3>
 
-<p>LSB 4.1 specifies a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
+<p>LSB 4.1 specified a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
 utilities</a>:</p>
 
 <blockquote><b>
@@ -252,7 +257,7 @@ interested in the set of LSB tools that aren't mentioned in posix.</p>
 
 <p>Of these, gettext and msgfmt are internationalization, install_initd and
 remove_initd weren't present even in Ubuntu 10.04, lpr is out of scope,
-lsb_release just reports information in /etc/os-release, and sendmail's
+lsb_release just reports information in /etc/os-release, and sendmail
 turned into a pile of cryptographic verification and DNS shenanigans due
 to spammers.</p>
 
@@ -267,10 +272,12 @@ su sync tar umount useradd userdel usermod zcat
 </span>
 </b></blockquote>
 
-<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3>
+<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3><!--Jan 2025-->
 
+<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3><!--Jan 2025-->
 <p>They're very nice, but there's thousands of them. The signal to noise
-ratio here is terrible.</p>
+ratio here is terrible, and neither is a good indicator of whether a linux
+system should or should not include a given command in its basic command set.</p>
 
 <p>Discussion of standards wouldn't be complete without the Internet
 Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection and Michael Kerrisk's
@@ -280,16 +287,31 @@ low barriers to inclusion. They're not saying "you should support
 X", they're saying "if you do, here's how".
 Thus neither really helps us select which commands to include.</p>
 
-<p>The man pages website includes the commands in git, yum, perf, postgres,
-flatpack... Great for examining the features of a command you've
-already decided to include, useless for deciding _what_ to include.</p>
+<p>Unix's first production deployment in 1970 was a typesetting system for
+AT&amp;T's internal patent and trademark licensing office (providing the
+budget for Bell Labs' engineers to port their prototype system from a
+surplus PDP-7 fished out of an attic to a newly purchased PDP-11), and
+has retained a robust documentation tradition ever since, albeit still
+written in the old "troff" typesetting language designed to control 1970's
+daisy wheel printers, and in a terse style intended to save both memory
+and paper. Still: every command in a descendant of unix should have an
+entry in the unix instruction manual, with section 1 (ala "man 1 ls") listing
+commands available to normal users and section 8 ("man 8 mount") listing
+system administration commands for use by the root account. Run "man -k ."
+to see every manual page currently installed onthe system.</p>
 
-<p>The RFCs are more about protocols than commands. The noise level is
-extremely high: there's thousands of RFCs, many describing a proposed idea
-that never took off, and less than 1% of the resulting documents are
-currently relevant to toybox. The documents are numbered based on the
-order they were received, with no real attempt at coherently indexing
-the result. As with man pages they can be <a href=https://www.ietf.org/rfc/rfc0610.txt>long and complicated</a> or
+<p>The modern Linux man pages project has loosened up a bitwebsite includes commands from git, yum, perf, postgres,
+flatpack... It's useful for examining the features of a command you've
+already decided to include, but useless for deciding _what_ to include.</p>
+
+<p>The RFCs are mostly about protocols and file formats, not commands.
+The documents are numbered based on the order they were received, with
+no real attempt at coherently indexing the result.
+The noise level is also extremely high: there's thousands of RFCs, many
+describing a proposed idea that never took off, and most of the rest are
+extensions to or replacements for earlier RFCs. Less than 1% of the resulting
+documents are currently relevant to toybox. As with man pages they can be
+<a href=https://www.ietf.org/rfc/rfc0610.txt>long and complicated</a> or
 <a href=https://www.ietf.org/rfc/rfc1951.txt>terse and impenetrable</a>,
 have developed a certain amount of <a href=https://www.ietf.org/rfc/rfc8179.txt>bureaucracy</a> over the years, and often the easiest way to understand what
 they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.
@@ -675,15 +697,16 @@ shutdown fdisk getty halt ifconfig init mkswap reboot route swapon swapoff
 </span>
 </b></blockquote>
 
-<hr /><a name=buildroot />
+<hr /><a name=buildroot /><!--Jan 2025-->
 <h2>buildroot:</h2>
 
 <p>If a toybox-based development environment is to support running
 buildroot under it, the <a href=https://buildroot.org/downloads/manual/manual.html#requirement-mandatory>mandatory packages</a>
 section of the buildroot manual lists:</p>
-
 <blockquote><p><b>
-which sed make bash patch gzip bzip2 tar cpio unzip rsync file bc wget
+<span id=buildroot_cmd>
+which sed make diff bash patch gzip bzip2 tar cpio unzip rsync file bc find wget
+</span>
 </b></p></blockquote>
 
 <p>(It also lists binutils gcc g++ perl python, and for debian it wants
@@ -695,7 +718,7 @@ breaks otherwise</a>.)</p>
 with a prefix of "".  If you try, and chop out the test for a blank prefix,
 it dies trying to run "/usr/bin/-gcc". In theory you can modify any open source
 project to do anything if you rewrite enough of it, but buildroot's developers
-explicitly do not support this usage model.</p>
+<b>explicitly</b> do not support this usage model.</p>
 
 <hr /><a name=klibc />
 <h2>klibc:</h2>
