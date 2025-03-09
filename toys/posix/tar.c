@@ -403,8 +403,8 @@ static int add_to_tar(struct dirtree *node)
       if (len>999999 || (sz && len>sz)) len = -1, errno = E2BIG;
       if (buf || len<1) {
         if (len>0) {
-          strcpy(buf+start+sz, "\n");
-          write_prefix_block(buf, start+sz+2, 'x');
+          strcpy(buf+start+sz-1, "\n");
+          write_prefix_block(buf, start+sz, 'x');
         } else if (errno==ENODATA || errno==ENOTSUP) len = 0;
         if (len) perror_msg("getfilecon %s", name);
 
@@ -415,7 +415,7 @@ static int add_to_tar(struct dirtree *node)
       // Allocate buffer. Length includes prefix: calculate twice (wrap 99->100)
       temp = snprintf(0, 0, "%d", sz = (start = 22)+len+1);
       start += temp + (temp != snprintf(0, 0, "%d", temp+sz));
-      buf = xmprintf("%u RHT.%s=%.*s", start+len+1, sec, sz = len, "");
+      buf = xmprintf("%u RHT.%s=%.*s", start+len, sec, sz = len, "");
     }
   }
 
