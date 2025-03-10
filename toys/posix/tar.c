@@ -406,7 +406,7 @@ static int add_to_tar(struct dirtree *node)
           strcpy(buf+start+sz-1, "\n");
           write_prefix_block(buf, start+sz, 'x');
         } else if (errno==ENODATA || errno==ENOTSUP) len = 0;
-        if (len) perror_msg("getfilecon %s", name);
+        if (len<0) perror_msg("getfilecon %s", name);
 
         free(buf);
         break;
