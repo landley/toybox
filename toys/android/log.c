@@ -2,17 +2,19 @@
  *
  * Copyright 2016 The Android Open Source Project
 
-USE_LOG(NEWTOY(log, "p:t:", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_LOG(NEWTOY(log, "b:p:t:", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config LOG
   bool "log"
   depends on TOYBOX_ON_ANDROID
   default y
   help
-    usage: log [-p PRI] [-t TAG] [MESSAGE...]
+    usage: log [-b BUFFER] [-p PRI] [-t TAG] [MESSAGE...]
 
     Logs message (or stdin) to logcat.
 
+    -b	Use the given log buffer instead of "main":
+    	"radio", "events", "system", "crash", "stats", "security", "kernel"
     -p	Use the given priority instead of INFO:
     	d: DEBUG  e: ERROR  f: FATAL  i: INFO  v: VERBOSE  w: WARN  s: SILENT
     -t	Use the given tag instead of "log"
@@ -22,15 +24,15 @@ config LOG
 #include "toys.h"
 
 GLOBALS(
-  char *t, *p;
+  char *t, *p, *b;
 
-  int pri;
+  int pri, buf;
 )
 
 static void log_line(char **pline, long len)
 {
   if (!pline) return;
-  __android_log_write(TT.pri, TT.t, *pline);
+  __android_log_buf_write(TT.buf, TT.pri, TT.t, *pline);
 }
 
 void log_main(void)
@@ -47,6 +49,15 @@ void log_main(void)
       ANDROID_LOG_VERBOSE, ANDROID_LOG_WARN}[i];
   }
   if (!TT.t) TT.t = "log";
+  if (!TT.b || !strcmp(TT.b, "main")) TT.buf = LOG_ID_MAIN;
+  else if (!strcmp(TT.b, "radio")) TT.buf = LOG_ID_RADIO;
+  else if (!strcmp(TT.b, "events")) TT.buf = LOG_ID_EVENTS;
+  else if (!strcmp(TT.b, "system")) TT.buf = LOG_ID_SYSTEM;
+  else if (!strcmp(TT.b, "crash")) TT.buf = LOG_ID_CRASH;
+  else if (!strcmp(TT.b, "stats")) TT.buf = LOG_ID_STATS;
+  else if (!strcmp(TT.b, "security")) TT.buf = LOG_ID_SECURITY;
+  else if (!strcmp(TT.b, "kernel")) TT.buf = LOG_ID_KERNEL;
+  else error_exit("unknown log buffer: %s", TT.b);
 
   if (toys.optc) {
     for (i = 0; toys.optargs[i]; i++) {
@@ -61,5 +72,5 @@ void log_main(void)
     }
   } else do_lines(0, '\n', log_line);
 
-  __android_log_write(TT.pri, TT.t, toybuf);
+  __android_log_buf_write(TT.buf, TT.pri, TT.t, toybuf);
 }
