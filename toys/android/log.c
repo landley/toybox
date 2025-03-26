@@ -49,15 +49,9 @@ void log_main(void)
       ANDROID_LOG_VERBOSE, ANDROID_LOG_WARN}[i];
   }
   if (!TT.t) TT.t = "log";
-  if (!TT.b || !strcmp(TT.b, "main")) TT.buf = LOG_ID_MAIN;
-  else if (!strcmp(TT.b, "radio")) TT.buf = LOG_ID_RADIO;
-  else if (!strcmp(TT.b, "events")) TT.buf = LOG_ID_EVENTS;
-  else if (!strcmp(TT.b, "system")) TT.buf = LOG_ID_SYSTEM;
-  else if (!strcmp(TT.b, "crash")) TT.buf = LOG_ID_CRASH;
-  else if (!strcmp(TT.b, "stats")) TT.buf = LOG_ID_STATS;
-  else if (!strcmp(TT.b, "security")) TT.buf = LOG_ID_SECURITY;
-  else if (!strcmp(TT.b, "kernel")) TT.buf = LOG_ID_KERNEL;
-  else error_exit("unknown log buffer: %s", TT.b);
+  if (TT.b) TT.buf = anystr(TT.b, (char *[]){"main", "radio", "events",
+    "system", "crash", "stats", "security", "kernel", 0})-1;
+  if (TT.buf<0) error_exit("unknown log buffer: %s", TT.b);
 
   if (toys.optc) {
     for (i = 0; toys.optargs[i]; i++) {

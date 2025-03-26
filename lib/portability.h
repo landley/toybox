@@ -302,16 +302,6 @@ typedef enum android_LogPriority {
   ANDROID_LOG_FATAL,
   ANDROID_LOG_SILENT,
 } android_LogPriority;
-typedef enum log_id {
-  LOG_ID_MAIN = 0,
-  LOG_ID_RADIO = 1,
-  LOG_ID_EVENTS = 2,
-  LOG_ID_SYSTEM = 3,
-  LOG_ID_CRASH = 4,
-  LOG_ID_STATS = 5,
-  LOG_ID_SECURITY = 6,
-  LOG_ID_KERNEL = 7,
-} log_id_t;
 #endif
 #if !defined(__BIONIC__) || defined(__ANDROID_NDK__)
 // Android NDKv18 has liblog.so but not liblog.a for static builds.
