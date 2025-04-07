@@ -11,13 +11,13 @@ config KLOGD
   bool "klogd"
   default n
   help
-  usage: klogd [-n] [-c PRIORITY]
+    usage: klogd [-n] [-c PRIORITY]
 
-  Forward messages from the kernel ring buffer (read by dmesg) to syslogd.
+    Forward messages from the kernel ring buffer (read by dmesg) to syslogd.
 
-  -c	Print to console messages more urgent than PRIORITY (1-8)
-  -n	Run in foreground
-  -s	Use syscall instead of /proc
+    -c	Print to console messages more urgent than PRIORITY (1-8)
+    -n	Run in foreground
+    -s	Use syscall instead of /proc
 */
 
 #define FOR_klogd
