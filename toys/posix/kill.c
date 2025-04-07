@@ -30,7 +30,6 @@ config KILL
 config KILLALL5
   bool "killall5"
   default y
-  depends on KILL
   help
     usage: killall5 [-l [SIGNAL]] [-SIGNAL|-s SIGNAL] [-o PID]...
 
@@ -59,19 +58,17 @@ GLOBALS(
 void kill_main(void)
 {
   int signum;
-  char *tmp, **args = toys.optargs;
+  char *tmp, **args = toys.optargs, *s;
   pid_t pid;
 
   // list signal(s)
   if (FLAG(l)) {
-    if (*args) {
-      int signum = sig_to_num(*args);
-      char *s = 0;
-
-      if (signum>=0) s = num_to_sig(signum&127);
-      if (isdigit(**args)) puts(s ? s : "UNKNOWN");
+    if (!*args) list_signals();
+    else do {
+      s = (signum = sig_to_num(*args))<0 ? "UNKNOWN" : num_to_sig(signum&127);
+      if (isdigit(**args)) puts(s);
       else printf("%d\n", signum);
-    } else list_signals();
+    } while (*++args);
 
     return;
   }
