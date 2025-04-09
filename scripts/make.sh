@@ -226,11 +226,8 @@ while read i; do
 done > "$GENDIR"/tags.h || exit 1
 
 # Create help.h, and zhelp.h if zcat enabled
-hostcomp config2help
-if isnewer help.h "$GENDIR"/Config.in
-then
-  "$UNSTRIPPED"/config2help Config.in $KCONFIG_CONFIG > "$GENDIR"/help.h||exit 1
-fi
+hostcomp kconfig
+"$UNSTRIPPED"/kconfig -h > "$GENDIR"/help.h || exit 1
 
 if grep -qx 'CONFIG_TOYBOX_ZHELP=y' "$KCONFIG_CONFIG"
 then
