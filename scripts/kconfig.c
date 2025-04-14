@@ -65,7 +65,7 @@ void bump(char **to, char **from)
 }
 
 // Read Config.in file, recursing into "source" lines
-struct kconfig *walter(char *name)
+struct kconfig *read_Config(char *name)
 {
   FILE *fp = fopen(name, "r");
   char *line = 0, *help = 0, *s, *ss;
@@ -123,7 +123,7 @@ struct kconfig *walter(char *name)
     if (!strcmp(ss, "source")) {
       struct kconfig *kt;
 
-      if (!(kt = walter(trim(s)))) { fp = 0; break; }
+      if (!(kt = read_Config(trim(s)))) { fp = 0; break; }
       if (klist) kc = (kc->next) = kt;
       else klist = kc = kt;
       while (kc->next) kc = kc->next;
@@ -143,8 +143,8 @@ struct kconfig *walter(char *name)
       } else if (*s) kt->prompt = strdup(trim(s));
       bump(&kt->type, &ss);
     } else if (!kc) { fp = 0; break; }
-    else if (!strcmp(ss, "default")) bump(&kc->def, &ss);
-    else if (strany(ss, (char *[]){"bool", "int", "prompt", 0})) {
+    else if (!strcmp(ss, "default")) kc->def = strdup(trim(s));
+    else if (strany(ss, (char *[]){"bool", "int", "string", "prompt", 0})) {
       if (*ss!='p') bump(&kc->type, &ss);
       ss = strdup(trim(s));
       bump(&kc->prompt, &ss);
@@ -164,12 +164,58 @@ struct kconfig *walter(char *name)
   return klist;
 }
 
-int main(int argc, char *argv[])
+int value(struct kconfig *kc)
 {
-  struct kconfig *kc = walter("Config.in"), *kk;
+  char *s = kc->value ? : kc->def ? : "";
+
+  return s ? *kc->type=='b' ? *s=='y' : atoi(s) : 0;
+}
+
+struct kconfig *lookup(struct kconfig *klist, char *symbol)
+{
+  for (;klist; klist = klist->next)
+    if (klist->symbol && !strcmp(klist->symbol, symbol)) break;
+
+  return klist;
+}
+
+// TODO: parentheses, select
+int depends(struct kconfig *klist, struct kconfig *kc)
+{
+  struct kconfig *kt;
+  char *ss, *tt, *sym;
+  int rc = 1, flip;
+
+  if (kc->depend) for (ss = kc->depend; *ss;) {
+    for (tt = ss; *tt && !isspace(*tt);) tt++;
+    if (tt==ss) break;
+    ss = sym = strndup(ss, tt-ss);
+    sym += flip = *sym=='!';
+    while (isspace(*tt)) tt++;
+    if (!strcmp("&&", sym)) {
+      if (!rc) return 0;
+    } else if (!strcmp("||", sym)) {
+      if (rc) return 1;
+    } else if (!(kt = lookup(klist, sym))) {
+      dprintf(2, "unknown dependency %s in %s\n", sym, kc->symbol);
+      exit(1);
+    } else {
+      rc = depends(kc, kt) ? value(kt) : 0;
+      if (flip) rc = !rc;
+    }
+    free(ss);
+    ss = tt;
+  }
+
+  return rc;
+}
+
+void options(char *opt)
+{
+  struct kconfig *kc = read_Config("Config.in"), *kk;
   char *ss, *tt, *esc = "\n\\\"";
 
-  if (argc==2 && !strcmp(argv[1], "-h")) for (kk = kc; kk; kk = kk->next) {
+  if (!strcmp(opt, "-h")) for (kk = kc; kk; kk = kk->next) {
     if (!kk->symbol || !kk->help) continue;
     printf("#define HELP_");
     for (ss = kk->symbol; *ss; ss++) putchar(tolower(*ss));
@@ -178,7 +224,25 @@ int main(int argc, char *argv[])
       if (!(tt = strchr(esc, *ss))) putchar(*ss);
       else printf("\\%c", "n\\\""[tt-esc]);
     printf("\"\n\n");
+  } else if (!strcmp(opt, "-d"))  for (kk = kc; kk; kk = kk->next) {
+    if (!strcmp(kk->type, "menu") && kk->prompt)
+      printf("\n#\n# %s\n#\n", kk->prompt);
+    if (!(ss = kk->symbol)) continue;
+    if (*kk->type=='b')
+      printf((depends(kc, kk) && value(kk))
+        ? "CONFIG_%s=y\n" : "# CONFIG_%s is not set\n", ss);
+    else if (*kk->type=='s')
+      printf("CONFIG_%s=\"%s\"\n", ss, kk->value ? : kk->def ? : "");
+    else printf("CONFIG_%s=%d\n", ss, value(kk));
   }
+}
+
+// Read .config file and set each symbol
+// void getconfig(struct kconfig *klist, char *) { }
+
+int main(int argc, char *argv[])
+{
+  if (argc==2) options(argv[1]);
 
   return 0;
 }
