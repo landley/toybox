@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /*
 mainmenu, source, comment
@@ -22,7 +23,7 @@ endmenu/endchoice
 
 // Data we're collecting about each entry
 struct kconfig {
-  struct kconfig *next;
+  struct kconfig *next, *contain;
   char *symbol, *value, *type, *prompt, *def, *depend, *help;
 };
 
@@ -47,13 +48,13 @@ char *trim(char *s)
 }
 
 // Check string against 0 terminated array of strings, return 0 if no match
-char *strany(char *needle, char *haystack[])
+int strany(char *needle, char *haystack[])
 {
   int ii;
 
   for (ii = 0; haystack[ii] && strcmp(needle, haystack[ii]); ii++);
 
-  return haystack[ii];
+  return haystack[ii] ? ii+1 : 0;
 }
 
 // Free *to, assign *to = *from, and zero *from.
@@ -65,10 +66,11 @@ void bump(char **to, char **from)
 }
 
 // Read Config.in file, recursing into "source" lines
-struct kconfig *read_Config(char *name)
+struct kconfig *read_Config(char *name, struct kconfig *contain)
 {
   FILE *fp = fopen(name, "r");
-  char *line = 0, *help = 0, *s, *ss;
+  char *line = 0, *help = 0, *s, *ss, *keywords[] = {"mainmenu", "menu",
+    "choice", "comment", "config", "endmenu", "endchoice", 0};
   struct kconfig *kc, *klist = 0;
   int ii, jj, count = 0, hindent;
   size_t size = 0;
@@ -123,18 +125,19 @@ struct kconfig *read_Config(char *name)
     if (!strcmp(ss, "source")) {
       struct kconfig *kt;
 
-      if (!(kt = read_Config(trim(s)))) { fp = 0; break; }
+      if (!(kt = read_Config(trim(s), contain))) { fp = 0; break; }
       if (klist) kc = (kc->next) = kt;
       else klist = kc = kt;
       while (kc->next) kc = kc->next;
     // start help block
     } else if (!strcmp(ss, "help")) help = strdup("");
     // start a new config entry?
-    else if (strany(ss, (char *[]){"mainmenu", "menu", "comment", "config",
-        "menu", "choice", "endmenu", "endchoice", 0}))
-    {
+    else if ((ii = strany(ss, keywords))) {
       struct kconfig *kt = calloc(sizeof(struct kconfig), 1);
 
+      if (ii>5) contain = kc->contain;
+      kt->contain = contain;
+      if (ii<4) contain = kt;
       if (klist) kc = (kc->next = kt);
       else klist = kc = kt;
       if (!strcmp(ss, "config")) {
@@ -166,9 +169,15 @@ struct kconfig *read_Config(char *name)
 
 int value(struct kconfig *kc)
 {
-  char *s = kc->value ? : kc->def ? : "";
+  char *s = kc->value ? : kc->def ? : 0;
 
-  return s ? *kc->type=='b' ? *s=='y' : atoi(s) : 0;
+  if (!s) {
+    if (!strcmp(kc->contain->type, "choice")
+      && !strcmp(kc->contain->def, kc->symbol)) s = "y";
+    else s = "";
+  }
+
+  return *kc->type=='b' ? *s=='y' : atoi(s);
 }
 
 struct kconfig *lookup(struct kconfig *klist, char *symbol)
@@ -212,7 +221,7 @@ int depends(struct kconfig *klist, struct kconfig *kc)
 
 void options(char *opt)
 {
-  struct kconfig *kc = read_Config("Config.in"), *kk;
+  struct kconfig *kc = read_Config("Config.in", 0), *kk;
   char *ss, *tt, *esc = "\n\\\"";
 
   if (!strcmp(opt, "-h")) for (kk = kc; kk; kk = kk->next) {
@@ -224,21 +233,31 @@ void options(char *opt)
       if (!(tt = strchr(esc, *ss))) putchar(*ss);
       else printf("\\%c", "n\\\""[tt-esc]);
     printf("\"\n\n");
-  } else if (!strcmp(opt, "-d"))  for (kk = kc; kk; kk = kk->next) {
-    if (!strcmp(kk->type, "menu") && kk->prompt)
-      printf("\n#\n# %s\n#\n", kk->prompt);
-    if (!(ss = kk->symbol)) continue;
-    if (*kk->type=='b')
-      printf((depends(kc, kk) && value(kk))
-        ? "CONFIG_%s=y\n" : "# CONFIG_%s is not set\n", ss);
-    else if (*kk->type=='s')
-      printf("CONFIG_%s=\"%s\"\n", ss, kk->value ? : kk->def ? : "");
-    else printf("CONFIG_%s=%d\n", ss, value(kk));
+  } else if (!strcmp(opt, "-d")) {
+    time_t t = time(0);
+    struct tm *tt = localtime(&t);
+    char buf[64];
+
+    strftime(buf, sizeof(buf), "%c", tt);
+    printf("# %s\n\n", buf);
+
+   for (kk = kc; kk; kk = kk->next) {
+      if (!strcmp(kk->type, "menu") || !strcmp(kk->type, "comment"))
+        printf("\n#\n# %s\n#\n", kk->prompt ? : "");
+      if (!(ss = kk->symbol)) continue;
+      if (*kk->type=='b')
+        printf((depends(kc, kk) && value(kk))
+          ? "CONFIG_%s=y\n" : "# CONFIG_%s is not set\n", ss);
+      else if (*kk->type=='s')
+        printf("CONFIG_%s=\"%s\"\n", ss, kk->value ? : kk->def ? : "");
+      else printf("CONFIG_%s=%d\n", ss, value(kk));
+    }
   }
 }
 
 // Read .config file and set each symbol
 // void getconfig(struct kconfig *klist, char *) { }
+
 
 int main(int argc, char *argv[])
 {
