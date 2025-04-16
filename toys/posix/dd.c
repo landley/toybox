@@ -52,7 +52,7 @@ struct dd_flag {
 };
 
 static const struct dd_flag dd_conv[] = TAGGED_ARRAY(DD_conv,
-  {"fsync"}, {"noerror"}, {"notrunc"}, {"sync"}, // TODO sparse excl nocreat
+  {"fsync"}, {"noerror"}, {"notrunc"}, {"sync"}, {"nocreat"}, // TODO sparse excl
 );
 
 static const struct dd_flag dd_iflag[] = TAGGED_ARRAY(DD_iflag,
@@ -149,7 +149,7 @@ void dd_main()
     count = ULLONG_MAX, buflen;
   long long len;
   struct iovec iov[2];
-  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, ii;
+  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, creat = O_CREAT, ii;
   unsigned conv = 0, iflag = 0, oflag = 0;
 
   TT.show_xfer = TT.show_records = 1;
@@ -186,10 +186,11 @@ void dd_main()
   buf = xmalloc(buflen = ibs+obs*!bs);
   if (buflen<ibs || buflen<obs) error_exit("tilt");
 
+  if (conv & _DD_conv_nocreat) creat = 0;
   if (conv & _DD_conv_notrunc) trunc = 0;
   if (iname) ifd = xopenro(iname);
   else iname = "stdin";
-  if (oname) ofd = xcreate(oname, O_WRONLY|O_CREAT|(trunc*!seek),0666);
+  if (oname) ofd = xcreate(oname, O_WRONLY|creat|(trunc*!seek),0666);
   else oname = "stdout";
 
   // Implement skip=
