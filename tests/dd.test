@@ -100,6 +100,11 @@ testcmd "conv=sync" "conv=sync | head -n 1" "I WANT\n" "" "I WANT\n"
 testcmd "conv=sync with IF" "conv=sync if=input | head -n 1" "I WANT\n" \
   "I WANT\n" ""
 
+testcmd "conv=nocreat" "conv=nocreat of=./noexist || ( [ ! -e ./noexist ] && echo DOESNOTEXIST )" \
+  "DOESNOTEXIST\n" "" "anything at all"
+testcmd "conv=nocreat no OF" "conv=nocreat if=input" "anything" "anything" ""
+testing "conv=nocreat exists" "dd conv=nocreat of=input && cat input" "results" "existing" "results"
+
 # status=noxfer|none
 testcmd "status=noxfer" "if=input status=noxfer ibs=1 2>&1" \
   "input\n6+0 records in\n0+1 records out\n" "input\n" ""
