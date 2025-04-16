@@ -959,7 +959,7 @@ static uint32_t get_option_serverid (uint8_t *opt, dhcpc_result_t *presult)
 
 static uint8_t get_option_msgtype(uint8_t *opt)
 {
-  uint32_t var = 0;
+  uint8_t var = 0;
   while (*opt != DHCP_OPTION_MSG_TYPE) {
     if (*opt == DHCP_OPTION_END) return var;
     opt += opt[1] + 2;
