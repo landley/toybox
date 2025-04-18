@@ -957,17 +957,6 @@ static uint32_t get_option_serverid (uint8_t *opt, dhcpc_result_t *presult)
   return var;
 }
 
-static uint8_t get_option_msgtype(uint8_t *opt)
-{
-  uint32_t var = 0;
-  while (*opt != DHCP_OPTION_MSG_TYPE) {
-    if (*opt == DHCP_OPTION_END) return var;
-    opt += opt[1] + 2;
-  }
-  memcpy(&var, opt+2, sizeof(uint8_t));
-  return var;
-}
-
 static uint8_t get_option_lease(uint8_t *opt, dhcpc_result_t *presult)
 {
   uint32_t var = 0;
@@ -1180,12 +1169,18 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
 // parses recvd messege to check that it was for us.
 static uint8_t dhcpc_parsemsg(dhcpc_result_t *presult)
 {
+  char *opt = state->pdhcp.options;
+
   if (state->pdhcp.op == DHCP_REPLY
       && !memcmp(state->pdhcp.chaddr, state->macaddr, 6)
       && !memcmp(&state->pdhcp.xid, &xid, sizeof(xid))) {
     memcpy(&presult->ipaddr.s_addr, &state->pdhcp.yiaddr, 4);
     presult->ipaddr.s_addr = ntohl(presult->ipaddr.s_addr);
-    return get_option_msgtype(state->pdhcp.options);
+
+    while (*opt != DHCP_OPTION_END) {
+      if (*opt == DHCP_OPTION_MSG_TYPE) return opt[2];
+      opt += opt[1]+2;
+    }
   }
   return 0;
 }
