@@ -1045,7 +1045,7 @@ void tar_main(void)
 
   // If include file list empty, don't create empty archive
   if (FLAG(c)) {
-    if (!TT.incl) error_exit("empty archive");
+    if (!TT.incl && !FLAG(T)) error_exit("empty archive");
     TT.fd = 1;
   }
 
@@ -1194,7 +1194,7 @@ void tar_main(void)
       close(TT.fd);
       TT.fd = pipefd[0];
     }
-    do {
+    if (dl) do {
       TT.warn = 1;
       dirtree_flagread(dl->data,
         DIRTREE_SYMFOLLOW*FLAG(h)|DIRTREE_BREADTH*(FLAG(sort)|FLAG(s)),
