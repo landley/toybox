@@ -87,8 +87,11 @@ static int do_test(char **args, int *count)
         a = atolx(args[0]);
         b = atolx(args[2]);
       } else {
-        if ((i == 12 ? stat : lstat)(args[0], &st1)
-          || (i == 12 ? stat : lstat)(args[2], &st2)) return 0;
+        int j = (i == 12 ? stat : lstat)(args[0], &st1),
+            k = (i == 12 ? stat : lstat)(args[2], &st2);
+
+        // "does not exist" is always older than existing file
+        if (j || k) return (i<14) ? 0 : i==16 ? j>k : j<k;
       }
 
       if (!i) return a == b;
