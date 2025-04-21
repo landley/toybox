@@ -21,16 +21,12 @@ jobs:
     - name: Test
       run: VERBOSE=all make tests
 
-  Ubuntu-20_04:
-    runs-on: ubuntu-20.04
+  Ubuntu-22_04:
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v2
     - name: Setup
       run: sudo apt-get install build-essential
-    - name: Configure
-      run: make defconfig
-    - name: Build
-      run: make
-    - name: Test
-      run: VERBOSE=all make tests
+    - name: Configure build and test
+      run: VERBOSE=all make defconfig tests
