@@ -38,7 +38,7 @@ void xgetrandom(void *buf, unsigned buflen)
   // BSD/macOS only has getentropy(), but it's in <sys/random.h> (to be fair,
   // they were there first). getrandom() and getentropy() both went into glibc
   // in the same release (2.25 in 2017), so this test still works.
-#if __has_include(<sys/random.h>)
+#if __has_include(<sys/random.h>) && (!defined(__ANDROID__) || __ANDROID_API__>28)
   while (buflen) {
     if (getentropy(buf, fd = buflen>256 ? 256 : buflen)) break;
     buflen -= fd;
