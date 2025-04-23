@@ -26,7 +26,7 @@
  * TODO: Add support for Transfer Encoding (gzip|deflate)
  * TODO: Add support for RFC5987
 
-USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):p(post-data):", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):p(post-data):", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MOREHELP(CFG_WGET_LIBTLS|CFG_TOYBOX_LIBCRYPTO)))
 
 config WGET
   bool "wget"
@@ -40,6 +40,7 @@ config WGET
 
     examples:
       wget http://www.example.com
+    !  wget https://www.example.com
 
 config WGET_LIBTLS
   bool "Enable HTTPS support for wget via LibTLS"

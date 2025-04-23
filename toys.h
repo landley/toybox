@@ -89,7 +89,7 @@
 #define HELP_HTML    8  // Output HTML
 
 struct toy_list *toy_find(char *name);
-void show_help(FILE *out, int full);
+void show_help(int full);
 void check_help(char **arg);
 void toy_singleinit(struct toy_list *which, char *argv[]);
 void toy_init(struct toy_list *which, char *argv[]);

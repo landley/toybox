@@ -30,12 +30,12 @@ static void do_help(struct toy_list *t)
     xprintf("<a name=\"%s\"><h1>%s</h1><blockquote><pre>\n", t->name, t->name);
 
   toys.which = t;
-  show_help(stdout, HELP_USAGE*FLAG(u) + (HELP_SEE|HELP_HTML)*FLAG(h));
+  show_help(HELP_USAGE*FLAG(u) + (HELP_SEE|HELP_HTML)*FLAG(h));
 
   if (FLAG(h)) xprintf("</blockquote></pre>\n");
 }
 
-// Simple help is just toys.which = toy_find("name"); show_help(stdout, 0);
+// Simple help is just toys.which = toy_find("name"); show_help(0);
 // but iterating through html output and all commands is a bit more
 
 void help_main(void)
@@ -47,7 +47,7 @@ void help_main(void)
     for (i = 0; i < toys.toycount; i++) {
       if (!(toy_list[i].flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK))) continue;
       toys.which = toy_list+i;
-      show_help(stdout, HELP_SEE|HELP_USAGE*!toys.optflags);
+      show_help(HELP_SEE|HELP_USAGE*!toys.optflags);
     }
     return;
   }

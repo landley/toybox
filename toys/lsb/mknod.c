@@ -4,27 +4,22 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mknod.html
 
-USE_MKNOD(NEWTOY(mknod, "<2>4m(mode):"USE_MKNOD_Z("Z:"), TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_MKNOD(NEWTOY(mknod, "<2>4m(mode):"SKIP_TOYBOX_LSM_NONE("Z:"), TOYFLAG_BIN|TOYFLAG_UMASK|TOYFLAG_MOREHELP(!CFG_TOYBOX_LSM_NONE)))
 
 config MKNOD
   bool "mknod"
   default y
   help
-    usage: mknod [-m MODE] NAME TYPE [MAJOR MINOR]
+    usage: mknod [-m MODE] ![!-!Z! !C!O!N!T!E!X!T!]! NAME TYPE [MAJOR MINOR]
 
-    Create a special file NAME with a given type. TYPE is b for block device,
-    c or u for character device, p for named pipe (which ignores MAJOR/MINOR).
+    Create new device node NAME. TYPE is b for block device, c for character
+    device, p for named pipe (which ignores MAJOR/MINOR).
 
     -m	Mode (file permissions) of new device, in octal or u+x format
+    !-Z	Set security context of new device
 
-config MKNOD_Z
-  bool
-  default y
-  depends on MKNOD && !TOYBOX_LSM_NONE
-  help
-    usage: mknod [-Z CONTEXT] ...
-
-    -Z	Set security context to created file
+    These days devtmpfs usually creates nodes for you. For the historical list,
+    See https://www.kernel.org/pub/linux/docs/lanana/device-list/devices-2.6.txt
 */
 
 #define FOR_mknod
@@ -49,8 +44,7 @@ void mknod_main(void)
     minor = atoi(toys.optargs[3]);
   }
 
-  if (FLAG(Z) && lsm_set_create(TT.Z)==-1)
-    perror_exit("-Z '%s' failed", TT.Z);
+  if (FLAG(Z) && lsm_set_create(TT.Z)==-1) perror_exit("-Z '%s' failed", TT.Z);
   if (mknod(*toys.optargs, mode|modes[type], dev_makedev(major, minor)))
     perror_exit_raw(*toys.optargs);
 }

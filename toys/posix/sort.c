@@ -7,51 +7,42 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMCcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_SORT(NEWTOY(sort, USE_TOYBOX_FLOAT("g")"S:T:m" "o:k*t:" "xVbMCcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_MOREHELP(CFG_TOYBOX_FLOAT)))
 
 config SORT
   bool "sort"
   default y
   help
-    usage: sort [-runbCcdfiMsxVz] [FILE...] [-k#[,#[x]] [-t X]] [-o FILE]
+    usage: sort [-bCcdf!giMnrsuxVz] [FILE...] [-k#[,#[x]] [-t X]] [-o FILE]
 
     Sort all lines of text from input files (or stdin) to stdout.
-
-    -r	Reverse
-    -u	Unique lines only
-    -n	Numeric order (instead of alphabetical)
 
     -b	Ignore leading blanks (or trailing blanks in second part of key)
     -C	Check whether input is sorted
     -c	Warn if input is unsorted
     -d	Dictionary order (use alphanumeric and whitespace chars only)
     -f	Force uppercase (case insensitive sort)
+    !-g	General numeric sort (double precision with nan and inf)
     -i	Ignore nonprinting characters
-    -k	Sort by "key" (see below)
+    -k	Sort by KEY (see below)
     -M	Month sort (jan, feb, etc)
+    -n	Numeric order (instead of alphabetical)
     -o	Output to FILE instead of stdout
+    -r	Reverse
     -s	Skip fallback sort (only sort with keys)
     -t	Use a key separator other than whitespace
+    -u	Unique lines only
     -x	Hexadecimal numerical sort
     -V	Version numbers (name-1.234-rc6.5b.tgz)
     -z	Zero (null) terminated lines
 
-    Sorting by key looks at a subset of the words on each line. -k2 uses the
+    Sorting by KEY looks at a subset of the words on each line. -k2 uses the
     second word to the end of the line, -k2,2 looks at only the second word,
     -k2,4 looks from the start of the second to the end of the fourth word.
     -k2.4,5 starts from the fourth character of the second word, to the end
     of the fifth word. Negative values count from the end. Specifying multiple
     keys uses the later keys as tie breakers, in order. A type specifier
     appended to a sort key (such as -2,2n) applies only to sorting that key.
-
-config SORT_FLOAT
-  bool
-  default y
-  depends on TOYBOX_FLOAT
-  help
-    usage: sort [-g]
-
-    -g	General numeric sort (double precision with nan and inf)
 */
 
 #define FOR_sort
@@ -179,7 +170,7 @@ static struct sort_key *add_key(void)
 // Perform actual comparison
 static int compare_values(int flags, char *x, char *y)
 {
-  if (CFG_SORT_FLOAT && (flags & FLAG_g)) {
+  if (CFG_TOYBOX_FLOAT && (flags & FLAG_g)) {
     char *xx,*yy;
     double dx = strtod(x,&xx), dy = strtod(y,&yy);
     int xinf, yinf;

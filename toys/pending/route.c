@@ -300,11 +300,11 @@ static void setroute(sa_family_t f, char **argv)
     else if (!strcmp(*argv, "reinstate")) continue;
     else if (!strcmp(*argv, "reject")) rtMsg->rtm_type = RTN_UNREACHABLE;
     else {
-      if (!argv[1]) show_help(stdout, 1);
+      if (!argv[1]) help_exit("need arg");
 
       if (!strcmp(*argv, "metric")) {
         unsigned int priority = atolx_range(argv[1], 0, UINT_MAX);
-        addAttr(nlMsg, sizeof(toybuf), &priority, RTA_PRIORITY, sizeof(unsigned int));
+        addAttr(nlMsg, sizeof(toybuf), &priority, RTA_PRIORITY, 4);
       } else if (!strcmp(*argv, "netmask")) {
         uint32_t netmask;
         char *ptr;
@@ -368,7 +368,7 @@ void route_main(void)
   if (!*toys.optargs) {
     if (!TT.A || !strcmp(TT.A, "inet")) display_routes(AF_INET);
     else if (!strcmp(TT.A, "inet6")) display_routes(AF_INET6);
-    else show_help(stdout, 1);
+    else help_exit("bad -A '%s'", TT.A);
   } else {
     if (!TT.A) {
       if (toys.optc>1 && strchr(toys.optargs[1], ':')) {

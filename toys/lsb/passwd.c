@@ -5,7 +5,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/passwd.html
 
-USE_PASSWD(NEWTOY(passwd, ">1a:dlu", TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
+USE_PASSWD(NEWTOY(passwd, ">1a:dlu", TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MOREHELP(CFG_PASSWD_SAD)))
 
 config PASSWD
   bool "passwd"
@@ -19,6 +19,8 @@ config PASSWD
     -d		Set password to ''
     -l		Lock (disable) account
     -u		Unlock (enable) account
+    !
+    !Checks password is >=6 chars, doesn't include username, and actually changed.
 
 config PASSWD_SAD
   bool "Add sad password checking heuristics"

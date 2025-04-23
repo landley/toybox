@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
-USE_ID(NEWTOY(id, ">1"USE_ID_Z("Z")"nGgru[!"USE_ID_Z("Z")"Ggu]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ID(NEWTOY(id, ">1"SKIP_TOYBOX_LSM_NONE("Z")"nGgru[!"SKIP_TOYBOX_LSM_NONE("Z")"Ggu]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MOREHELP(!CFG_TOYBOX_LSM_NONE)))
 USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_USR|TOYFLAG_BIN))
 USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_USR|TOYFLAG_BIN))
@@ -15,7 +15,7 @@ config ID
   bool "id"
   default y
   help
-    usage: id [-Ggnru] [USER...]
+    usage: id [-Ggnru!Z] [USER...]
 
     Print user and group ID.
 
@@ -24,15 +24,7 @@ config ID
     -n	Print names instead of numeric IDs (to be used with -Ggu)
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
-
-config ID_Z
-  bool
-  default y
-  depends on ID && !TOYBOX_LSM_NONE
-  help
-    usage: id [-Z]
-
-    -Z	Show only security context
+    !-Z	Show only security context
 
 config GROUPS
   bool "groups"

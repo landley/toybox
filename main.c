@@ -49,7 +49,7 @@ struct toy_list *toy_find(char *name)
 
 // Figure out whether or not anything is using the option parsing logic,
 // because the compiler can't figure out whether or not to optimize it away
-// on its' own.  NEED_OPTIONS becomes a constant allowing if() to optimize
+// on its' own. NEED_OPTIONS becomes a constant allowing if() to optimize
 // stuff out via dead code elimination.
 
 #undef NEWTOY
@@ -59,6 +59,16 @@ struct toy_list *toy_find(char *name)
 static const int NEED_OPTIONS =
 #include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
+
+// Same trick but with the TRIMHELP plumbing.
+
+#undef NEWTOY
+#undef OLDTOY
+#define NEWTOY(name, opts, flags) ((flags)&TOYFLAG_TRIMHELP) ||
+#define OLDTOY(name, oldname, flags) ((flags)&TOYFLAG_TRIMHELP) ||
+static const int NEED_TRIMHELP =
+#include "generated/newtoys.h"
+0;
 
 // Populate help text array
 
@@ -71,32 +81,31 @@ static const int NEED_OPTIONS =
 #define OLDTOY(name, oldname, flags) HELP_##oldname "\0"
 #endif
 
+#if CFG_TOYBOX_ZHELP
+#include "generated/zhelp.h"
+static char *help_data = 0;
+#else
 #include "generated/help.h"
 static const char help_data[] =
 #include "generated/newtoys.h"
 ;
-
-#if CFG_TOYBOX_ZHELP
-#include "generated/zhelp.h"
-#else
-static char *zhelp_data = 0;
+#define zhelp_data help_data
 #define ZHELP_LEN 0
 #endif
 
-void show_help(FILE *out, int flags)
+void show_help(int flags)
 {
   int i = toys.which-toy_list;
-  char *s, *ss, *hd;
+  char *s, *ss;
 
   if (!CFG_TOYBOX_HELP) return;
 
   if (CFG_TOYBOX_ZHELP)
-    gunzip_mem(zhelp_data, sizeof(zhelp_data), hd = xmalloc(ZHELP_LEN),
+    gunzip_mem(zhelp_data, sizeof(zhelp_data), help_data = xmalloc(ZHELP_LEN),
       ZHELP_LEN);
-  else hd = (void *)help_data;
 
-  if (flags & HELP_HEADER)
-    fprintf(out, "Toybox %s"USE_TOYBOX(" multicall binary")"%s\n\n",
+  if (flags&HELP_HEADER)
+    printf("Toybox %s"USE_TOYBOX(" multicall binary")"%s\n\n",
       toybox_version, (CFG_TOYBOX && i) ? " (see toybox --help)"
       : " (see https://landley.net/toybox)");
 
@@ -107,18 +116,44 @@ void show_help(FILE *out, int flags)
     if (*s != 255) break;
     i = toy_find(++s)-toy_list;
     if ((flags & HELP_SEE) && toy_list[i].flags) {
-      if (flags & HELP_HTML) fprintf(out, "See <a href=#%s>%s</a>\n", s, s);
-      else fprintf(out, "%s see %s\n", toys.which->name, s);
+      if (flags & HELP_HTML) printf("See <a href=#%s>%s</a>\n", s, s);
+      else printf("%s see %s\n", toys.which->name, s);
 
       return;
     }
   }
 
-  if (!(flags & HELP_USAGE)) fprintf(out, "%s\n", s);
-  else {
+  // Only "help -u" calls HELP_USAGE
+  if (CFG_HELP && (flags&HELP_USAGE)) {
     strstart(&s, "usage: ");
     for (ss = s; *ss && *ss!='\n'; ss++);
-    fprintf(out, "%.*s\n", (int)(ss-s), s);
+    printf("%.*s\n", (int)(ss-s), s);
+  } else if (!NEED_TRIMHELP || !(toys.which->flags&TOYFLAG_TRIMHELP)) puts(s);
+  // TRIMHELP lines starting with ! are only displayed with BIGHELP,
+  // and the starting ! is edited out either way.
+  else {
+    int big = toys.which->flags&TOYFLAG_BIGHELP, usage = 1;
+
+    for (; *s; s++) {
+      // For usage: line, chop out individual chars after each !
+      if (usage && *s=='!') {
+        s++;
+        if (!big) continue;
+      }
+      putchar(*s);
+
+      // For other lines, chop out whole lines starting with !
+      if (*s=='\n') {
+        usage = 0;
+        if (s[1]=='!') {
+          s++;
+          if (big) continue;
+          s += strcspn(s, "\n");
+          if (!*s) return;
+        }
+      }
+    }
+    putchar('\n');
   }
 }
 
@@ -142,7 +177,7 @@ void check_help(char **arg)
       toys.which = 0;
       if (!(toys.which = toy_find(arg[1]))) unknown(arg[1]);
     }
-    show_help(stdout, HELP_HEADER);
+    show_help(HELP_HEADER);
     xexit();
   }
 
