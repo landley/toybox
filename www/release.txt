@@ -1,7 +1,8 @@
 make distclean defconfig tests
 news.html - release notes
-Update version in toys.h
-  - git commit toys.h www/news.html
+Update version in toys.h and www/header.html
+  - git commit toys.h www/news.html www/header.html
+review/update roadmap.html
 tag repo
   - git tag $VER
   - git push
@@ -9,7 +10,7 @@ tag repo
 source tarball
   git archive --prefix=toybox-$VER/ $VER | gzip -9 > toybox-$VER.tar.gz
   scp toybox-$VER.tar.gz landley.net:landley.net/toybox/downloads
-  scp www/news.html landley.net:landley.net/toybox/
+  scp www/{news,header,roadmap}.html landley.net:landley.net/toybox/
 binaries
   cd ../clean
   git pull --tags ../toybox
@@ -23,17 +24,16 @@ binaries
 
   make clean; make defconfig toybox
   ./toybox help -ah > www/help.html
-  scripts/mkstatus.py
+  python scripts/mkstatus.py # it's python, not python++
 
   scp www/{news,help,status}.html landley.net:landley.net/toybox/
 
-Edit version in header.html
-
-roadmap.html
 code.html
 Inform mailing list (with link to https://landley.net/toybox)
 Update #toybox topic
   Toybox 0.7.3 released February 21, 2017. http://landley.net/toybox
+
+scripts/recreate-prereq.sh
 
 todo:
   sparc, cortex-m toolchains
