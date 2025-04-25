@@ -1,4 +1,5 @@
-  toybox          - Build toybox.
+  toybox          - Build unified toybox with commands selected in .config
+  defconfig       - Write .config with default answers (max sane config).
   COMMANDNAME     - Build individual toybox command as a standalone binary.
   list            - List COMMANDNAMEs you can build standalone.
   list_example    - List example commands (often used by the test suite)

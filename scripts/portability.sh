@@ -46,3 +46,18 @@ fi
 # If the build is using gnu tools, make them behave less randomly.
 export LANG=c
 export LC_ALL=C
+
+# Respond to V= by echoing command lines as well as running them
+do_loudly() {
+  { [ -n "$V" ] && echo "$@" || echo -n "$DOTPROG" ; } >&2
+  "$@"
+}
+
+# Run a C file from scripts/*.c using $HOSTCC as necessary
+brun() {
+  [ ! -e "$UNSTRIPPED"/$1 -o "$UNSTRIPPED"/$1 -ot scripts/$1.c ] &&
+    { mkdir -p "$UNSTRIPPED" &&
+      do_loudly $HOSTCC scripts/$1.c -o "$UNSTRIPPED"/$1 || exit 1; }
+  do_loudly "$UNSTRIPPED"/$1 "${@:2}"
+}
+
