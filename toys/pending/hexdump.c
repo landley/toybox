@@ -8,7 +8,6 @@
  *  - Implement format strings (see man (1) hexdump)
 
 USE_HEXDUMP(NEWTOY(hexdump, "bcCdn#<0os#<0vx[!bcCdox]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_HD(OLDTOY(hd, hexdump, TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEXDUMP
   bool "hexdump"
@@ -25,14 +24,6 @@ config HEXDUMP
     Display type:
     -b One byte octal   -c One byte character -C Canonical (hex + ASCII)
     -d Two byte decimal -o Two byte octal     -x Two byte hexadecimal (default)
-
-config HD
-  bool "hd"
-  default n
-  help
-    usage: hd [FILE...]
-
-    Display file(s) in cannonical hex+ASCII format.
 */
 
 #define FOR_hexdump
