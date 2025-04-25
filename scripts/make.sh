@@ -175,7 +175,7 @@ then
     then
       cat "$GENDIR"/config.h
     else
-      $SED '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' "$GENDIR"/config.h
+      $SED -E '/(USE|SKIP)_.*\([^)]*\)$/s/$/ __VA_ARGS__/' "$GENDIR"/config.h
     fi
     echo '#include "lib/toyflags.h"'
     cat "$GENDIR"/newtoys.h
