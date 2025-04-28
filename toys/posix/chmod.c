@@ -3,8 +3,10 @@
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/chmod.html
+ *
+ * Deviations from posix: -cfv
 
-USE_CHMOD(NEWTOY(chmod, "<2?vfR[-vf]", TOYFLAG_BIN))
+USE_CHMOD(NEWTOY(chmod, "<2?cvfR[-cvf]", TOYFLAG_BIN))
 
 config CHMOD
   bool "chmod"
@@ -12,9 +14,16 @@ config CHMOD
   help
     usage: chmod [-R] MODE FILE...
 
-    Change mode of listed file[s] (recursively with -R).
+    Change permission mode of listed file[s] to be readable, writeable, and/or
+    executable to the current user, the file's group, or other (everyone else).
+    You can also set/clear the suid, guid, and sticky bits.
 
-    MODE can be (comma-separated) stanzas: [ugoa][+-=][rwxstXugo]
+    -c	Print changes
+    -f	Don't print errors
+    -R	Recursive
+    -v	Verbose
+
+    MODE can be octal or (comma-separated) stanzas of [ugoa][+-=][rwxstXugo]
 
     Stanzas are applied in order: For each category (u = user,
     g = group, o = other, a = all three, if none specified default is a),
@@ -25,7 +34,7 @@ config CHMOD
     X = x for directories or if any category already has x set.
 
     Or MODE can be an octal value up to 7777	ug uuugggooo	top +
-    bit 1 = o+x, bit 1<<8 = u+w, 1<<11 = g+1	sstrwxrwxrwx	bottom
+    bit 1 = o+x, bit 1<<8 = u+r, 1<<10 = g+s	sstrwxrwxrwx	bottom
 
     Examples:
     chmod u+w file - allow owner of "file" to write to it.
@@ -41,7 +50,8 @@ GLOBALS(
 
 static int do_chmod(struct dirtree *try)
 {
-  mode_t mode;
+  mode_t mode, old;
+  char *s, *ss;
 
   if (!dirtree_notdotdot(try)) return 0;
 
@@ -51,11 +61,18 @@ static int do_chmod(struct dirtree *try)
     // but that's what you asked for in that case.
   } else {
     mode = string_to_mode(TT.mode, try->st.st_mode) & ~S_IFMT;
-    if (FLAG(v)) {
-      char *s = dirtree_path(try, 0);
-
-      printf("chmod '%s' to %s\n", s, TT.mode);
-      free(s);
+    if (FLAG(v)||FLAG(c)) {
+      mode_to_string(old = try->st.st_mode&07777, ss = toybuf+64);
+      *toybuf = 0;
+      if (old!=mode)
+        sprintf(toybuf, "changed from %04o (%s) to", old, ss+(*ss=='-'));
+      else if (FLAG(v)) strcpy(toybuf, "retained as");
+      if (*toybuf) {
+        s = dirtree_path(try, 0);
+        mode_to_string(mode, ss);
+        printf("mode of '%s' %s %04o (%s)\n", s, toybuf, mode, ss+(*ss=='-'));
+        free(s);
+      }
     }
     wfchmodat(dirtree_parentfd(try), try->name, mode);
   }
@@ -67,6 +84,14 @@ void chmod_main(void)
 {
   TT.mode = *toys.optargs;
   char **file;
+
+  // -f means discard stderr, so replace it with the read end of a pipe
+  if (FLAG(f)) {
+    int pp[2];
+
+    pipe(pp);
+    dup2(*pp, 2);
+  }
 
   for (file = toys.optargs+1; *file; file++) dirtree_read(*file, do_chmod);
 }
