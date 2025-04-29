@@ -1692,6 +1692,7 @@ int do_wildcard_files(struct dirtree *node)
 
   // Top level entry has no pattern in it
   if (!node->parent) return DIRTREE_RECURSE;
+  if (!dirtree_notdotdot(node)) return 0;
 
   // Find active pattern range
   for (nn = node->parent; nn; nn = nn->parent) if (nn->parent) ii++;
