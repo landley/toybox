@@ -2,13 +2,14 @@
  *
  * Copyright 2019 Rob Landley <rob@landley.net>
  *
- * I made it up. Must be built standalone to work. (Is its own multiplexer.)
+ * Must be built standalone to work. (Is its own multiplexer.)
 
 USE_LOGPATH(NEWTOY(logpath, 0, TOYFLAG_NOHELP|TOYFLAG_USR|TOYFLAG_BIN))
 
 config LOGPATH
   bool "logpath"
   default n
+  depends on !TOYBOX
   help
     usage: logpath ...
 
@@ -18,10 +19,6 @@ config LOGPATH
 
 #define FOR_logpath
 #include "toys.h"
-
-#if CFG_TOYBOX
-#warning Must be built standalone to work.
-#endif
 
 void logpath_main(void)
 {
