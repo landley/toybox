@@ -27,6 +27,9 @@ struct kconfig {
   char *symbol, *value, *type, *prompt, *def, *depend, *help;
 };
 
+// 0 = allnoconfig, 1 = defconfig, 2 = allyesconfig, 4 = randconfig
+int cfgtype;
+
 // Skip/remove leading space, quotes, and escapes within quotes
 char *trim(char *s)
 {
@@ -167,17 +170,21 @@ struct kconfig *read_Config(char *name, struct kconfig *contain)
   return klist;
 }
 
+// TODO: randconfig isn't randomizing CHOICE entries
 int value(struct kconfig *kc)
 {
   char *s = kc->value ? : kc->def ? : 0;
 
   if (!s) {
-    if (!strcmp(kc->contain->type, "choice")
-      && !strcmp(kc->contain->def, kc->symbol)) s = "y";
-    else s = "";
+    if (!strcmp(kc->contain->type, "choice"))
+      return !strcmp(kc->contain->def, kc->symbol);
+    s = "";
   }
 
-  return *kc->type=='b' ? *s=='y' : atoi(s);
+  if (*kc->type!='b') return atoi(s);
+  if (cfgtype==1 || !*kc->prompt) return *s=='y';
+  if (cfgtype==4) return random()&1;
+  return !!cfgtype;
 }
 
 struct kconfig *lookup(struct kconfig *klist, char *symbol)
@@ -233,7 +240,7 @@ void options(char *opt)
       if (!(tt = strchr(esc, *ss))) putchar(*ss);
       else printf("\\%c", "n\\\""[tt-esc]);
     printf("\"\n\n");
-  } else if (!strcmp(opt, "-d")) {
+  } else if (-1 != (cfgtype = strany(opt, (char *[]){"-n", "-d", "-y", 0})-1)) {
     time_t t = time(0);
     struct tm *tt = localtime(&t);
     char buf[64];
@@ -245,10 +252,10 @@ void options(char *opt)
       if (!strcmp(kk->type, "menu") || !strcmp(kk->type, "comment"))
         printf("\n#\n# %s\n#\n", kk->prompt ? : "");
       if (!(ss = kk->symbol)) continue;
-      if (*kk->type=='b')
+      if (*kk->type=='b') {
         printf((depends(kc, kk) && value(kk))
           ? "CONFIG_%s=y\n" : "# CONFIG_%s is not set\n", ss);
-      else if (*kk->type=='s')
+      } else if (*kk->type=='s')
         printf("CONFIG_%s=\"%s\"\n", ss, kk->value ? : kk->def ? : "");
       else printf("CONFIG_%s=%d\n", ss, value(kk));
     }

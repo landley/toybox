@@ -32,11 +32,20 @@ $(KCONFIG_CONFIG): $(KCONFIG_TOP)
 
 $(KCONFIG_TOP): generated/Config.in generated/Config.probed generated/unstripped/kconfig
 generated/Config.probed: generated/Config.in
-generated/Config.in: toys/*/*.c scripts/genconfig.sh
+generated/Config.in: toys/*/*.c scripts/genconfig.sh scripts/kconfig.c
 	scripts/genconfig.sh
 
 defconfig: $(KCONFIG_TOP) generated/Config.in
 	generated/unstripped/kconfig -d > $(KCONFIG_CONFIG)
+
+randconfig: $(KCONFIG_TOP) generated/Config.in
+	generated/unstripped/kconfig -r > $(KCONFIG_CONFIG)
+
+allyesconfig: $(KCONFIG_TOP) generated/Config.in
+	generated/unstripped/kconfig -y > $(KCONFIG_CONFIG)
+
+allnoconfig: $(KCONFIG_TOP) generated/Config.in
+	generated/unstripped/kconfig -n > $(KCONFIG_CONFIG)
 
 # Development targets
 baseline: generated/unstripped/toybox

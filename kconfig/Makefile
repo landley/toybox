@@ -5,8 +5,7 @@
 KCONFIG_TOP = Config.in
 KCONFIG_PROJECT = ToyBox
 obj = ./kconfig
-PHONY += clean help oldconfig menuconfig config silentoldconfig \
-	randconfig allyesconfig allnoconfig allmodconfig
+PHONY += clean help oldconfig menuconfig config silentoldconfig
 
 menuconfig: $(obj)/mconf $(KCONFIG_TOP)
 	$< $(KCONFIG_TOP)
@@ -19,15 +18,6 @@ oldconfig: $(obj)/conf $(KCONFIG_TOP)
 
 silentoldconfig: $(obj)/conf $(KCONFIG_TOP)
 	yes '' | $< -o $(KCONFIG_TOP) > /dev/null
-
-randconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -r $(KCONFIG_TOP) > /dev/null
-
-allyesconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -y $(KCONFIG_TOP) > /dev/null
-
-allnoconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -n $(KCONFIG_TOP) > /dev/null
 
 KCONFIG_ALLCONFIG ?= /dev/null
 
