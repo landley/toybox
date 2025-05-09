@@ -14,7 +14,7 @@
  *   redirect+expansion in one pass so we can't report errors between them.
  *   Trailing redirects error at runtime, not parse time.
 
- * builtins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
+ * builtins: bg command fc fg getopts jobs newgrp read umask wait
  *          disown suspend source pushd popd dirs logout times trap cd hash exit
  *           unset local export readonly set : . let history declare ulimit type
  * "special" builtins: break continue eval exec return shift
@@ -44,6 +44,7 @@
  * if/then/elif/else/fi, for select while until/do/done, case/esac,
  * {/}, [[/]], (/), function assignment
 
+USE_SH(NEWTOY(alias, "p", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(break, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(continue, ">1", TOYFLAG_NOFORK))
@@ -61,6 +62,7 @@ USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(trap, "lp", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(unalias, "<1a", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(wait, "n", TOYFLAG_NOFORK))
 
@@ -137,6 +139,20 @@ config SH
     bg fg jobs kill
 
 # These are here for the help text, they're not selectable and control nothing
+config ALIAS
+  bool
+  default n
+  depends on SH
+  help
+    usage: alias [NAME[=VALUE]...]
+
+    Create or show macro expansions, which replace the name of a command with
+    a string when reading input lines (but only in interactive mode, not when
+    running scripts or -c input). Historical, mostly replaced by functions.
+
+    With no arguments, display all available aliases. Names with no = display
+    that existing alias (error if undefined).
+
 config BREAK
   bool
   default n
@@ -329,6 +345,17 @@ config TRAP
     The special signal EXIT gets called before the shell exits, RETURN when
     a function or source returns, and DEBUG is called before each command.
 
+config UNALIAS
+  bool
+  default n
+  depends on SH
+  help
+    usage: unalias [-a] [NAME...]
+
+    Remove existing alias (error if none).
+
+    -a	Remove all existing aliases.
+
 config WAIT
   bool
   default n
@@ -368,7 +395,7 @@ GLOBALS(
     char *name;
     struct sh_pipeline {  // pipeline segments: linked list of arg w/metadata
       struct sh_pipeline *next, *prev, *end;
-      int count, here, type;
+      short count, here, type, noalias;
       long lineno;
       struct sh_arg {
         char **v;
@@ -378,6 +405,7 @@ GLOBALS(
     unsigned long refcount;
   } **functions;
   long funcslen;
+  struct sh_arg alias;
 
   // runtime function call stack. TT.ff is current function, returns to ->next
   struct sh_fcall {
@@ -3073,13 +3101,15 @@ static struct sh_pipeline *add_pl(struct sh_pipeline **ppl, struct sh_arg **arg)
 
 // Add a line of shell script to a shell function. Returns 0 if finished,
 // 1 to request another line of input (> prompt), -1 for syntax err
+// Attaches parsed input data to TT.ff->pl
 static int parse_line(char *line, struct double_list **expect)
 {
-  char *start = line, *delete = 0, *end, *s, *ex, done = 0,
+  char *start = line, *delete = 0, *end, *s, *ss, *ex, done = 0,
     *tails[] = {"fi", "done", "esac", "}", "]]", ")", 0};
   struct sh_pipeline *pl = TT.ff->pl ? TT.ff->pl->prev : 0, *pl2, *pl3;
   struct sh_arg *arg = 0;
-  long i;
+  struct arg_list *aliseen = 0, *al;
+  long i, j;
 
   // Resume appending to last statement?
   if (pl) {
@@ -3207,7 +3237,6 @@ here_end:
     i = ex && !strcmp(ex, "esac") &&
         ((pl->type && pl->type != 3) || (*start==';' && end-start>1));
     if (i) {
-
       // Premature EOL in type 1 (case x\nin) or 2 (at start or after ;;) is ok
       if (end == start) {
         if (pl->type==128 && arg->c==2) break;  // case x\nin
@@ -3260,9 +3289,55 @@ here_end:
       continue;
     }
 
-    // Save word and check for flow control
-    arg_add(arg, s = xstrndup(start, end-start));
+    // Copy word and check for aliases
+    s = xstrndup(start, end-start);
+    if (TT.alias.c && !pl->noalias) {
+      // ! x=y and x<y can all go before command name
+      if (!strcmp(s, "!")) start = 0;
+      else if ((start = varend(s))!=s && start[*start=='+']=='=') start = 0;
+      else if (anystart(skip_redir_prefix(s), (void *)redirectors)) {
+        // Next argument is redirect target, skip it.
+        if ((end = parse_word(end, 0)) == (void *)1) pl->noalias = 2;
+        start = 0;
+      }
+      if (start) {
+        // It's the command, is it a recognized alias?
+        for (j = 0; j<TT.alias.c; j++) {
+          start = TT.alias.v[j];
+          if (!strstart(&start, s) || *start++!='=') continue;
+
+          // Don't expand same alias twice
+          for (al = aliseen; al; al = al->next) {
+            ss = al->arg;
+            if (strstart(&ss, s) && *ss=='=') break;
+          }
+          if (!al) break;
+        }
+        if (j==TT.alias.c) start = 0;
+      }
+
+      // Did we find an alias?
+      if (start) {
+        (al = xmalloc(sizeof(struct arg_list)))->next = aliseen;
+        al->arg = TT.alias.v[i];
+        aliseen = al;
+        start = end = xmprintf("%s%s", start, end);
+        free(delete);
+        delete = start;
+
+        continue;
+      }
+      if (!pl->noalias) pl->noalias = 1;
+    }
     start = end;
+    arg_add(arg, s);
+
+    if (pl->noalias==2) {
+      pl->noalias = 0;
+
+      continue;
+    }
+    if (pl->noalias) while (aliseen) free(llist_pop(&aliseen));
 
     // Second half of case/esac parsing
     if (i) {
@@ -4424,6 +4499,34 @@ void sh_main(void)
 
 /********************* shell builtin functions *************************/
 
+#define FOR_alias
+#include "generated/flags.h"
+void alias_main(void)
+{
+  char *s;
+  int i, j;
+
+  if (!toys.optc || FLAG(p))
+    for (i = 0; i<TT.alias.c; i++) puts(TT.alias.v[i]); // TODO $'escape'
+
+  for (i = 0; i<toys.optc; i++) {
+    if (!(s = strchr(toys.optargs[i], '='))) {
+      for (j = 0; j<TT.alias.c && (s = TT.alias.v[j]); j++)
+        if (strstart(&s, toys.optargs[i]) && *s++=='=') break;
+      if (j==TT.alias.c) sherror_msg("%s: not found", TT.alias.v[j]);
+      else printf("alias %s=%s\n", TT.alias.v[j], s); // TODO $'escape'
+    } else {
+      for (i = 0; i<TT.alias.c; i++)
+        if (!memcmp(TT.alias.v[i], toys.optargs[i], s+1-toys.optargs[i])) break;
+      if (i==TT.alias.c) arg_add(&TT.alias, xstrdup(toys.optargs[i]));
+      else {
+        free(toys.optargs[i]);
+        toys.optargs[i] = xstrdup(toys.optargs[i]);
+      }
+    }
+  }
+}
+
 // Note: "break &" in bash breaks in the child, this breaks in the parent.
 void break_main(void)
 {
@@ -4919,6 +5022,37 @@ void source_main(void)
   TT.ff->arg.v = toys.argv; // $0 is shell name, not source file name. Bash!
   for (ii = 0; toys.argv[ii]; ii++);
   TT.ff->arg.c = ii;
+}
+
+#define FOR_unalias
+#include "generated/flags.h"
+
+void unalias_main(void)
+{
+  char *s;
+  int i, j;
+
+  // Remove all?
+  if (FLAG(a)) {
+    for (i = 0; i<TT.alias.c; i++) free(TT.alias.v[i]);
+    if (TT.alias.v) *TT.alias.v = 0;
+    TT.alias.c = 0;
+
+    return;
+  }
+
+  // Remove each listed entry, erroring if not found
+  for (i = 0; i<toys.optc; i++) {
+    for (j = 0; j<TT.alias.c && (s = TT.alias.v[j]); j++) {
+      if (strstart(&s, toys.optargs[i]) && *s=='=') break;
+      if (j==TT.alias.c) sherror_msg("%s: not found", toys.optargs[i]);
+      else {
+        free(TT.alias.v[j]);
+        memmove(TT.alias.v+j, TT.alias.v+j+1,
+          sizeof(*TT.alias.v)*TT.alias.c--+1-j);
+      }
+    }
+  }
 }
 
 #define FOR_wait
