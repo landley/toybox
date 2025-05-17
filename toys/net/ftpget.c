@@ -176,6 +176,8 @@ void ftpget_main(void)
       } else lenl = 0;
 
       ftp_line(cmd, remote, -1);
+      if (FLAG(g))
+        ftp_line(0, 0, 150);
       lenl += xsendfile(port, ii);
       ftp_line(0, 0, FLAG(g) ? 226 : 150);
     } else if (FLAG(s)) {
