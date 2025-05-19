@@ -70,6 +70,8 @@ static int xread2line(int fd, char *buf, int len)
   return total+1;
 }
 
+// Send a command, and read and return the response code.
+// If must is nonzero, non-matching response code is a fatal error.
 static int ftp_line(char *cmd, char *arg, int must)
 {
   int rc = 0;
@@ -79,11 +81,9 @@ static int ftp_line(char *cmd, char *arg, int must)
     if (FLAG(v)) fprintf(stderr, s, cmd, arg);
     dprintf(TT.fd, s, cmd, arg);
   }
-  if (must>=0) {
-    xread2line(TT.fd, toybuf, sizeof(toybuf));
-    if (!sscanf(toybuf, "%d", &rc) || (must && rc != must))
-      error_exit_raw(toybuf);
-  }
+  xread2line(TT.fd, toybuf, sizeof(toybuf));
+  if (!sscanf(toybuf, "%d", &rc) || (must && rc != must))
+    error_exit_raw(toybuf);
 
   return rc;
 }
@@ -175,9 +175,9 @@ void ftpget_main(void)
         ftp_line("REST", buf, 350);
       } else lenl = 0;
 
-      ftp_line(cmd, remote, -1);
+      ftp_line(cmd, remote, 150);
       lenl += xsendfile(port, ii);
-      ftp_line(0, 0, FLAG(g) ? 226 : 150);
+      if (FLAG(g)) ftp_line(0, 0, 226);
     } else if (FLAG(s)) {
       cmd = "STOR";
       if (cnt && lenr) {
