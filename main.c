@@ -86,10 +86,11 @@ static const int NEED_TRIMHELP =
 static char *help_data = 0;
 #else
 #include "generated/help.h"
-static const char help_data[] =
+static const char help_array[] =
 #include "generated/newtoys.h"
 ;
-#define zhelp_data help_data
+static char *help_data = (void *)help_array;
+#define zhelp_data 0
 #define ZHELP_LEN 0
 #endif
 
