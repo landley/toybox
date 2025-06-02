@@ -451,6 +451,8 @@ GLOBALS(
   struct sh_arg jobs, *wcdeck;
 )
 
+#define DEBUG 0
+
 // functions contain pipelines contain functions: prototype because loop
 static void free_pipeline(void *pipeline);
 // recalculate needs to get/set variables, but setvar_found calls recalculate
@@ -1240,7 +1242,7 @@ static int save_redirect(int **rd, int from, int to)
 {
   int cnt, hfd, *rr;
 
-//dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
+if (DEBUG) dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
   if (from == to) return 0;
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
@@ -1457,7 +1459,7 @@ static void end_fcall(void)
 static int run_subshell(char *str, int len)
 {
   pid_t pid;
-//dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_show_fds();
+if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_show_fds(); }
   // The with-mmu path is significantly faster.
   if (CFG_TOYBOX_FORK) {
     if ((pid = fork())<0) perror_msg("fork");
@@ -3036,12 +3038,12 @@ static struct sh_process *run_command(void)
       memset(&toys, 0, jj);
 
       // The compiler complains "declaration does not declare anything" if we
-      // name the union in TT, only works WITHOUT name. So we can't
+      // name the union in TT, it only works WITHOUT a name. So we can't
       // sizeof(union) instead offsetof() first thing after union to get size.
       memset(&TT, 0, offsetof(struct sh_data, SECONDS));
       if (!sigsetjmp(rebound, 1)) {
         toys.rebound = &rebound;
-//dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c; xx++) dprintf(2, "{%s}", pp->arg.v[xx]); dprintf(2, "\n");
+if (DEBUG) { dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c; xx++) dprintf(2, "{%s}", pp->arg.v[xx]); dprintf(2, "\n"); }
         toy_singleinit(tl, pp->arg.v);
         tl->toy_main();
         xexit();
@@ -3098,6 +3100,8 @@ static struct sh_pipeline *add_pl(struct sh_pipeline **ppl, struct sh_arg **arg)
 
   return pl->end = pl;
 }
+
+// TODO [[ ]] disables ( ) ! && || processing
 
 // Add a line of shell script to a shell function. Returns 0 if finished,
 // 1 to request another line of input (> prompt), -1 for syntax err
@@ -3206,7 +3210,7 @@ here_end:
 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0)) == (void *)1) goto flush;
-//dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : -1, ex, (int)(end-start), end ? start : "");
+if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : -1, ex, (int)(end-start), end ? start : "");
 
     // End function declaration?
     if (pl && pl->type == 'f' && arg->c == 1 && (end-start!=1 || *start!='(')) {
@@ -3811,7 +3815,7 @@ static char *get_next_line(FILE *fp, int prompt)
       new = 0;
     }
   }
-//dprintf(2, "%d get_next_line=%s\n", getpid(), new ? : "(null)");
+if (DEBUG) dprintf(2, "%d get_next_line=%s\n", getpid(), new ? : "(null)");
   return new;
 }
 
@@ -3866,7 +3870,7 @@ static void run_lines(void)
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
-//dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type, TT.ff->pl, TT.ff);
+if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type, TT.ff->pl, TT.ff);
     if (!pplist) TT.hfd = 10;
 
     // Skip disabled blocks, handle pipes and backgrounding
@@ -4424,7 +4428,7 @@ void sh_main(void)
   char *new;
   unsigned more = 0;
 
-//dprintf(2, "%d main", getpid()); for (unsigned uu = 0; toys.argv[uu]; uu++) dprintf(2, " %s", toys.argv[uu]); dprintf(2, "\n");
+if (DEBUG) { dprintf(2, "%d main", getpid()); for (unsigned uu = 0; toys.argv[uu]; uu++) dprintf(2, " %s", toys.argv[uu]); dprintf(2, "\n"); }
 
   signify(SIGPIPE, 0);
   TT.options = OPT_B;
