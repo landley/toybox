@@ -29,7 +29,9 @@ config DD
     These modifiers take a comma separated list of potential options:
 
     iflag=count_bytes,skip_bytes   count=N or skip=N is in bytes not blocks
-    oflag=seek_bytes,append        seek=N is in bytes, append output to file
+    oflag=
+      append      Append to file        direct   Skip caches
+      seek_bytes  seek=N is in bytes
     status=noxfer,none             don't show transfer rate, no summary info
     conv=
       notrunc  Don't truncate output    noerror  Continue after read errors
@@ -60,7 +62,7 @@ static const struct dd_flag dd_iflag[] = TAGGED_ARRAY(DD_iflag,
 );
 
 static const struct dd_flag dd_oflag[] = TAGGED_ARRAY(DD_oflag,
-  {"seek_bytes"},
+  {"append"}, {"direct"}, {"seek_bytes"},
 );
 
 static void status()
@@ -149,7 +151,7 @@ void dd_main()
     count = ULLONG_MAX, buflen;
   long long len;
   struct iovec iov[2];
-  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, creat = O_CREAT, ii;
+  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, oflags, ii;
   unsigned conv = 0, iflag = 0, oflag = 0;
 
   TT.show_xfer = TT.show_records = 1;
@@ -186,11 +188,15 @@ void dd_main()
   buf = xmalloc(buflen = ibs+obs*!bs);
   if (buflen<ibs || buflen<obs) error_exit("tilt");
 
-  if (conv & _DD_conv_nocreat) creat = 0;
+  oflags = O_CREAT|O_WRONLY;
+  if (conv & _DD_conv_nocreat) oflags &= ~O_CREAT;
   if (conv & _DD_conv_notrunc) trunc = 0;
+  if (oflag & _DD_oflag_append) oflags |= O_APPEND;
+  if (oflag & _DD_oflag_direct) oflags |= O_DIRECT;
+
   if (iname) ifd = xopenro(iname);
   else iname = "stdin";
-  if (oname) ofd = xcreate(oname, O_WRONLY|creat|(trunc*!seek),0666);
+  if (oname) ofd = xcreate(oname, oflags|(trunc*!seek), 0666);
   else oname = "stdout";
 
   // Implement skip=

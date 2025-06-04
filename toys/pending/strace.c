@@ -374,7 +374,7 @@ static void print_flags(long v)
         C(O_CREAT), C(O_DIRECTORY), C(O_EXCL), C(O_NOCTTY), C(O_NOFOLLOW),
         C(O_TRUNC), C(O_ASYNC), C(O_APPEND), C(O_DSYNC), C(O_EXCL),
         C(O_NOATIME), C(O_NONBLOCK), C(O_PATH), C(O_SYNC),
-        0x4000, "O_DIRECT", 0x8000, "O_LARGEFILE", 0x410000, "O_TMPFILE", 0);
+        C(O_DIRECT), 0x8000, "O_LARGEFILE", 0x410000, "O_TMPFILE", 0);
   } else if (strstart(&TT.fmt, "prot|")) {
     print_bits(1,v,"PROT_NONE",C(PROT_READ),C(PROT_WRITE),C(PROT_EXEC),
 #if defined(PROT_BTI)

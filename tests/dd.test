@@ -131,3 +131,6 @@ testing 'sync padding ticks down count' \
   'for i in one two three four five "$(seq 1 100)"
    do echo "$i"; sleep .1; done | dd bs=1024 count=5 conv=sync | sha1sum' \
   '02dcf1f497ccbe940f57818dfc34f2d0def8b3f9  -\n' '' ''
+
+echo -n "hello " > file
+testcmd "oflag=append" "of=file oflag=append conv=notrunc && cat file" "hello world\n" "" "world\n"

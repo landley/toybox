@@ -54,7 +54,8 @@
 // will transitively include it, and ones that don't (macOS) won't break.
 #include <sys/types.h>
 
-// Various constants old build environments might not have even if kernel does
+// Various constants old build environments (or glibc, hiding behind
+// _GNU_SOURCE) might not have even if kernel does.
 
 #ifndef AT_FDCWD             // Kernel commit 5590ff0d5528 2006
 #define AT_FDCWD -100
@@ -66,6 +67,10 @@
 
 #ifndef AT_REMOVEDIR
 #define AT_REMOVEDIR 0x200
+#endif
+
+#ifndef O_DIRECT
+#define O_DIRECT 0x4000
 #endif
 
 #ifndef RLIMIT_RTTIME // Commit 78f2c7db6068f 2008
