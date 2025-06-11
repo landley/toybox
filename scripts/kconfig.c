@@ -50,6 +50,23 @@ char *trim(char *s)
   return s;
 }
 
+// Get trimmed line
+char *getrimline(FILE *fp)
+{
+  char *line = 0, *s;
+  size_t size;
+
+  if (1>getline(&line, &size, fp)) return 0;
+
+  // Trim trailing whitespace
+  for (s = line+strlen(line); --s>=line;) {
+    if (!isspace(*s)) break;
+    *s = 0;
+  }
+
+  return line;
+}
+
 // Check string against 0 terminated array of strings, return 0 if no match
 int strany(char *needle, char *haystack[])
 {
@@ -72,24 +89,15 @@ void bump(char **to, char **from)
 struct kconfig *read_Config(char *name, struct kconfig *contain)
 {
   FILE *fp = fopen(name, "r");
-  char *line = 0, *help = 0, *s, *ss, *keywords[] = {"mainmenu", "menu",
+  char *line, *help = 0, *s, *ss, *keywords[] = {"mainmenu", "menu",
     "choice", "comment", "config", "endmenu", "endchoice", 0};
   struct kconfig *kc, *klist = 0;
-  int ii, jj, count = 0, hindent;
-  size_t size = 0;
+  int ii, jj, count = 1, hindent;
+  size_t size;
 
   if (!fp) dprintf(2, "Can't open '%s'\n", name), exit(1);
-  while (0<getline(&line, &size, fp)) {
-    count++;
-
-    // Trim trailing whitespace
-    for (s = line+strlen(line); --s>=line;) {
-      if (!isspace(*s)) break;
-      *s = 0;
-    }
-
+  for (; (s = line = getrimline(fp)); free(line), count++) {
     // Append help text?
-    s = line;
     if (help) {
       if (!kc) { fp = 0; break; }
       for (ii = 0; *s==' ' || *s=='\t'; s++) {
@@ -171,6 +179,7 @@ struct kconfig *read_Config(char *name, struct kconfig *contain)
 }
 
 // TODO: randconfig isn't randomizing CHOICE entries
+// Return current value of symbol, whether set or default, ignoring dependencies
 int value(struct kconfig *kc)
 {
   char *s = kc->value ? : kc->def ? : 0;
@@ -187,6 +196,7 @@ int value(struct kconfig *kc)
   return !!cfgtype;
 }
 
+// Find symbol by name
 struct kconfig *lookup(struct kconfig *klist, char *symbol)
 {
   for (;klist; klist = klist->next)
@@ -196,6 +206,7 @@ struct kconfig *lookup(struct kconfig *klist, char *symbol)
 }
 
 // TODO: parentheses, select
+// Return value of symbol as masked by dependencies
 int depends(struct kconfig *klist, struct kconfig *kc)
 {
   struct kconfig *kt;
@@ -226,10 +237,56 @@ int depends(struct kconfig *klist, struct kconfig *kc)
   return rc;
 }
 
+
+// Set values for symbols
+void read_dotconfig(struct kconfig *klist, FILE *fp)
+{
+  char *line, *s, *name, *val;
+  struct kconfig *kk;
+
+  for (; (line = getrimline(fp)); free(line)) {
+    // kconfig has a crazy way to say SYMBOL=n
+    if (!strncmp(line, "# CONFIG_", 9) && (s = strchr(line, ' '))
+      && !strcmp(s, " is not set\n"))
+    {
+      *s = 0;
+      name = line+9;
+      val = "n";
+    } else if (!strncmp(line, "CONFIG_", 7) && (s = strchr(line, '='))) {
+      *s = 0;
+      name=line+7;
+      val = s+1;
+    } else {
+      for (s = line; isspace(*s); s++);
+      if (*s && *s!='#') dprintf(2, "bad line %s\n", line);
+      continue;
+    }
+    if (!(kk = lookup(klist, name))) dprintf(2, "bad symbol %s\n", name);
+    else {
+// TODO   if (!strcmp(kc->contain->type, "choice"))
+
+      s = strdup(val);
+      bump(&kk->value, &s);
+    }
+  }
+
+  fclose(fp);
+}
+
+// Parse command line options, producing various types of output
 void options(char *opt)
 {
   struct kconfig *kc = read_Config("Config.in", 0), *kk;
   char *ss, *tt, *esc = "\n\\\"";
+  FILE *fp;
+
+  if ((ss = getenv("KCONFIG_ALLCONFIG"))) {
+    if (!(fp = fopen(ss, "r")))
+      exit(dprintf(2, "bad KCONFIG_ALLCONFIG=%s\n", ss)|1);
+    read_dotconfig(kc, fp);
+  }
+// TODO  if ((fp = fopen(getenv("KCONFIG_CONFIG") ? : ".config")))
+//    read_dotconfig(kc, fp);
 
   if (!strcmp(opt, "-h")) for (kk = kc; kk; kk = kk->next) {
     if (!kk->symbol || !kk->help) continue;
