@@ -40,7 +40,7 @@ config NETCAT
     backgrounds itself (returning immediately).
 
     For a quick-and-dirty server, try something like:
-    netcat -s 127.0.0.1 -p 1234 -tL sh -l
+    netcat -s 127.0.0.1 -p 1234 -L sh -l
 
     Or use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
     netcat -f to connect to a serial port.
