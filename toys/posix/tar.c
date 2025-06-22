@@ -1100,7 +1100,7 @@ void tar_main(void)
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
         else if (!smemcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
-	else if (!smemcmp(hdr, "\x28\xb5\x2f\xfd", 4)) toys.optflags|=FLAG_Z;
+        else if (!smemcmp(hdr, "\x28\xb5\x2f\xfd", 4)) toys.optflags|=FLAG_Z;
         else if (peek_be(hdr, 7) == 0xfd377a585a0000ULL) toys.optflags |= FLAG_J;
         else error_exit("Not tar");
 
