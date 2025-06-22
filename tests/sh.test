@@ -134,7 +134,7 @@ ln -s "$(which echo)" echo2
 testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
   'hello\n' '' ''
 rm -f echo2
-testing 'prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
+testing 'redirect prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
   '10\n\n' '' ''
 testing 'double quotes' 'echo \x "\x" "\\" "\$" "\`"' 'x \x \ $ `\n' '' ''
 testing 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n' '' ''
@@ -159,8 +159,12 @@ $BROKEN testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
+testing 'prefix assignment decision made after variable expansion' \
+  'abc=def $NOTHING; echo $abc' 'def\n' '' ''
 testing 'assignment with redirect is persistent, not prefix' \
   'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
+testing 'assignment with not is persistent' '! a=b; echo $a $?' 'b 1\n' '' ''
+
 $BROKEN testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
   'true\nabc\n' '' ''
 
@@ -741,6 +745,14 @@ shxpect 'alias recursion' I$'alias echo="abc 123" abc="echo 456"\n' E"$P" \
   I$'echo 789\n' O$'456 123 789\n'
 shxpect 'alias cross token' I$'alias abc="cat <<"\n' E"$P" I$'abc<xyz\n' \
   O$'xyz\n'
+shxpect 'alias prefixes' I$'alias abc=env\n' E"$P" \
+  I$'! > hello a=xyz abc\n' E"$P" I$'grep ^a= hello\n' O$'a=xyz\n'
+rm -f hello
+# Normalizing because mandatory 'quoting' is version skew waiting to happen
+testing 'unalias' \
+  $'alias abc=def\nalias | egrep -o \'(abc=|def)\'\nunalias abc\nalias' \
+  'abc=\ndef\n' '' ''
+
 
 # TODO finish variable list from shell init
 
