@@ -1,0 +1,33 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+CPUS=$(($(nproc)+0))
+if [ $CPUS -lt 2 ]
+then
+  echo "$SHOWSKIP: taskset (not SMP)"
+  exit
+fi
+MASK=$(printf %x $(((1<<CPUS)-1)))
+LAST=$(printf %x $((1<<(CPUS-1))))
+
+# Yes, taskset -p gets the arguments backwards. Because gnu.
+testing 'set mask to all' \
+  '(taskset -p $MASK $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
+  "$MASK\n" '' ''
+testing 'set mask to first' \
+  '(taskset -p 1 $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
+  '1\n' '' ''
+testing 'set mask to last' \
+  '(taskset -p $LAST $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
+  "$LAST\n" '' ''
+
+# alas procps-ng always says "-" for -o cpu so fetch the field from /proc
+testing 'run on first' \
+  'X=$(taskset 1 cat /proc/self/stat); x() { echo ${39};}; x $X' \
+  '0\n' '' ''
+testing 'run on last' \
+  'X=$(taskset $LAST cat /proc/self/stat); x() { echo ${39};}; x $X' \
+  "$((CPUS-1))\n" '' ''
