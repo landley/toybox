@@ -8,6 +8,7 @@ CPUS=$(($(nproc)+0))
 if [ $CPUS -lt 2 ]
 then
   echo "$SHOWSKIP: taskset (not SMP)"
+  return 2 > /dev/null
   exit
 fi
 MASK=$(printf %x $(((1<<CPUS)-1)))
@@ -31,3 +32,8 @@ testing 'run on first' \
 testing 'run on last' \
   'X=$(taskset $LAST cat /proc/self/stat); x() { echo ${39};}; x $X' \
   "$((CPUS-1))\n" '' ''
+
+testing "long mask doesn't segfault" \
+  'taskset $(printf %99999s | tr \  f) echo; echo $?' '\n0\n' '' ''
+testing "taskset error checking" \
+  'taskset 0 echo nope 2>/dev/null; echo $?' '1\n' '' ''
