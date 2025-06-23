@@ -1,12 +1,13 @@
 /* xzcat.c - Simple XZ decoder command line tool
  *
- * Author: Lasse Collin <lasse.collin@tukaani.org>
+ * Author: Lasse Collin <xz@tukaani.org>
  *
  * This file has been put into the public domain.
  * You can do whatever you want with this file.
  * Modified for toybox by Isaac Dunham
  *
  * See http://tukaani.org/xz/xz-file-format.txt
+ *
 USE_XZCAT(NEWTOY(xzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
 config XZCAT
@@ -16,8 +17,8 @@ config XZCAT
     usage: xzcat [FILE...]
 
     Decompress listed files to stdout. Use stdin if no files listed.
-
 */
+
 #define FOR_xzcat
 #include "toys.h"
 
@@ -1186,7 +1187,8 @@ static void dict_uncompressed(struct dictionary *dict, struct xz_buf *b,
 
     *left -= copy_size;
 
-    memcpy(dict->buf + dict->pos, b->in + b->in_pos, copy_size);
+    // With valid inputs memcpy() would be fine here.
+    memmove(dict->buf + dict->pos, b->in + b->in_pos, copy_size);
     dict->pos += copy_size;
 
     if (dict->full < dict->pos)
@@ -1911,6 +1913,7 @@ enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, char props)
   s->dict.end = s->dict.size;
 
   if (s->dict.allocated < s->dict.size) {
+    s->dict.allocated = s->dict.size;
     free(s->dict.buf);
     s->dict.buf = malloc(s->dict.size);
     if (s->dict.buf == NULL) {
@@ -2842,6 +2845,10 @@ void do_xzcat(int fd, char *name)
   for (;;) {
     if (b.in_pos == b.in_size) {
       b.in_size = read(fd, in, sizeof(in));
+      if (ferror(stdin)) {
+        msg = "Read error\n";
+        goto error;
+      }
       b.in_pos = 0;
     }
 
