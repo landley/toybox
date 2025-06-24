@@ -57,7 +57,7 @@ void hash_by_name(int fd, char *name, char *result)
 }
 
 // Builtin implementations
-#else
+#endif
 
 struct browns {
   unsigned *rconsttable32;
@@ -306,7 +306,7 @@ static void hash_update(char *data, unsigned int len,
   }
 }
 
-void hash_by_name(int fd, char *name, char *result)
+void __attribute__((__weak__)) hash_by_name(int fd, char *name, char *result)
 {
   unsigned long long count[2];
   int i, chunksize, digestlen, method;
@@ -391,4 +391,3 @@ void hash_by_name(int fd, char *name, char *result)
   for (pp = (void *)libbuf; pp-(unsigned *)libbuf<sizeof(libbuf)/4; pp++)
     *pp = 0;
 }
-#endif
