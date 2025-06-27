@@ -1,5 +1,4 @@
-/* xzcat.c - Simple XZ decoder command line tool
- *
+/*
  * Author: Lasse Collin <xz@tukaani.org>
  *
  * This file has been put into the public domain.
@@ -25,20 +24,10 @@ config XZCAT
 // BEGIN xz.h
 
 enum xz_ret {
-  // Doing fine, More input or output space needed
-  XZ_OK,
-  // EOF, Everything went fine
-  XZ_STREAM_END,
-  // Integrity check type is not supported. Decoding is still possible in
-  // multi-call mode by simply calling xz_dec_run() again.  Note that this
-  // return value is used only if XZ_DEC_ANY_CHECK was defined at build
-  // time, which is not used in the kernel. Unsupported check types return
-  // XZ_OPTIONS_ERROR if XZ_DEC_ANY_CHECK was not defined at build time.
-  XZ_UNSUPPORTED_CHECK,
-  // Cant allocate memory
-  XZ_MEM_ERROR,
+  XZ_OK,			// Need more input
+  XZ_STREAM_END,		// Successful finish
   // OOM
-  XZ_MEMLIMIT_ERROR,
+  XZ_MEMLIMIT_ERROR,            // Dictionary too big
   // Not a xz file
   XZ_FORMAT_ERROR,
   // Compression option not available
@@ -55,6 +44,141 @@ enum xz_ret {
   // truncated or otherwise corrupt.
 };
 
+/*
+ * This enum is used to track which LZMA symbols have occurred most recently
+ * and in which order. This information is used to predict the next symbol.
+ *
+ * Symbols:
+ *  - Literal: One 8-bit byte
+ *  - Match: Repeat a chunk of data at some distance
+ *  - Long repeat: Multi-byte match at a recently seen distance
+ *  - Short repeat: One-byte repeat at a recently seen distance
+ *
+ * The symbol names are in from STATE_oldest_older_previous. REP means
+ * either short or long repeated match, and NONLIT means any non-literal.
+ */
+enum lzma_state {
+  STATE_LIT_LIT,
+  STATE_MATCH_LIT_LIT,
+  STATE_REP_LIT_LIT,
+  STATE_SHORTREP_LIT_LIT,
+  STATE_MATCH_LIT,
+  STATE_REP_LIT,
+  STATE_SHORTREP_LIT,
+  STATE_LIT_MATCH,
+  STATE_LIT_LONGREP,
+  STATE_LIT_SHORTREP,
+  STATE_NONLIT_MATCH,
+  STATE_NONLIT_REP
+};
+
+/* Total number of states */
+#define STATES 12
+
+/* The lowest 7 states indicate that the previous state was a literal. */
+#define LIT_STATES 7
+
+/* Each literal coder is divided in three sections:
+ *   - 0x001-0x0FF: Without match byte
+ *   - 0x101-0x1FF: With match byte; match bit is 0
+ *   - 0x201-0x2FF: With match byte; match bit is 1
+ *
+ * Match byte is used when the previous LZMA symbol was something else than
+ * a literal (that is, it was some kind of match).
+ */
+#define LITERAL_CODER_SIZE 0x300
+
+/* Maximum number of literal coders */
+#define LITERAL_CODERS_MAX (1 << 4)
+
+/* Minimum length of a match is two bytes. */
+#define MATCH_LEN_MIN 2
+
+/*
+ * Maximum number of position states. A position state is the lowest pb
+ * number of bits of the current uncompressed offset. In some places there
+ * are different sets of probabilities for different position states.
+ */
+#define POS_STATES_MAX (1 << 4)
+
+/* Match distances up to 127 are fully encoded using probabilities. Since
+ * the highest two bits (distance slot) are always encoded using six bits,
+ * the distances 0-3 don't need any additional bits to encode, since the
+ * distance slot itself is the same as the actual distance. DIST_MODEL_START
+ * indicates the first distance slot where at least one additional bit is
+ * needed.
+ */
+#define DIST_MODEL_START 4
+
+/*
+ * Match distances greater than 127 are encoded in three pieces:
+ *   - distance slot: the highest two bits
+ *   - direct bits: 2-26 bits below the highest two bits
+ *   - alignment bits: four lowest bits
+ *
+ * Direct bits don't use any probabilities.
+ *
+ * The distance slot value of 14 is for distances 128-191.
+ */
+#define DIST_MODEL_END 14
+
+/*
+ * Different sets of probabilities are used for match distances that have
+ * very short match length: Lengths of 2, 3, and 4 bytes have a separate
+ * set of probabilities for each length. The matches with longer length
+ * use a shared set of probabilities.
+ */
+#define DIST_STATES 4
+
+/*
+ * The highest two bits of a 32-bit match distance are encoded using six bits.
+ * This six-bit value is called a distance slot. This way encoding a 32-bit
+ * value takes 6-36 bits, larger values taking more bits.
+ */
+#define DIST_SLOTS		(1 << 6)
+
+/* Distance slots that indicate a distance <= 127. */
+#define FULL_DISTANCES (1 << (DIST_MODEL_END/2))
+
+/*
+ * For match distances greater than 127, only the highest two bits and the
+ * lowest four bits (alignment) is encoded using probabilities.
+ */
+#define ALIGN_BITS 4
+#define ALIGN_SIZE (1 << ALIGN_BITS)
+#define ALIGN_MASK (ALIGN_SIZE - 1)
+
+/* Total number of all probability variables */
+#define PROBS_TOTAL (1846 + LITERAL_CODERS_MAX * LITERAL_CODER_SIZE)
+
+/*
+ * LZMA remembers the four most recent match distances. Reusing these
+ * distances tends to take less space than re-encoding the actual
+ * distance value.
+ */
+#define REPS 4
+
+/* Match length is encoded with 4, 5, or 10 bits.
+ *
+ * Length   Bits
+ *  2-9      4 = Choice=0 + 3 bits
+ * 10-17     5 = Choice=1 + Choice2=0 + 3 bits
+ * 18-273   10 = Choice=1 + Choice2=1 + 8 bits
+ */
+#define LEN_LOW_SYMBOLS (1 << 3)
+#define LEN_MID_SYMBOLS (1 << 3)
+#define LEN_HIGH_SYMBOLS (1 << 8)
+#define LEN_SYMBOLS (LEN_LOW_SYMBOLS + LEN_MID_SYMBOLS + LEN_HIGH_SYMBOLS)
+
+/*
+ * Minimum number of usable input buffer to safely decode one LZMA symbol.
+ * The worst case is that we decode 22 bits using probabilities and 26
+ * direct bits. This may decode at maximum of 20 bytes of input. However,
+ * lzma_main() does an extra normalization before returning, thus we
+ * need to put 21 here.
+ */
+#define LZMA_IN_REQUIRED 21
+
 // Passing input and output buffers to XZ code
 // Only the contents of the output buffer from out[out_pos] onward, and
 // the variables in_pos and out_pos are modified by the XZ code.
@@ -69,6 +193,195 @@ struct xz_buf {
   char *out;
   size_t out_pos;
   size_t out_size;
+};
+
+struct xz_dec_lzma2 {
+  /*
+   * The order below is important on x86 to reduce code size and
+   * it shouldn't hurt on other platforms. Everything up to and
+   * including lzma.pos_mask are in the first 128 bytes on x86-32,
+   * which allows using smaller instructions to access those
+   * variables. On x86-64, fewer variables fit into the first 128
+   * bytes, but this is still the best order without sacrificing
+   * the readability by splitting the structures.
+   */
+  // range decoder
+  struct rc_dec {
+    unsigned range, code;
+
+    // Number of initializing bytes remaining to be read by rc_read_init().
+    unsigned init_bytes_left;
+
+   // Input buffer: either temp.buf or the caller-provided input buffer.
+    const char *in;
+    size_t in_pos, in_limit;
+  } rc;
+
+  /*
+   * Dictionary (history buffer)
+   *
+   * These are always true:
+   *    start <= pos <= full <= end
+   *    pos <= limit <= end
+   *    end == size
+   *    size <= size_max
+   *    allocated <= size
+   *
+   * Most of these variables are size_t as a relic of single-call mode,
+   * in which the dictionary variables address the actual output
+   * buffer directly.
+   */
+  struct dictionary {
+    // Beginning of the history buffer
+    char *buf;
+    // Old position in buf (before decoding more data)
+    size_t start;
+    // Position in buf
+    size_t pos;
+    // How full dictionary is. This is used to detect corrupt input that
+    // would read beyond the beginning of the uncompressed stream.
+    size_t full;
+    /* Write limit; we don't write to buf[limit] or later bytes. */
+    size_t limit;
+    // End of the dictionary buffer. This is the same as the dictionary size.
+    size_t end;
+    // Size of the dictionary as specified in Block Header. This is used
+    // together with "full" to detect corrupt input that would make us
+    // read beyond the beginning of the uncompressed stream.
+    unsigned size;
+    // Maximum allowed dictionary size.
+    unsigned size_max;
+    // Amount of memory currently allocated for the dictionary.
+    unsigned allocated;
+  } dict;
+
+  struct lzma2_dec {
+    /* Position in xz_dec_lzma2_run(). */
+    enum lzma2_seq {
+      SEQ_CONTROL,
+      SEQ_UNCOMPRESSED_1,
+      SEQ_UNCOMPRESSED_2,
+      SEQ_COMPRESSED_0,
+      SEQ_COMPRESSED_1,
+      SEQ_PROPERTIES,
+      SEQ_LZMA_PREPARE,
+      SEQ_LZMA_RUN,
+      SEQ_COPY
+    } sequence;
+
+    /* Next position after decoding the compressed size of the chunk. */
+    enum lzma2_seq next_sequence;
+
+    /* Uncompressed size of LZMA chunk (2 MiB at maximum) */
+    unsigned uncompressed;
+
+    /*
+     * Compressed size of LZMA chunk or compressed/uncompressed
+     * size of uncompressed chunk (64 KiB at maximum)
+     */
+    unsigned compressed;
+
+    /*
+     * True if dictionary reset is needed. This is false before
+     * the first chunk (LZMA or uncompressed).
+     */
+    int need_dict_reset;
+
+    /*
+     * True if new LZMA properties are needed. This is false
+     * before the first LZMA chunk.
+     */
+    int need_props;
+  } lzma2;
+  struct lzma_dec {
+    /* Distances of latest four matches */
+    unsigned rep0, rep1, rep2, rep3;
+
+    /* Types of the most recently seen LZMA symbols */
+    enum lzma_state state;
+
+    // Length of a match, so dict_repeat can finish repeating the whole match.
+    unsigned len;
+
+    /*
+     * LZMA properties or related bit masks (number of literal
+     * context bits, a mask dervied from the number of literal
+     * position bits, and a mask dervied from the number
+     * position bits)
+     */
+    unsigned lc, literal_pos_mask, pos_mask;
+
+    // If 1, it's a match. Otherwise it's a single 8-bit literal.
+    uint16_t is_match[STATES][POS_STATES_MAX];
+
+    // If 1, it's a repeated match. The distance is one of rep0 .. rep3.
+    uint16_t is_rep[STATES];
+
+    // If 0, distance of a repeated match is rep0, otherwise check is_rep1.
+    uint16_t is_rep0[STATES];
+
+    // If 0, distance of a repeated match is rep1, otherwise check is_rep2.
+    uint16_t is_rep1[STATES];
+
+    // If 0, distance of a repeated match is rep2. Otherwise it is rep3.
+    uint16_t is_rep2[STATES];
+
+    /*
+     * If 1, the repeated match has length of one byte. Otherwise
+     * the length is decoded from rep_len_decoder.
+     */
+    uint16_t is_rep0_long[STATES][POS_STATES_MAX];
+
+    /*
+     * Probability tree for the highest two bits of the match
+     * distance. There is a separate probability tree for match
+     * lengths of 2 (i.e. MATCH_LEN_MIN), 3, 4, and [5, 273].
+     */
+    uint16_t dist_slot[DIST_STATES][DIST_SLOTS];
+
+    /*
+     * Probility trees for additional bits for match distance
+     * when the distance is in the range [4, 127].
+     */
+    uint16_t dist_special[FULL_DISTANCES - DIST_MODEL_END];
+
+    /*
+     * Probability tree for the lowest four bits of a match
+     * distance that is equal to or greater than 128.
+     */
+    uint16_t dist_align[ALIGN_SIZE];
+
+    /* Probabilities for a length decoder. */
+    struct lzma_len_dec {
+      /* Probability of match length being at least 10 */
+      uint16_t choice;
+
+      /* Probability of match length being at least 18 */
+      uint16_t choice2;
+
+      /* Probabilities for match lengths 2-9 */
+      uint16_t low[POS_STATES_MAX][LEN_LOW_SYMBOLS];
+
+      /* Probabilities for match lengths 10-17 */
+      uint16_t mid[POS_STATES_MAX][LEN_MID_SYMBOLS];
+
+      /* Probabilities for match lengths 18-273 */
+      uint16_t high[LEN_HIGH_SYMBOLS];
+    // Length of a normal or repeated match
+    } match_len_dec, rep_len_dec;
+
+    /* Probabilities of literals */
+    uint16_t literal[LITERAL_CODERS_MAX][LITERAL_CODER_SIZE];
+  } lzma;
+
+  /*
+   * Temporary buffer which holds small number of input bytes between
+   * decoder calls. See lzma2_lzma() for details.
+   */
+  struct {
+    unsigned size;
+    char buf[3 * LZMA_IN_REQUIRED];
+  } temp;
 };
 
 // Opaque type to hold the XZ decoder state
@@ -96,8 +409,6 @@ static uint64_t xz_crc64_table[256];
 
 // END xz.h
 // BEGIN xz_private.h
-
-#define memeq(a, b, size) (!memcmp(a, b, size))
 
 /* Inline functions to access unaligned unsigned 32-bit integers */
 static unsigned get_unaligned_le32(const char *buf)
@@ -131,17 +442,6 @@ static void put_unaligned_be32(unsigned val, char *buf)
   buf[2] = (char)(val >> 8);
   buf[3] = (char)val;
 }
-
-// Allocate memory for LZMA2 decoder. xz_dec_lzma2_reset() must be used
-// before calling xz_dec_lzma2_run().
-struct xz_dec_lzma2 *xz_dec_lzma2_create(unsigned dict_max);
-
-// Decode the LZMA2 properties (one byte) and reset the decoder. Return
-// XZ_OK on success, XZ_MEMLIMIT_ERROR if the preallocated dictionary is not
-// big enough, and XZ_OPTIONS_ERROR if props indicates something that this
-// decoder doesn't support.
-enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s,
-           char props);
 
 /* Decode raw LZMA2 stream from b->in to b->out. */
 enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
@@ -711,47 +1011,6 @@ enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, char id)
 #define RC_BIT_MODEL_TOTAL (1 << RC_BIT_MODEL_TOTAL_BITS)
 #define RC_MOVE_BITS 5
 
-/*
- * Maximum number of position states. A position state is the lowest pb
- * number of bits of the current uncompressed offset. In some places there
- * are different sets of probabilities for different position states.
- */
-#define POS_STATES_MAX (1 << 4)
-
-/*
- * This enum is used to track which LZMA symbols have occurred most recently
- * and in which order. This information is used to predict the next symbol.
- *
- * Symbols:
- *  - Literal: One 8-bit byte
- *  - Match: Repeat a chunk of data at some distance
- *  - Long repeat: Multi-byte match at a recently seen distance
- *  - Short repeat: One-byte repeat at a recently seen distance
- *
- * The symbol names are in from STATE_oldest_older_previous. REP means
- * either short or long repeated match, and NONLIT means any non-literal.
- */
-enum lzma_state {
-  STATE_LIT_LIT,
-  STATE_MATCH_LIT_LIT,
-  STATE_REP_LIT_LIT,
-  STATE_SHORTREP_LIT_LIT,
-  STATE_MATCH_LIT,
-  STATE_REP_LIT,
-  STATE_SHORTREP_LIT,
-  STATE_LIT_MATCH,
-  STATE_LIT_LONGREP,
-  STATE_LIT_SHORTREP,
-  STATE_NONLIT_MATCH,
-  STATE_NONLIT_REP
-};
-
-/* Total number of states */
-#define STATES 12
-
-/* The lowest 7 states indicate that the previous state was a literal. */
-#define LIT_STATES 7
-
 /* Indicate that the latest symbol was a literal. */
 static void lzma_state_literal(enum lzma_state *state)
 {
@@ -781,50 +1040,11 @@ static void lzma_state_short_rep(enum lzma_state *state)
   *state = *state < LIT_STATES ? STATE_LIT_SHORTREP : STATE_NONLIT_REP;
 }
 
-/* Each literal coder is divided in three sections:
- *   - 0x001-0x0FF: Without match byte
- *   - 0x101-0x1FF: With match byte; match bit is 0
- *   - 0x201-0x2FF: With match byte; match bit is 1
- *
- * Match byte is used when the previous LZMA symbol was something else than
- * a literal (that is, it was some kind of match).
- */
-#define LITERAL_CODER_SIZE 0x300
-
-/* Maximum number of literal coders */
-#define LITERAL_CODERS_MAX (1 << 4)
-
-/* Minimum length of a match is two bytes. */
-#define MATCH_LEN_MIN 2
-
-/* Match length is encoded with 4, 5, or 10 bits.
- *
- * Length   Bits
- *  2-9      4 = Choice=0 + 3 bits
- * 10-17     5 = Choice=1 + Choice2=0 + 3 bits
- * 18-273   10 = Choice=1 + Choice2=1 + 8 bits
- */
-#define LEN_LOW_BITS 3
-#define LEN_LOW_SYMBOLS (1 << LEN_LOW_BITS)
-#define LEN_MID_BITS 3
-#define LEN_MID_SYMBOLS (1 << LEN_MID_BITS)
-#define LEN_HIGH_BITS 8
-#define LEN_HIGH_SYMBOLS (1 << LEN_HIGH_BITS)
-#define LEN_SYMBOLS (LEN_LOW_SYMBOLS + LEN_MID_SYMBOLS + LEN_HIGH_SYMBOLS)
-
 /*
  * Maximum length of a match is 273 which is a result of the encoding
  * described above.
  */
-#define MATCH_LEN_MAX (MATCH_LEN_MIN + LEN_SYMBOLS - 1)
-
-/*
- * Different sets of probabilities are used for match distances that have
- * very short match length: Lengths of 2, 3, and 4 bytes have a separate
- * set of probabilities for each length. The matches with longer length
- * use a shared set of probabilities.
- */
-#define DIST_STATES 4
+// #define MATCH_LEN_MAX (MATCH_LEN_MIN + LEN_SYMBOLS - 1)
 
 /*
  * Get the index of the appropriate probability array for decoding
@@ -835,47 +1055,6 @@ static unsigned lzma_get_dist_state(unsigned len)
   return len < DIST_STATES + MATCH_LEN_MIN
       ? len - MATCH_LEN_MIN : DIST_STATES - 1;
 }
-
-/*
- * The highest two bits of a 32-bit match distance are encoded using six bits.
- * This six-bit value is called a distance slot. This way encoding a 32-bit
- * value takes 6-36 bits, larger values taking more bits.
- */
-#define DIST_SLOT_BITS 6
-#define DIST_SLOTS (1 << DIST_SLOT_BITS)
-
-/* Match distances up to 127 are fully encoded using probabilities. Since
- * the highest two bits (distance slot) are always encoded using six bits,
- * the distances 0-3 don't need any additional bits to encode, since the
- * distance slot itself is the same as the actual distance. DIST_MODEL_START
- * indicates the first distance slot where at least one additional bit is
- * needed.
- */
-#define DIST_MODEL_START 4
-
-/*
- * Match distances greater than 127 are encoded in three pieces:
- *   - distance slot: the highest two bits
- *   - direct bits: 2-26 bits below the highest two bits
- *   - alignment bits: four lowest bits
- *
- * Direct bits don't use any probabilities.
- *
- * The distance slot value of 14 is for distances 128-191.
- */
-#define DIST_MODEL_END 14
-
-/* Distance slots that indicate a distance <= 127. */
-#define FULL_DISTANCES_BITS (DIST_MODEL_END / 2)
-#define FULL_DISTANCES (1 << FULL_DISTANCES_BITS)
-
-/*
- * For match distances greater than 127, only the highest two bits and the
- * lowest four bits (alignment) is encoded using probabilities.
- */
-#define ALIGN_BITS 4
-#define ALIGN_SIZE (1 << ALIGN_BITS)
-#define ALIGN_MASK (ALIGN_SIZE - 1)
 
 /* Total number of all probability variables */
 #define PROBS_TOTAL (1846 + LITERAL_CODERS_MAX * LITERAL_CODER_SIZE)
@@ -894,237 +1073,6 @@ static unsigned lzma_get_dist_state(unsigned len)
  * Range decoder initialization eats the first five bytes of each LZMA chunk.
  */
 #define RC_INIT_BYTES 5
-
-/*
- * Minimum number of usable input buffer to safely decode one LZMA symbol.
- * The worst case is that we decode 22 bits using probabilities and 26
- * direct bits. This may decode at maximum of 20 bytes of input. However,
- * lzma_main() does an extra normalization before returning, thus we
- * need to put 21 here.
- */
-#define LZMA_IN_REQUIRED 21
-
-/*
- * Dictionary (history buffer)
- *
- * These are always true:
- *    start <= pos <= full <= end
- *    pos <= limit <= end
- *    end == size
- *    size <= size_max
- *    allocated <= size
- *
- * Most of these variables are size_t as a relic of single-call mode,
- * in which the dictionary variables address the actual output
- * buffer directly.
- */
-struct dictionary {
-  // Beginning of the history buffer
-  char *buf;
-  // Old position in buf (before decoding more data)
-  size_t start;
-  // Position in buf
-  size_t pos;
-  // How full dictionary is. This is used to detect corrupt input that
-  // would read beyond the beginning of the uncompressed stream.
-  size_t full;
-  /* Write limit; we don't write to buf[limit] or later bytes. */
-  size_t limit;
-  // End of the dictionary buffer. This is the same as the dictionary size.
-  size_t end;
-  // Size of the dictionary as specified in Block Header. This is used
-  // together with "full" to detect corrupt input that would make us
-  // read beyond the beginning of the uncompressed stream.
-  unsigned size;
-  // Maximum allowed dictionary size.
-  unsigned size_max;
-  // Amount of memory currently allocated for the dictionary.
-  unsigned allocated;
-};
-
-/* Range decoder */
-struct rc_dec {
-  unsigned range;
-  unsigned code;
-
-  /*
-   * Number of initializing bytes remaining to be read
-   * by rc_read_init().
-   */
-  unsigned init_bytes_left;
-
-  /*
-   * Buffer from which we read our input. It can be either
-   * temp.buf or the caller-provided input buffer.
-   */
-  const char *in;
-  size_t in_pos;
-  size_t in_limit;
-};
-
-/* Probabilities for a length decoder. */
-struct lzma_len_dec {
-  /* Probability of match length being at least 10 */
-  uint16_t choice;
-
-  /* Probability of match length being at least 18 */
-  uint16_t choice2;
-
-  /* Probabilities for match lengths 2-9 */
-  uint16_t low[POS_STATES_MAX][LEN_LOW_SYMBOLS];
-
-  /* Probabilities for match lengths 10-17 */
-  uint16_t mid[POS_STATES_MAX][LEN_MID_SYMBOLS];
-
-  /* Probabilities for match lengths 18-273 */
-  uint16_t high[LEN_HIGH_SYMBOLS];
-};
-
-struct lzma_dec {
-  /* Distances of latest four matches */
-  unsigned rep0;
-  unsigned rep1;
-  unsigned rep2;
-  unsigned rep3;
-
-  /* Types of the most recently seen LZMA symbols */
-  enum lzma_state state;
-
-  /*
-   * Length of a match. This is updated so that dict_repeat can
-   * be called again to finish repeating the whole match.
-   */
-  unsigned len;
-
-  /*
-   * LZMA properties or related bit masks (number of literal
-   * context bits, a mask dervied from the number of literal
-   * position bits, and a mask dervied from the number
-   * position bits)
-   */
-  unsigned lc;
-  unsigned literal_pos_mask; /* (1 << lp) - 1 */
-  unsigned pos_mask;         /* (1 << pb) - 1 */
-
-  /* If 1, it's a match. Otherwise it's a single 8-bit literal. */
-  uint16_t is_match[STATES][POS_STATES_MAX];
-
-  /* If 1, it's a repeated match. The distance is one of rep0 .. rep3. */
-  uint16_t is_rep[STATES];
-
-  /*
-   * If 0, distance of a repeated match is rep0.
-   * Otherwise check is_rep1.
-   */
-  uint16_t is_rep0[STATES];
-
-  /*
-   * If 0, distance of a repeated match is rep1.
-   * Otherwise check is_rep2.
-   */
-  uint16_t is_rep1[STATES];
-
-  /* If 0, distance of a repeated match is rep2. Otherwise it is rep3. */
-  uint16_t is_rep2[STATES];
-
-  /*
-   * If 1, the repeated match has length of one byte. Otherwise
-   * the length is decoded from rep_len_decoder.
-   */
-  uint16_t is_rep0_long[STATES][POS_STATES_MAX];
-
-  /*
-   * Probability tree for the highest two bits of the match
-   * distance. There is a separate probability tree for match
-   * lengths of 2 (i.e. MATCH_LEN_MIN), 3, 4, and [5, 273].
-   */
-  uint16_t dist_slot[DIST_STATES][DIST_SLOTS];
-
-  /*
-   * Probility trees for additional bits for match distance
-   * when the distance is in the range [4, 127].
-   */
-  uint16_t dist_special[FULL_DISTANCES - DIST_MODEL_END];
-
-  /*
-   * Probability tree for the lowest four bits of a match
-   * distance that is equal to or greater than 128.
-   */
-  uint16_t dist_align[ALIGN_SIZE];
-
-  /* Length of a normal match */
-  struct lzma_len_dec match_len_dec;
-
-  /* Length of a repeated match */
-  struct lzma_len_dec rep_len_dec;
-
-  /* Probabilities of literals */
-  uint16_t literal[LITERAL_CODERS_MAX][LITERAL_CODER_SIZE];
-};
-
-struct lzma2_dec {
-  /* Position in xz_dec_lzma2_run(). */
-  enum lzma2_seq {
-    SEQ_CONTROL,
-    SEQ_UNCOMPRESSED_1,
-    SEQ_UNCOMPRESSED_2,
-    SEQ_COMPRESSED_0,
-    SEQ_COMPRESSED_1,
-    SEQ_PROPERTIES,
-    SEQ_LZMA_PREPARE,
-    SEQ_LZMA_RUN,
-    SEQ_COPY
-  } sequence;
-
-  /* Next position after decoding the compressed size of the chunk. */
-  enum lzma2_seq next_sequence;
-
-  /* Uncompressed size of LZMA chunk (2 MiB at maximum) */
-  unsigned uncompressed;
-
-  /*
-   * Compressed size of LZMA chunk or compressed/uncompressed
-   * size of uncompressed chunk (64 KiB at maximum)
-   */
-  unsigned compressed;
-
-  /*
-   * True if dictionary reset is needed. This is false before
-   * the first chunk (LZMA or uncompressed).
-   */
-  int need_dict_reset;
-
-  /*
-   * True if new LZMA properties are needed. This is false
-   * before the first LZMA chunk.
-   */
-  int need_props;
-};
-
-struct xz_dec_lzma2 {
-  /*
-   * The order below is important on x86 to reduce code size and
-   * it shouldn't hurt on other platforms. Everything up to and
-   * including lzma.pos_mask are in the first 128 bytes on x86-32,
-   * which allows using smaller instructions to access those
-   * variables. On x86-64, fewer variables fit into the first 128
-   * bytes, but this is still the best order without sacrificing
-   * the readability by splitting the structures.
-   */
-  struct rc_dec rc;
-  struct dictionary dict;
-  struct lzma2_dec lzma2;
-  struct lzma_dec lzma;
-
-  /*
-   * Temporary buffer which holds small number of input bytes between
-   * decoder calls. See lzma2_lzma() for details.
-   */
-  struct {
-    unsigned size;
-    char buf[3 * LZMA_IN_REQUIRED];
-  } temp;
-};
 
 /**************
  * Dictionary *
@@ -1927,6 +1875,8 @@ enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s, struct xz_buf *b)
   return XZ_OK;
 }
 
+// Allocate memory for LZMA2 decoder. xz_dec_lzma2_reset() must be used
+// before calling xz_dec_lzma2_run().
 struct xz_dec_lzma2 *xz_dec_lzma2_create(unsigned dict_max)
 {
   struct xz_dec_lzma2 *s = malloc(sizeof(*s));
@@ -1940,6 +1890,10 @@ struct xz_dec_lzma2 *xz_dec_lzma2_create(unsigned dict_max)
   return s;
 }
 
+// Decode the LZMA2 properties (one byte) and reset the decoder. Return
+// XZ_OK on success, XZ_MEMLIMIT_ERROR if the preallocated dictionary is not
+// big enough, and XZ_OPTIONS_ERROR if props indicates something that this
+// decoder doesn't support.
 enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, char props)
 {
   /* This limits dictionary size to 3 GiB to keep parsing simpler. */
@@ -1957,11 +1911,7 @@ enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, char props)
   if (s->dict.allocated < s->dict.size) {
     s->dict.allocated = s->dict.size;
     free(s->dict.buf);
-    s->dict.buf = malloc(s->dict.size);
-    if (s->dict.buf == NULL) {
-      s->dict.allocated = 0;
-      return XZ_MEM_ERROR;
-    }
+    s->dict.buf = xmalloc(s->dict.size);
   }
 
   s->lzma.len = 0;
@@ -2372,30 +2322,20 @@ static int check_skip(struct xz_dec *s, struct xz_buf *b)
 /* Decode the Stream Header field (the first 12 bytes of the .xz Stream). */
 static enum xz_ret dec_stream_header(struct xz_dec *s)
 {
-  if (!memeq(s->temp.buf, HEADER_MAGIC, HEADER_MAGIC_SIZE))
+  if (memcmp(s->temp.buf, HEADER_MAGIC, HEADER_MAGIC_SIZE))
     return XZ_FORMAT_ERROR;
 
   if (xz_crc32(s->temp.buf + HEADER_MAGIC_SIZE, 2, 0)
       != get_unaligned_le32(s->temp.buf + HEADER_MAGIC_SIZE + 2))
     return XZ_DATA_ERROR;
 
-  if (s->temp.buf[HEADER_MAGIC_SIZE])
-    return XZ_OPTIONS_ERROR;
+  if (s->temp.buf[HEADER_MAGIC_SIZE]) return XZ_OPTIONS_ERROR;
 
-  /*
-   * Of integrity checks, we support none (Check ID = 0),
-   * CRC32 (Check ID = 1), and optionally CRC64 (Check ID = 4).
-   * However, if XZ_DEC_ANY_CHECK is defined, we will accept other
-   * check types too, but then the check won't be verified and
-   * a warning (XZ_UNSUPPORTED_CHECK) will be given.
-   */
+  // Integrity checks none (0), CRC32 (1), and CRC64 (4) supported,
+  // Other check types silently skipped.
   s->check_type = s->temp.buf[HEADER_MAGIC_SIZE + 1];
 
-  if (s->check_type > XZ_CHECK_MAX)
-    return XZ_OPTIONS_ERROR;
-
-  if (s->check_type > XZ_CHECK_CRC32 && s->check_type != XZ_CHECK_CRC64)
-    return XZ_UNSUPPORTED_CHECK;
+  if (s->check_type > XZ_CHECK_MAX) return XZ_OPTIONS_ERROR;
 
   return XZ_OK;
 }
@@ -2403,7 +2343,7 @@ static enum xz_ret dec_stream_header(struct xz_dec *s)
 /* Decode the Stream Footer field (the last 12 bytes of the .xz Stream) */
 static enum xz_ret dec_stream_footer(struct xz_dec *s)
 {
-  if (!memeq(s->temp.buf + 10, FOOTER_MAGIC, FOOTER_MAGIC_SIZE))
+  if (memcmp(s->temp.buf + 10, FOOTER_MAGIC, FOOTER_MAGIC_SIZE))
     return XZ_DATA_ERROR;
 
   if (xz_crc32(s->temp.buf + 4, 6, 0) != get_unaligned_le32(s->temp.buf))
@@ -2660,8 +2600,7 @@ static enum xz_ret dec_main(struct xz_dec *s, struct xz_buf *b)
       index_update(s, b);
 
       /* Compare the hashes to validate the Index field. */
-      if (!memeq(&s->block.hash, &s->index.hash,
-          sizeof(s->block.hash)))
+      if (memcmp(&s->block.hash, &s->index.hash, sizeof(s->block.hash)))
         return XZ_DATA_ERROR;
 
       s->sequence = SEQ_INDEX_CRC32;
@@ -2849,8 +2788,7 @@ void do_xzcat(int fd, char *name)
   uint64_t r;
 
   char *errors[] = {
-    "Memory allocation failed",
-    "Memory usage limit reached",
+    "Dictionary too big",
     "Not a .xz file",
     "Unsupported options in the .xz headers",
     // 2 things in the enum xz_ret use this
@@ -2905,8 +2843,7 @@ void do_xzcat(int fd, char *name)
       b.out_pos = 0;
     }
 
-    if (ret == XZ_OK || ret == XZ_UNSUPPORTED_CHECK)
-      continue;
+    if (ret == XZ_OK) continue;
 
     if (fwrite(out, 1, b.out_pos, stdout) != b.out_pos) {
       msg = "Write error\n";
@@ -2918,7 +2855,7 @@ void do_xzcat(int fd, char *name)
       return;
     }
 
-    msg = (ret-3 < ARRAY_LEN(errors)) ? errors[ret-3] : "Bug!";
+    msg = (ret-2 < ARRAY_LEN(errors)) ? errors[ret-2] : "Bug!";
     goto error;
   }
 
