@@ -28,7 +28,9 @@ config DD
 
     These modifiers take a comma separated list of potential options:
 
-    iflag=count_bytes,skip_bytes   count=N or skip=N is in bytes not blocks
+    iflag=
+      count_bytes count=N is in bytes   direct   Skip caches
+      skip_bytes  skip=N is in bytes
     oflag=
       append      Append to file        direct   Skip caches
       seek_bytes  seek=N is in bytes
@@ -58,7 +60,7 @@ static const struct dd_flag dd_conv[] = TAGGED_ARRAY(DD_conv,
 );
 
 static const struct dd_flag dd_iflag[] = TAGGED_ARRAY(DD_iflag,
-  {"count_bytes"}, {"skip_bytes"},
+  {"count_bytes"}, {"direct"}, {"skip_bytes"},
 );
 
 static const struct dd_flag dd_oflag[] = TAGGED_ARRAY(DD_oflag,
@@ -151,7 +153,7 @@ void dd_main()
     count = ULLONG_MAX, buflen;
   long long len;
   struct iovec iov[2];
-  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, oflags, ii;
+  int opos, olen, ifd = 0, ofd = 1, trunc = O_TRUNC, iflags, oflags, ii;
   unsigned conv = 0, iflag = 0, oflag = 0;
 
   TT.show_xfer = TT.show_records = 1;
@@ -194,7 +196,9 @@ void dd_main()
   if (oflag & _DD_oflag_append) oflags |= O_APPEND;
   if (oflag & _DD_oflag_direct) oflags |= O_DIRECT;
 
-  if (iname) ifd = xopenro(iname);
+  iflags = O_RDONLY|WARN_ONLY; // WARN_ONLY means the opposite with openro()!
+  if (iflag & _DD_iflag_direct) iflags |= O_DIRECT;
+  if (iname) ifd = openro(iname, iflags);
   else iname = "stdin";
   if (oname) ofd = xcreate(oname, oflags|(trunc*!seek), 0666);
   else oname = "stdout";
