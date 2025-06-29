@@ -25,8 +25,8 @@ xzcatExe=`which xzcat`
 $xzcatExe file1.xz file2.xz file3.xz > xzcatOut
 testcmd "- decompresses multiple files" "file1.xz file2.xz file3.xz > Tempfile && echo "yes" ; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile " "yes\nyes\n" "" ""
 echo "This is NOT a XZ file!!!" > file
-testcmd "bad file" "file 2>&1; rm file" "xzcat: Not a .xz file\n" "" ""
+testcmd "bad file" "file 2>/dev/null || echo yes" "yes\n" "" ""
 echo "Surely nothing bad will happen to this compressed data!" > file
 tar -cJf file.xz file
 truncate -s 16 file.xz
-testcmd "corrupted file" "file.xz 2>&1" "xzcat: File is corrupt\n" "" ""
+testcmd "corrupted file" "file.xz 2>/dev/null || echo yes" "yes\n" "" ""
