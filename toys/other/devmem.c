@@ -74,7 +74,7 @@ void devmem_main(void)
     }
   } else p = (void *)addr;
 
-  // Not using peek()/poke() because registers care about size of read/write.
+  // Not using peek()/memcpy() because registers care about size of read/write.
   if (writing) for (ii = 2; ii<toys.optc; ii++) {
     data = xatolu(toys.optargs[ii], bytes);
     if (FLAG(no_mmap)) xwrite(fd, pdata, bytes);

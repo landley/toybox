@@ -508,12 +508,17 @@ void ifconfig_main(void)
 
           // Assign value to ifre field and call ioctl? (via IFREQ_OFFSZ.)
           if (on < 0) {
-            void *dest = ((on = -on)>>16)+(char *)&ifre;
+            void *dest = ((on = -on)>>16)+(char *)&ifre, *src;
 
             // If we're about to set mem_start/io_addr/irq, get other 2 first
             if (off == SIOCSIFMAP) xioctl(TT.sockfd, SIOCGIFMAP, &ifre);
             if (off == SIOCSIFNAME) xstrncpy(dest, *argv, on&0xffff);
-            else poke(dest, strtoul(*argv, 0, 0), on&15);
+            else {
+              long long ll = strtoul(*argv, 0, 0);
+
+              src = ((char *)&ll)+IS_BIG_ENDIAN*(sizeof(long long)-(on&15));
+              memcpy(dest, src, on&15);
+	    }
             xioctl(TT.sockfd, off, &ifre);
             break;
           } else {

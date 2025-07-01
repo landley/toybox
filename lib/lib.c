@@ -714,31 +714,6 @@ long long peek(void *ptr, unsigned size)
   return (IS_BIG_ENDIAN ? peek_be : peek_le)(ptr, size);
 }
 
-void poke_le(void *ptr, long long val, unsigned size)
-{
-  char *c = ptr;
-
-  while (size--) {
-    *c++ = val&255;
-    val >>= 8;
-  }
-}
-
-void poke_be(void *ptr, long long val, unsigned size)
-{
-  char *c = ptr + size;
-
-  while (size--) {
-    *--c = val&255;
-    val >>=8;
-  }
-}
-
-void poke(void *ptr, long long val, unsigned size)
-{
-  (IS_BIG_ENDIAN ? poke_be : poke_le)(ptr, val, size);
-}
-
 // Iterate through an array of files, opening each one and calling a function
 // on that filehandle and name. The special filename "-" means stdin if
 // flags is O_RDONLY, stdout otherwise. An empty argument list calls
