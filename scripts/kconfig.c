@@ -280,6 +280,21 @@ void options(char *opt)
   char *ss, *tt, *esc = "\n\\\"";
   FILE *fp;
 
+  if (!strcmp(opt, "-h")) {
+    for (kk = kc; kk; kk = kk->next) {
+      if (!kk->symbol || !kk->help) continue;
+      printf("#define HELP_");
+      for (ss = kk->symbol; *ss; ss++) putchar(tolower(*ss));
+      printf(" \"");
+      for (ss = kk->help; *ss; ss++)
+        if (!(tt = strchr(esc, *ss))) putchar(*ss);
+        else printf("\\%c", "n\\\""[tt-esc]);
+      printf("\"\n\n");
+    }
+
+    return;
+  }
+
   if ((ss = getenv("KCONFIG_ALLCONFIG"))) {
     if (!(fp = fopen(ss, "r")))
       exit(dprintf(2, "bad KCONFIG_ALLCONFIG=%s\n", ss)|1);
@@ -288,16 +303,7 @@ void options(char *opt)
 // TODO  if ((fp = fopen(getenv("KCONFIG_CONFIG") ? : ".config")))
 //    read_dotconfig(kc, fp);
 
-  if (!strcmp(opt, "-h")) for (kk = kc; kk; kk = kk->next) {
-    if (!kk->symbol || !kk->help) continue;
-    printf("#define HELP_");
-    for (ss = kk->symbol; *ss; ss++) putchar(tolower(*ss));
-    printf(" \"");
-    for (ss = kk->help; *ss; ss++)
-      if (!(tt = strchr(esc, *ss))) putchar(*ss);
-      else printf("\\%c", "n\\\""[tt-esc]);
-    printf("\"\n\n");
-  } else if (-1 != (cfgtype = strany(opt, (char *[]){"-n", "-d", "-y", 0})-1)) {
+  if (-1 != (cfgtype = strany(opt, (char *[]){"-n", "-d", "-y", 0})-1)) {
     time_t t = time(0);
     struct tm *tt = localtime(&t);
     char buf[64];
