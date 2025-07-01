@@ -32,6 +32,7 @@ elif [ -n "$CROSS" ]; then # CROSS=all/allnonstop/$ARCH else list known $ARCHes
   [ ! -d "$CCC" ] && die "No ccc symlink to compiler directory."
   TARGETS="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u)"
 
+  [ "${CROSS/,/}" == "$CROSS" ] || { TARGETS="${CROSS//,/ }"; CROSS=all; }
   if [ "${CROSS::3}" == all ]; then # loop calling ourselves for each target
     for i in $TARGETS; do
       "$0" "$@" CROSS=$i || [ "$CROSS" == allnonstop ] || exit 1
