@@ -14,16 +14,13 @@ fi
 MASK=$(printf %x $(((1<<CPUS)-1)))
 LAST=$(printf %x $((1<<(CPUS-1))))
 
-# Yes, taskset -p gets the arguments backwards. Because gnu.
+# pid 0 means the taskset process itself.
 testing 'set mask to all' \
-  '(taskset -p $MASK $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
-  "$MASK\n" '' ''
+  '(taskset $MASK taskset -p 0 | sed "s/.*: //")' "$MASK\n" '' ''
 testing 'set mask to first' \
-  '(taskset -p 1 $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
-  '1\n' '' ''
+  '(taskset 1 taskset -p 0 | sed "s/.*: //")' '1\n' '' ''
 testing 'set mask to last' \
-  '(taskset -p $LAST $BASHPID >/dev/null; taskset -p $BASHPID | sed "s/.*: //")'\
-  "$LAST\n" '' ''
+  '(taskset $LAST taskset -p 0 | sed "s/.*: //")' "$LAST\n" '' ''
 
 # alas procps-ng always says "-" for -o cpu so fetch the field from /proc
 testing 'run on first' \

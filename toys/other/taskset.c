@@ -26,6 +26,7 @@ config TASKSET
 
     Mask is a hex string where each bit represents a processor the process
     is allowed to run on. PID without a mask displays existing affinity.
+    A PID of zero means the taskset process.
 
     -p	Set/get the affinity of given PID instead of a new command
     -a	Set/get the affinity of all threads of the PID
