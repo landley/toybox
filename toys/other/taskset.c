@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_TASKSET(NEWTOY(taskset, "^p(pid)a(all-tasks)", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TASKSET(NEWTOY(taskset, "^p(pid)a(all-tasks)c(cpu-list)", TOYFLAG_USR|TOYFLAG_BIN))
 USE_NPROC(NEWTOY(nproc, "a(all)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NPROC
@@ -19,17 +19,19 @@ config TASKSET
   bool "taskset"
   default y
   help
-    usage: taskset [-ap] [mask] [PID | cmd [args...]]
+    usage: taskset [-apc] [mask] [PID | cmd [args...]]
 
     Launch a new task which may only run on certain processors, or change
     the processor affinity of an existing PID.
 
-    Mask is a hex string where each bit represents a processor the process
-    is allowed to run on. PID without a mask displays existing affinity.
-    A PID of zero means the taskset process.
+    The mask may be specified as  a hex string where each bit represents a
+    processor the process is allowed to run on, or as a CPU list with the
+    -c option. PID without a mask displays existing affinity. A PID of zero
+    means the taskset process.
 
     -p	Set/get affinity of given PID instead of a new command (--pid)
     -a	Set/get affinity of all threads of the PID (--all-tasks)
+    -c	Specify mask as a cpu list, for example 1,3,4-8:2 (--cpu-list)
 */
 
 #define FOR_taskset
@@ -40,6 +42,16 @@ config TASKSET
   syscall(__NR_sched_setaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
 #define sched_getaffinity(pid, size, cpuset) \
   syscall(__NR_sched_getaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
+
+#define TOYBUF_BITS (8*sizeof(toybuf))
+
+static int find_next_cpu(unsigned long *mask, int i)
+{
+  for (; i < TOYBUF_BITS; i++)
+    if (mask[i/(8*sizeof(long))] & (1UL << (i%(8*sizeof(long)))))
+      return i;
+  return i;
+}
 
 static void do_taskset(pid_t pid)
 {
@@ -56,11 +68,43 @@ static void do_taskset(pid_t pid)
       if (toys.optc)
         printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
 
-      for (j = sizeof(toybuf)/sizeof(long), k = 0; --j>=0;) {
-        if (k) printf("%0*lx", (int)(2*sizeof(long)), mask[j]);
-        else if (mask[j]) {
-          k++;
-          printf("%lx", mask[j]);
+      if (FLAG(c)) {
+        // Print as cpu list
+        int next = 0;  // where to start looking for next cpu
+        int a;  // start of range
+
+        while ((a = find_next_cpu(mask, next)) < TOYBUF_BITS) {
+          // next is 0 only on first iteration.
+          if (next > 0) putchar(',');
+          next = find_next_cpu(mask, a + 1);
+          if (next == TOYBUF_BITS) {
+            printf("%d", a);
+          } else {
+            // Extend range as long as the step size is the same.
+            int b = next, step = b - a;
+            while ((next = find_next_cpu(mask, b + 1)) < TOYBUF_BITS
+                   && next - b == step) {
+              b = next;
+            }
+            if (b - a == step) {
+              // Only print one CPU; try to put the next CPU in the next range.
+              printf("%d", a);
+              next = b;
+            } else if (step == 1) {
+              printf("%d-%d", a, b);
+            } else {
+              printf("%d-%d:%d", a, b, step);
+            }
+          }
+        }
+      } else {
+        // Print as mask
+        for (j = sizeof(toybuf)/sizeof(long), k = 0; --j>=0;) {
+          if (k) printf("%0*lx", (int)(2*sizeof(long)), mask[j]);
+          else if (mask[j]) {
+            k++;
+            printf("%lx", mask[j]);
+          }
         }
       }
       putchar('\n');
@@ -68,20 +112,57 @@ static void do_taskset(pid_t pid)
 
     if (i || toys.optc < 2) return;
 
-    // Convert hex string to mask[] bits
     memset(toybuf, 0, sizeof(toybuf));
-    j = (k = strlen(s = *toys.optargs))-2*sizeof(toybuf);
-    if (j>0) {
-      s += j;
-      k -= j;
-    }
-    s += k;
-    for (j = 0; j<k; j++) {
-      unsigned long digit = *(--s) - '0';
+    if (FLAG(c)) {
+      // Convert cpu list to mask[] bits
+      char* failed_cpu_list = "failed to parse CPU list: %s";
+      s = *toys.optargs;
+      do {
+        if (s != *toys.optargs) {
+          if (*s != ',') {
+            error_exit(failed_cpu_list, *toys.optargs);
+          }
+          s++;
+        }
 
-      if (digit > 9) digit = 10 + tolower(*s)-'a';
-      if (digit > 15) error_exit("bad mask '%s'", *toys.optargs);
-      mask[j/(2*sizeof(long))] |= digit << 4*(j&((2*sizeof(long))-1));
+        // Parse a[-b[:step]].
+        int a, b, step = 1;
+        int nc = 0;
+        int n = sscanf(s, "%d%n-%d%n:%d%n", &a, &nc, &b, &nc, &step, &nc);
+
+        if (n == 1) {
+          b = a;
+        }
+
+        // Reject large steps to avoid overflow in loop below.
+        if (n<=0 || a<0 || b>=TOYBUF_BITS || b<a
+            || step<1 || step>=TOYBUF_BITS) {
+          error_exit(failed_cpu_list, *toys.optargs);
+        }
+
+        // Since `nc` is updated before [-:] is parsed, any other char will
+        // be left in `s` and cause a parse error in the next iteration.
+        s += nc;
+
+        for (j = a; j <= b; j += step) {
+          mask[j/(8*sizeof(long))] |= 1UL << (j%(8*sizeof(long)));
+        }
+      } while (*s);
+    } else {
+      // Convert hex string to mask[] bits.
+      j = (k = strlen(s = *toys.optargs))-2*sizeof(toybuf);
+      if (j>0) {
+        s += j;
+        k -= j;
+      }
+      s += k;
+      for (j = 0; j<k; j++) {
+        unsigned long digit = *(--s) - '0';
+
+        if (digit > 9) digit = 10 + tolower(*s)-'a';
+        if (digit > 15) error_exit("bad mask '%s'", *toys.optargs);
+        mask[j/(2*sizeof(long))] |= digit << 4*(j&((2*sizeof(long))-1));
+      }
     }
 
     if (-1 == sched_setaffinity(pid, sizeof(toybuf), (void *)mask))

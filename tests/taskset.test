@@ -26,6 +26,40 @@ testcmd '--pid 0 is current process' '1 taskset --pid 0 | sed "s/.*: //"' '1\n' 
 toyonly testcmd 'no arguments shows current mask' '1 taskset' '1\n' '' ''
 testcmd 'run on first' '1 ps -o psr= $BASHPID | xargs' '0\n' '' ''
 testcmd 'run on last' '$LAST ps -o psr= $BASHPID | xargs' "$((CPUS-1))\n" '' ''
+
+# mask -> CPU list
+if [ $CPUS -gt 1 ]; then
+  testcmd 'print all as CPU list' \
+    '$MASK taskset -pc 0 | sed "s/.*: //"' "0-$((CPUS-1))\n" '' ''
+fi
+testcmd 'print first as CPU list' \
+  '1 taskset -pc 0 | sed "s/.*: //"' '0\n' '' ''
+testcmd 'print last as CPU list' \
+  '$LAST taskset -pc 0 | sed "s/.*: //"' "$((CPUS-1))\n" '' ''
+
+# CPU list -> mask
+testcmd 'set CPU list to all' \
+  '-c 0-$((CPUS-1)) taskset -p 0 | sed "s/.*: //"' "$MASK\n" '' ''
+testcmd 'set CPU list to first' \
+  '-c 0 taskset -p 0 | sed "s/.*: //"' '1\n' '' ''
+testcmd 'set CPU list to first with --cpu-list' \
+  '--cpu-list 0 taskset -p 0 | sed "s/.*: //"' '1\n' '' ''
+testcmd 'set CPU list to last' \
+  '-c $((CPUS-1)) taskset -p 0 | sed "s/.*: //"' "$LAST\n" '' ''
+
+# CPU list -> CPU list
+if [ $CPUS -gt 2 ]; then
+  testcmd 'even CPU list' \
+    '-c $(seq -s, 0 2 $CPUS) taskset -pc 0 | sed "s/.*: //"' \
+    "0-$((($CPUS-1)&~1)):2\n" '' ''
+fi
+if [ $CPUS -gt 5 ]; then
+  # Prints as 0,1-5:2, not 0,1,3,5, since 1 not consumed as part of a
+  # range starting at 0.
+  testcmd 'CPU list printing not greedy' \
+    '-c 0,1-5:2 taskset -pc 0 | sed "s/.*: //"' '0,1-5:2\n' '' ''
+fi
+
 testcmd "long mask doesn't segfault" \
   '$(printf %99999s | tr \  0)f echo; echo $?' '\n0\n' '' ''
 testcmd "error checking" '0 echo nope 2>/dev/null; echo $?' '1\n' '' ''
