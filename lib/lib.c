@@ -312,7 +312,8 @@ long long atolx(char *numstr)
   char *c = numstr, *suffixes="cwbkmgtpe", *end;
   long long val;
 
-  val = xstrtol(numstr, &c, 0);
+  // exclude octal to avoid confusion
+  val = xstrtol(numstr, &c, strstr(numstr, "0x") ? 0 : 10);
   if (c != numstr && *c && (end = strchr(suffixes, tolower(*c)))) {
     int shift = end-suffixes-2;
     ++c;
