@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_TASKSET(NEWTOY(taskset, "<1^pa", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TASKSET(NEWTOY(taskset, "^pa", TOYFLAG_USR|TOYFLAG_BIN))
 USE_NPROC(NEWTOY(nproc, "a(all)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NPROC
@@ -28,8 +28,8 @@ config TASKSET
     is allowed to run on. PID without a mask displays existing affinity.
     A PID of zero means the taskset process.
 
-    -p	Set/get the affinity of given PID instead of a new command
-    -a	Set/get the affinity of all threads of the PID
+    -p	Set/get affinity of given PID instead of a new command
+    -a	Set/get affinity of all threads of the PID
 */
 
 #define FOR_taskset
@@ -49,11 +49,12 @@ static void do_taskset(pid_t pid)
 
   // loop through twice to display before/after affinity masks
   for (i=0; ; i++) {
-    if (FLAG(p)) {
+    if (FLAG(p) || !toys.optc) {
       if (-1 == sched_getaffinity(pid, sizeof(toybuf), (void *)mask))
         perror_exit(failed, "get", pid);
 
-      printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
+      if (toys.optc)
+        printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
 
       for (j = sizeof(toybuf)/sizeof(long), k = 0; --j>=0;) {
         if (k) printf("%0*lx", (int)(2*sizeof(long)), mask[j]);
@@ -94,15 +95,18 @@ static int task_callback(struct dirtree *new)
 
 void taskset_main(void)
 {
-  if (!FLAG(p)) {
-    if (toys.optc < 2) error_exit("Needs 2 args");
+  if (!FLAG(p) && toys.optc) {
+    if (toys.optc<2) error_exit("Needs 2 args");
     do_taskset(getpid());
     xexec(toys.optargs+1);
   } else {
     char *c, buf[33];
-    pid_t pid = strtol(toys.optargs[toys.optc-1], &c, 10);
+    pid_t pid = getpid();
 
-    if (*c) error_exit("Not int %s", toys.optargs[toys.optc-1]);
+    if (toys.optc) {
+      pid = strtol(toys.optargs[toys.optc-1], &c, 10);
+      if (*c) error_exit("Not int %s", toys.optargs[toys.optc-1]);
+    }
 
     if (FLAG(a)) {
       sprintf(buf, "/proc/%ld/task/", (long)pid);
