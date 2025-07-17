@@ -775,7 +775,7 @@ struct group *xgetgrnam(char *name)
 
 void xsetuser(struct passwd *pwd)
 {
-  if (initgroups(pwd->pw_name, pwd->pw_gid) || setgid(pwd->pw_uid)
+  if (initgroups(pwd->pw_name, pwd->pw_gid) || setgid(pwd->pw_gid)
       || setuid(pwd->pw_uid)) perror_exit("xsetuser '%s'", pwd->pw_name);
 }
 
