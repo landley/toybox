@@ -25,13 +25,14 @@ KCONFIG_CONFIG=.singleconfig
 for i in "$@"
 do
   echo -n "$i:"
-  TOYFILE="$(egrep -l "TOY[(]($i)[ ,]" toys/*/*.c)"
+  NEWTOY="$(egrep -H "TOY[(]($i)[ ,]" toys/*/*.c)"
 
-  if [ -z "$TOYFILE" ]
+  if [ -z "$NEWTOY" ]
   then
     echo "Unknown command '$i'" >&2
     exit 1
   fi
+  TOYFILE="${NEWTOY/:*/}"
 
   make allnoconfig > /dev/null || exit 1
 
@@ -41,7 +42,10 @@ do
   then
     DEPENDS="$($SED -n 's/USE_\([^(]*\)(...TOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
   else
+    # Disable multiplexer and features not needed by this command to save space
     MPDEL='s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t'
+    [ "${NEWTOY/NOHELP/}" != "$NEWTOY" ] && GLOBDEP="${DEPENDS/TOYBOX_HELP/}"
+    [ "${NEWTOY/ROOT/}" != "$NEWTOY" ] && GLOBDEP="${DEPENDS/TOYBOX_SUID/}"
   fi
 
   # Enable stuff this command depends on
