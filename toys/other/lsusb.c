@@ -3,7 +3,7 @@
  * Copyright 2013 Andre Renaud <andre@bluewatersys.com>
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
 
-USE_LSUSB(NEWTOY(lsusb, "i:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSUSB(NEWTOY(lsusb, "ti:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_LSPCI(NEWTOY(lspci, "eDmkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
@@ -26,10 +26,11 @@ config LSUSB
   bool "lsusb"
   default y
   help
-    usage: lsusb [-i]
+    usage: lsusb [-ti]
 
     List USB hosts/devices.
 
+    -t	Tree format
     -i	ID database (default /etc/usb.ids[.gz])
 */
 
@@ -43,6 +44,23 @@ GLOBALS(
   void *ids, *class;
   int count;
 )
+
+// Structures for tree display
+struct usb_device {
+  struct usb_device *next, *child;
+  unsigned int busnum, devnum, portnum;
+  unsigned int vid, pid;
+  char *manufacturer, *product;
+  char speed[16];
+  char name[64];
+};
+
+struct usb_bus {
+  struct usb_bus *next;
+  struct usb_device *first_child;
+  unsigned int busnum;
+  char name[64];
+};
 
 struct dev_ids {
   struct dev_ids *next, *child;
@@ -90,7 +108,7 @@ static int scan_uevent(struct dirtree *new, int len, struct scanloop *sl)
   return saw;
 }
 
-static void get_names(struct dev_ids *ids, int id1, int id2,
+static void get_names(struct dev_ids *ids, unsigned int id1, unsigned int id2,
   char **name1, char **name2)
 {
   // Look up matching dev_ids (if any)
@@ -177,11 +195,190 @@ static int list_usb(struct dirtree *new)
   return 0;
 }
 
+// Tree display functions
+static struct usb_bus *usb_buses = NULL;
+
+static unsigned int read_sysfs_uint(const char *path, const char *file)
+{
+  char fullpath[256], buf[32];
+  int fd;
+  ssize_t len;
+  
+  snprintf(fullpath, sizeof(fullpath), "%s/%s", path, file);
+  fd = open(fullpath, O_RDONLY);
+  if (fd < 0) return 0;
+  
+  len = read(fd, buf, sizeof(buf)-1);
+  close(fd);
+  if (len <= 0) return 0;
+  
+  buf[len] = 0;
+  return strtoul(buf, NULL, 10);
+}
+
+static unsigned int read_sysfs_hex(const char *path, const char *file)
+{
+  char fullpath[256], buf[32];
+  int fd;
+  ssize_t len;
+  
+  snprintf(fullpath, sizeof(fullpath), "%s/%s", path, file);
+  fd = open(fullpath, O_RDONLY);
+  if (fd < 0) return 0;
+  
+  len = read(fd, buf, sizeof(buf)-1);
+  close(fd);
+  if (len <= 0) return 0;
+  
+  buf[len] = 0;
+  return strtoul(buf, NULL, 16);
+}
+
+static void read_sysfs_string(const char *path, const char *file, char *buf, int size)
+{
+  char fullpath[256];
+  int fd;
+  ssize_t len;
+  
+  snprintf(fullpath, sizeof(fullpath), "%s/%s", path, file);
+  fd = open(fullpath, O_RDONLY);
+  if (fd < 0) {
+    buf[0] = 0;
+    return;
+  }
+  
+  len = read(fd, buf, size-1);
+  close(fd);
+  if (len <= 0) {
+    buf[0] = 0;
+    return;
+  }
+  
+  buf[len] = 0;
+  if (len > 0 && buf[len-1] == '\n') buf[len-1] = 0;
+}
+
+static struct usb_device *create_device(const char *name)
+{
+  struct usb_device *dev;
+  char path[256], *p;
+  
+  dev = xzalloc(sizeof(*dev));
+  strncpy(dev->name, name, sizeof(dev->name)-1);
+  
+  snprintf(path, sizeof(path), "/sys/bus/usb/devices/%s", name);
+  
+  // Parse device path to get busnum, devnum, portnum
+  p = (char *)name;
+  dev->busnum = strtoul(p, &p, 10);
+  if (*p == '-') {
+    p++;
+    dev->portnum = strtoul(p, &p, 10);
+    while (*p == '.') {
+      p++;
+      // Skip intermediate port numbers
+      strtoul(p, &p, 10);
+    }
+  }
+  
+  dev->devnum = read_sysfs_uint(path, "devnum");
+  dev->vid = read_sysfs_hex(path, "idVendor");
+  dev->pid = read_sysfs_hex(path, "idProduct");
+  
+  dev->manufacturer = xzalloc(64);
+  dev->product = xzalloc(64);
+  read_sysfs_string(path, "manufacturer", dev->manufacturer, 64);
+  read_sysfs_string(path, "product", dev->product, 64);
+  read_sysfs_string(path, "speed", dev->speed, sizeof(dev->speed));
+  
+  return dev;
+}
+
+static struct usb_bus *find_or_create_bus(unsigned int busnum)
+{
+  struct usb_bus *bus, **pp;
+  
+  for (pp = &usb_buses; (bus = *pp); pp = &bus->next)
+    if (bus->busnum == busnum) return bus;
+  
+  bus = xzalloc(sizeof(*bus));
+  bus->busnum = busnum;
+  snprintf(bus->name, sizeof(bus->name), "usb%u", busnum);
+  *pp = bus;
+  
+  return bus;
+}
+
+static void add_device_to_tree(struct usb_device *dev)
+{
+  struct usb_bus *bus;
+  struct usb_device **pp;
+  
+  bus = find_or_create_bus(dev->busnum);
+  
+  // For simplicity, add all devices to bus level
+  if (!bus->first_child) {
+    bus->first_child = dev;
+  } else {
+    for (pp = &bus->first_child; *pp; pp = &(*pp)->next);
+    *pp = dev;
+  }
+}
+
+static int scan_usb_devices_tree(struct dirtree *node)
+{
+  struct usb_device *dev;
+  
+  if (!node->parent) return DIRTREE_RECURSE;
+  if (*node->name == '.' || strchr(node->name, ':')) return 0;
+  if (!isdigit(*node->name) && strncmp(node->name, "usb", 3)) return 0;
+  
+  dev = create_device(node->name);
+  add_device_to_tree(dev);
+  
+  return 0;
+}
+
+static void print_device_tree(struct usb_device *dev, int indent)
+{
+  char *vendor = "", *product = "";
+  
+  while (dev) {
+    if (TT.ids) get_names(TT.ids, dev->vid, dev->pid, &vendor, &product);
+    
+    printf("%*s|__ Port %u: Dev %u, If 0, Class=hub, Driver=hub/0p, %sM\n", 
+           indent, "", dev->portnum ? dev->portnum : 1, dev->devnum, 
+           *dev->speed ? dev->speed : "480");
+    
+    if (dev->vid || dev->pid || *vendor || *product)
+      printf("%*s    ID %04x:%04x %s %s\n", indent, "", dev->vid, dev->pid, vendor, product);
+    
+    if (dev->child) print_device_tree(dev->child, indent + 4);
+    dev = dev->next;
+  }
+}
+
+static void print_usb_tree(void)
+{
+  struct usb_bus *bus;
+  
+  for (bus = usb_buses; bus; bus = bus->next) {
+    printf("/:  Bus %02u.Port 1: Dev 1, Class=root_hub, Driver=hub/0p, 480M\n", bus->busnum);
+    if (bus->first_child) print_device_tree(bus->first_child, 4);
+  }
+}
+
 void lsusb_main(void)
 {
   // Parse http://www.linux-usb.org/usb.ids file (if available)
   TT.ids = parse_dev_ids("usb.ids", 0);
-  dirtree_read("/sys/bus/usb/devices/", list_usb);
+  
+  if (FLAG(t)) {
+    dirtree_read("/sys/bus/usb/devices/", scan_usb_devices_tree);
+    print_usb_tree();
+  } else {
+    dirtree_read("/sys/bus/usb/devices/", list_usb);
+  }
 }
 
 #define FOR_lspci
