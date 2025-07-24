@@ -232,6 +232,7 @@ static void do_remove(char *name)
 static void update_crontab(char *src, char *dest)
 {
   int fdin, fdout;
+  struct passwd *pwd = xgetpwnam(dest);
 
   snprintf(toybuf, sizeof(toybuf), "%s%s", TT.cdir, dest);
   unlink(toybuf);
@@ -240,7 +241,7 @@ static void update_crontab(char *src, char *dest)
   xsendfile(fdin, fdout);
   xclose(fdin);
 
-  fchown(fdout, getuid(), geteuid());
+  fchown(fdout, pwd->pw_uid, pwd->pw_gid);
   xclose(fdout);
 }
 
