@@ -840,11 +840,11 @@ void replace_tempfile(int fdin, int fdout, char **tempname)
 
 void crc_init(unsigned *crc_table, int little_endian)
 {
-  unsigned int i;
+  unsigned i;
 
   // Init the CRC32 table (big endian)
   for (i=0; i<256; i++) {
-    unsigned int j, c = little_endian ? i : i<<24;
+    unsigned j, c = little_endian ? i : i<<24;
     for (j=8; j; j--)
       if (little_endian) c = (c&1) ? (c>>1)^0xEDB88320 : c>>1;
       else c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
