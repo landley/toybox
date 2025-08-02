@@ -194,12 +194,44 @@ void check_help(char **arg)
   }
 }
 
+// Replace any --fuzz-arg arguments with lines from input.
+char** fuzz_argv(char** argv) {
+  // While fuzzing, block side effects to the system.
+  struct rlimit limit = { .rlim_cur = 0, .rlim_max = 0 };
+  setrlimit(RLIMIT_NOFILE, &limit); // No new files.
+  setrlimit(RLIMIT_NPROC, &limit);  // No new processes.
+
+  for (int i = 0; argv[i]; i++) {
+    if (strcmp(argv[i], "--fuzz-arg") != 0) continue;
+
+    // Read in stdin one byte at a time so that afterwards the toy
+    // command can read the rest as input.
+    char* buf = xzalloc(100);
+    for (int j = 0; j < 99; j++) {
+      if (read(0, buf+j, 1) < 1) {
+        break;
+      }
+      if (buf[j] == '\n') {
+        buf[j] = 0;
+        break;
+      }
+    }
+    argv[i] = buf;
+  }
+  return argv;
+}
+
 // Setup toybox global state for this command.
 void toy_singleinit(struct toy_list *which, char *argv[])
 {
   toys.which = which;
-  toys.argv = argv;
   toys.toycount = ARRAY_LEN(toy_list);
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+  toys.argv = fuzz_argv(argv);
+#else
+  toys.argv = argv;
+#endif
 
   if (NEED_OPTIONS && which->options) get_optflags();
   else {
