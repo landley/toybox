@@ -36,6 +36,7 @@
 #undef FLAG_R
 #undef FLAG_f
 #undef FLAG_v
+#undef FLAG_c
 #endif
 
 // cmp <1>4ls(silent)(quiet)n#<1[!ls] <1>4ls(silent)(quiet)n#<1[!ls]
@@ -445,6 +446,7 @@
 #define FLAG_R (1LL<<0)
 #define FLAG_f (1LL<<1)
 #define FLAG_v (1LL<<2)
+#define FLAG_c (1LL<<3)
 #endif
 
 #ifdef FOR_cmp
