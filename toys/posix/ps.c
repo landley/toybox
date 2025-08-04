@@ -1397,7 +1397,8 @@ void ps_main(void)
   // Calculate seen fields bit array, and if we aren't deferring printing
   // print headers now (for low memory/nommu systems).
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
-  if (!FLAG(M)) printf("%.*s\n", TT.width, toybuf);
+  if (!FLAG(M) && toybuf[strspn(toybuf, " ")])
+    printf("%.*s\n", TT.width, toybuf);
   if (!(FLAG(k)||FLAG(M))) TT.show_process = show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC,
