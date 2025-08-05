@@ -29,14 +29,14 @@ config IP
 #include "toys.h"
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-#include <linux/if_ether.h>
 #include <linux/if_addr.h>
-#include <net/if_arp.h>
+#include <linux/if_arp.h>
+#include <linux/if_ether.h>
+#include <linux/if_tunnel.h>
 #include <ifaddrs.h>
 #include <fnmatch.h>
-#include <linux/ip.h> // Centos 7.2 EOL June 30 2024
-#include <linux/if_tunnel.h>
 
+// This is in <netinet/ip.h>, but glibc's conflicts with <linux/ip.h>.
 #ifndef IP_DF
 #define IP_DF 0x4000  /* don't fragment flag. */
 #endif
@@ -691,7 +691,6 @@ static int link_set(char **argv)
   char *dev = NULL, *newdev = NULL, *newaddr = NULL, *newbrd = NULL;
   int mtu = -1, txqlen = -1;
 
-  int i = 0;
   while (*argv) {
     switch(idx = substring_to_idx(*argv, cmd_objectlist)) {
       case 0:
@@ -903,27 +902,15 @@ static int get_link_info(struct nlmsghdr* h,struct linkdata* link,char **argv)
   int len = h->nlmsg_len - NLMSG_LENGTH(sizeof(*iface));
   struct arglist hwtypes[]={{"generic",0},{"ether",ARPHRD_ETHER},
     {"loopback", ARPHRD_LOOPBACK},{"sit",ARPHRD_SIT},
-#ifdef ARPHRD_INFINIBAND
     {"infiniband",ARPHRD_INFINIBAND},
-#endif
-#ifdef ARPHRD_IEEE802_TR
     {"ieee802",ARPHRD_IEEE802}, {"tr",ARPHRD_IEEE802_TR},
-#else
-    {"tr",ARPHRD_IEEE802},
-#endif
-#ifdef ARPHRD_IEEE80211
     {"ieee802.11",ARPHRD_IEEE80211},
-#endif
-#ifdef ARPHRD_IEEE1394
     {"ieee1394",ARPHRD_IEEE1394},
-#endif
     {"irda",ARPHRD_IRDA},{"slip",ARPHRD_SLIP},{"cslip",ARPHRD_CSLIP},
     {"slip6",ARPHRD_SLIP6}, {"cslip6",ARPHRD_CSLIP6}, {"ppp",ARPHRD_PPP},
     {"ipip",ARPHRD_TUNNEL}, {"tunnel6",ARPHRD_TUNNEL6},
-    {"gre",ARPHRD_IPGRE},
-#ifdef ARPHRD_VOID
+    {"gre",ARPHRD_IPGRE}, {"ip6gre",ARPHRD_IP6GRE},
     {"void",ARPHRD_VOID},
-#endif
     {NULL,-1}};
   char *lname = get_flag_string(hwtypes, iface->ifi_type, 0);
 
