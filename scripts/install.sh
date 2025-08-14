@@ -1,6 +1,16 @@
 #!/bin/bash
 
-# Grab default values for $CFLAGS and such.
+# usage: PREFIX=/target/path scripts/install.sh [--options]
+
+# Install toybox binary produced by scripts/make.sh. Supported options are:
+#
+# --symlink   - install symlinks instead of hardlinks
+# --force     - delete target if it already exists
+# --long      - use bin/sbin subdirectories instead of installing all in one dir
+# --airlock   - symlink in host tools needed by mkroot build
+# --uninstall - delete target files
+
+# Grab default values for $CFLAGS and such (to build scripts/install.c)
 
 source scripts/portability.sh
 
@@ -12,13 +22,13 @@ LONG_PATH=""
 while [ ! -z "$1" ]
 do
   # Create symlinks instead of hardlinks?
-  [ "$1" == "--symlink" ] && LINK_TYPE="-s"
+  [ "$1" == "--symlink" ] && TYPE="-s"
 
   # Uninstall?
   [ "$1" == "--uninstall" ] && UNINSTALL=Uninstall
 
   # Delete destination command if it exists?
-  [ "$1" == "--force" ] && DO_FORCE="-f"
+  [ "$1" == "--force" ] && FORCE="-f"
 
   # Use {,usr}/{bin,sbin} paths instead of all files in one directory?
   [ "$1" == "--long" ] && LONG_PATH="bin/"
@@ -63,12 +73,9 @@ do
     # Create subdirectory for command to go in (if necessary)
 
     DOTPATH="$(dirname "$i")"/
-    if [ -z "$UNINSTALL" ]
-    then
-      mkdir -p "$DOTPATH" || exit 1
-    fi
+    [ -z "$UNINSTALL" ] && { mkdir -p "$DOTPATH" || exit 1; }
 
-    if [ -z "$LINK_TYPE" ]
+    if [ -z "$TYPE" ]
     then
       DOTPATH="bin/"
     else
@@ -83,12 +90,9 @@ do
   fi
 
   # Create link
-  if [ -z "$UNINSTALL" ]
-  then
-    ln $DO_FORCE $LINK_TYPE ${DOTPATH}"toybox${TARGET:+-$TARGET}" $i || EXIT=1
-  else
+  [ -z "$UNINSTALL" ] &&
+    { ln $FORCE $TYPE ${DOTPATH}"toybox${TARGET:+-$TARGET}" $i || EXIT=1;} ||
     rm -f $i || EXIT=1
-  fi
 done
 
 [ -z "$AIRLOCK" ] && exit $EXIT
@@ -98,17 +102,20 @@ done
 
 # This not only means you're building with a known set of tools (insulated from
 # variations in the host distro), but that everything else is NOT in your PATH
-# and thus various configure stages won't find things on thie host that won't
+# and thus various configure stages won't find things on this host that won't
 # be there on the target (such as the distcc build noticing the host has
 # python and deciding to #include Python.h).
+
+# mkroot has patches to remove the need for "bc" and "gcc"
+TOOLCHAIN="${TOOLCHAIN//,/ } as cc ld objdump   bc gcc"
 
 # The following are commands toybox should provide, but doesn't yet.
 # For now symlink the host version. This list must go away by 1.0.
 
-PENDING="expr git tr bash sh gzip   awk bison flex make ar"
-TOOLCHAIN="${TOOLCHAIN//,/ } as cc ld objdump  bc gcc"
+# Commands before the gap have partial implementations in pending
+PENDING="expr git tr bash sh gzip awk   bison flex make ar"
 
-# Tools needed to build packages
+# Symlink tools needed to build packages
 for i in $TOOLCHAIN $PENDING $HOST_EXTRA
 do
   if [ ! -f "$i" ]

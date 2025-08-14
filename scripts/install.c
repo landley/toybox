@@ -33,6 +33,8 @@ static char help_data[] =
 #include "generated/newtoys.h"
 ;
 
+// When cross compiling you can't run "./toybox --long", it's a foreign binary.
+
 int main(int argc, char *argv[])
 {
   static char *toy_paths[]={"usr/","bin/","sbin/",0};
