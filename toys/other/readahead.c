@@ -15,18 +15,15 @@ config READAHEAD
     Preload files into disk cache.
 */
 
+#define _LARGEFILE64_SOURCE  // musl's _ALL_SOURCE lies, no off64_t
 #include "toys.h"
+
+// glibc won't provide this prototype unless we claim Linux belongs to the FSF
+ssize_t readahead(int fd, off64_t offset, size_t count);
 
 static void do_readahead(int fd, char *name)
 {
-  int rc;
-
-  // Since including fcntl.h doesn't give us the wrapper, use the syscall.
-  // 32 bits takes LO/HI offset (we don't care about endianness of 0).
-  if (sizeof(long) == 4) rc = syscall(__NR_readahead, fd, 0, 0, INT_MAX);
-  else rc = syscall(__NR_readahead, fd, 0, INT_MAX);
-
-  if (rc) perror_msg("readahead: %s", name);
+  if (readahead(fd, 0, INT_MAX)) perror_msg("readahead: %s", name);
 }
 
 void readahead_main(void)
