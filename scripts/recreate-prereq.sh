@@ -4,9 +4,9 @@
 
 # Detect toybox prerequisites using record-commands
 
-mkroot/record-commands make clean defconfig toybox
-sed -i 's/default y/default n/' generated/Config.probed
-CMDLIST="$(echo toybox; ./toybox cut -DF 1 log.txt | sort -u | grep -v nproc)"
+mkroot/record-commands make clean defconfig toybox &&
+sed -i 's/default y/default n/' generated/Config.probed || exit 1
+CMDLIST="$(echo toybox; echo ln; ./toybox cut -DF 1 log.txt | sort -u | grep -v nproc)"
 {
   for i in $(tr '[:lower:]' '[:upper:]' <<<"$CMDLIST")
   do

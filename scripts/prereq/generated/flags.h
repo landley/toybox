@@ -27,9 +27,9 @@
 #undef FLAG_u
 #endif
 
-// chmod <2?vfR[-vf] <2?vfR[-vf]
+// chmod <2?cvfR[-cvf] <2?cvfR[-cvf]
 #undef OPTSTR_chmod
-#define OPTSTR_chmod "<2?vfR[-vf]"
+#define OPTSTR_chmod "<2?cvfR[-cvf]"
 #ifdef CLEANUP_chmod
 #undef CLEANUP_chmod
 #undef FOR_chmod

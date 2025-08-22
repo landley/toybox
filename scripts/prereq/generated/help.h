@@ -1,4 +1,5 @@
 #define HELP_toybox ""
+#define HELP_ln ""
 #define HELP_as ""
 #define HELP_basename ""
 #define HELP_cat ""
@@ -14,7 +15,6 @@
 #define HELP_gzip ""
 #define HELP_head ""
 #define HELP_ld ""
-#define HELP_ln ""
 #define HELP_ls ""
 #define HELP_make ""
 #define HELP_mkdir ""
