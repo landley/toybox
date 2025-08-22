@@ -189,8 +189,8 @@ int value(struct kconfig *kc)
       return !strcmp(kc->contain->def, kc->symbol);
     s = "";
   }
-
   if (*kc->type!='b') return atoi(s);
+  if (kc->value) return *kc->value=='y';
   if (cfgtype==1 || !*kc->prompt) return *s=='y';
   if (cfgtype==4) return random()&1;
   return !!cfgtype;
