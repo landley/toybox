@@ -5,13 +5,13 @@
  *
  * See RFC 2132, and 3442 (option 121)
 
-USE_DHCP(NEWTOY(dhcp, "V:H:F:x*r:O*A#<0=20T#<0=3t#<0=3s:p:i:SBRCaovqnbf", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
+USE_DHCP(NEWTOY(dhcp, "V:H:F:x*r:O*A#<0=20T#<0=3t#<0=3s:p:i:SBRCuaovqnbf", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
 
 config DHCP
   bool "dhcp"
   default n
   help
-   usage: dhcp [-fbnqvoCRB] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
+   usage: dhcp [-fbnqvouCRB] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
                [-H HOSTNAME] [-V VENDOR] [-x OPT:VAL] [-O OPT]
 
         Configure network dynamically using DHCP.
@@ -38,6 +38,7 @@ config DHCP
       -H Send NAME as client hostname (default none)
       -V VENDOR Vendor identifier (default 'toybox VERSION')
       -C Don't send MAC as client identifier
+      -u Unset broadcast bit (receive unicast offer and ack messages)
       -v Verbose
 
       Signals:
@@ -80,6 +81,7 @@ GLOBALS(
 #define STATE_RENEW_REQUESTED 5
 #define STATE_RELEASED        6
 
+#define BOOTP_UNICAST     0x0
 #define BOOTP_BROADCAST   0x8000
 #define DHCP_MAGIC        0x63825363
 
@@ -977,6 +979,7 @@ static int dhcpc_sendmsg(int msgtype)
   uint8_t *pend;
   struct in_addr rqsd;
   char *vendor;
+  uint16_t broadcast_bit = (toys.optflags & FLAG_u) ? BOOTP_UNICAST : BOOTP_BROADCAST;
 
   // Create the common message header settings
   memset(&state->pdhcp, 0, sizeof(dhcp_msg_t));
@@ -996,7 +999,7 @@ static int dhcpc_sendmsg(int msgtype)
   // Handle the message specific settings
   switch (msgtype) {
   case DHCPDISCOVER: // Broadcast DISCOVER message to all servers
-    state->pdhcp.flags = htons(BOOTP_BROADCAST); //  Broadcast bit.
+    state->pdhcp.flags = htons(broadcast_bit);
     if (toys.optflags & FLAG_r) {
       inet_aton(TT.req_ip, &rqsd);
       pend = dhcpc_addreqipaddr(&rqsd, pend);
@@ -1011,7 +1014,7 @@ static int dhcpc_sendmsg(int msgtype)
     if (toys.optflags & FLAG_x) pend = set_xopt(pend);
     break;
   case DHCPREQUEST: // Send REQUEST message to the server that sent the *first* OFFER
-    state->pdhcp.flags = htons(BOOTP_BROADCAST); //  Broadcast bit.
+    state->pdhcp.flags = htons(broadcast_bit);
     if (state->status == STATE_RENEWING) memcpy(&state->pdhcp.ciaddr, &state->ipaddr.s_addr, 4);
     pend = dhcpc_addmaxsize(pend, htons(sizeof(dhcp_raw_t)));
     rqsd.s_addr = htonl(server);
