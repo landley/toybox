@@ -70,7 +70,11 @@ static void do_taskset(pid_t pid)
 
     // Convert hex string to mask[] bits
     memset(toybuf, 0, sizeof(toybuf));
-    k = minof(strlen(s = *toys.optargs), 2*sizeof(toybuf));
+    j = (k = strlen(s = *toys.optargs))-2*sizeof(toybuf);
+    if (j>0) {
+      s += j;
+      k -= j;
+    }
     s += k;
     for (j = 0; j<k; j++) {
       unsigned long digit = *(--s) - '0';

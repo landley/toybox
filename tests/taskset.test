@@ -31,6 +31,6 @@ testing 'run on last' \
   "$((CPUS-1))\n" '' ''
 
 testing "long mask doesn't segfault" \
-  'taskset $(printf %99999s | tr \  f) echo; echo $?' '\n0\n' '' ''
+  'taskset $(printf %99999s | tr \  0)f echo; echo $?' '\n0\n' '' ''
 testing "taskset error checking" \
   'taskset 0 echo nope 2>/dev/null; echo $?' '1\n' '' ''
