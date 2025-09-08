@@ -56,9 +56,13 @@ testing "file->inaccessible_dir [fail]" \
 rm two
 rmdir sub
 
+echo thingy > file
+testcmd 'write failure' 'file /dev/full 2>/dev/null || echo yes' 'yes\n' '' ''
+rm -f file
+
 # This test fails because our -rf deletes existing target files without
 # regard to what we'd be copying over it. Posix says to only do that if
-# we'd be copying a file over the file, but does not say _why_.
+# we'd be copying a file over the file, but does not say _why_. TODO
 
 #mkdir dir
 #touch file
