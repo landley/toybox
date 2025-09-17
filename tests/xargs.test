@@ -8,6 +8,13 @@ testing "xargs" "xargs && echo yes" "hello\nyes\n" "" "hello"
 testing "spaces" "xargs" \
 	"one two three four\n" "" "one two\tthree  \nfour\n\n"
 
+echo 1 > one
+echo 2 > two
+echo 3 > three
+echo -e "one\ntwo\nthree" > args
+testing "-a" "xargs -a args cat -" "stdin\n1\n2\n3\n" "" "stdin\n"
+rm one two three args
+
 testing "-n 0" "xargs -n 0 2>/dev/null || echo ok" "ok\n" \
 	"" "one \ntwo\n three"
 testing "-n 1" "xargs -n 1" "one\n" "" "one\n"

@@ -9,19 +9,20 @@
  * TODO: -L	Max number of lines of input per command
  * TODO: -x	Exit if can't fit everything in one command
 
-USE_XARGS(NEWTOY(xargs, "^E:P#<0(null)=1optr(no-run-if-empty)n#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^a:E:P#<0(null)=1optr(no-run-if-empty)n#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
   default y
   help
-    usage: xargs [-0Pprt] [-snE STR] COMMAND...
+    usage: xargs [-0Pprt] [-snE STR] [-a FILE] COMMAND...
 
     Run command line one or more times, appending arguments from stdin.
 
     If COMMAND exits with 255, don't launch another even if arguments remain.
 
     -0	Each argument is NULL terminated, no whitespace or quote processing
+    -a FILE	Read arguments from FILE, don't close stdin
     -E	Stop at line matching string
     -n	Max number of arguments per command
     -o	Open tty for COMMAND's stdin (default /dev/null)
@@ -37,7 +38,7 @@ config XARGS
 
 GLOBALS(
   long s, n, P;
-  char *E;
+  char *E, *a;
 
   long entries, bytes, np;
   char delim;
@@ -119,6 +120,7 @@ void xargs_main(void)
   int entries, bytes, done = 0;
   char *data = 0, **out = 0;
   pid_t pid = 0;
+  FILE *args_fp = TT.a ? xfopen(TT.a, "re") : stdin;
 
   xsignal_flags(SIGUSR1, signal_P, SA_RESTART);
   xsignal_flags(SIGUSR2, signal_P, SA_RESTART);
@@ -163,7 +165,7 @@ void xargs_main(void)
       if (!data) {
         size_t l = 0;
 
-        if (getdelim(&data, &l, TT.delim, stdin)<0) {
+        if (getdelim(&data, &l, TT.delim, args_fp)<0) {
           data = 0;
           done++;
           break;
@@ -205,7 +207,7 @@ void xargs_main(void)
     }
 
     if (!(pid = XVFORK())) {
-      close(0);
+      if (!TT.a) close(0);
       xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY|O_CLOEXEC);
       xexec(out);
     }
