@@ -71,12 +71,12 @@ struct group_data {
 // Data for burrows wheeler transform
 
 struct bwdata {
-  unsigned int origPtr;
+  unsigned origPtr;
   int byteCount[256];
   // State saved when interrupting output
   int writePos, writeRun, writeCount, writeCurrent;
-  unsigned int dataCRC, headerCRC;
-  unsigned int *dbuf;
+  unsigned dataCRC, headerCRC;
+  unsigned *dbuf;
 };
 
 // Structure holding all the housekeeping data, including IO buffers and
@@ -85,13 +85,13 @@ struct bunzip_data {
   // Input stream, input buffer, input bit buffer
   int in_fd, inbufCount, inbufPos;
   char *inbuf;
-  unsigned int inbufBitCount, inbufBits;
+  unsigned inbufBitCount, inbufBits;
 
   // Output buffer
   char outbuf[IOBUF_SIZE];
   int outbufPos;
 
-  unsigned int totalCRC;
+  unsigned totalCRC;
 
   // First pass decompression data (Huffman and MTF decoding)
   char selectors[32768];                  // nSelectors=15 bits
@@ -100,18 +100,18 @@ struct bunzip_data {
   unsigned char symToByte[256], mtfSymbol[256];
 
   // The CRC values stored in the block header and calculated from the data
-  unsigned int crc32Table[256];
+  unsigned crc32Table[256];
 
   // Second pass decompression data (burrows-wheeler transform)
-  unsigned int dbufSize;
+  unsigned dbufSize;
   struct bwdata bwdata[THREADS];
 };
 
 // Return the next nnn bits of input.  All reads from the compressed input
 // are done through this function.  All reads are big endian.
-static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
+static unsigned get_bits(struct bunzip_data *bd, char bits_wanted)
 {
-  unsigned int bits = 0;
+  unsigned bits = 0;
 
   // If we need to get more data from the byte buffer, do so.  (Loop getting
   // one byte at a time to enforce endianness and avoid unaligned access.)
@@ -432,7 +432,7 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
 
     // We have our literal byte.  Save it into dbuf.
     byteCount[uc]++;
-    dbuf[dbufCount++] = (unsigned int)uc;
+    dbuf[dbufCount++] = (unsigned)uc;
   }
 
   // Now we know what dbufCount is, do a better sanity check on origPtr.
@@ -456,7 +456,7 @@ static int flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
 static void burrows_wheeler_prep(struct bunzip_data *bd, struct bwdata *bw)
 {
   int ii, jj;
-  unsigned int *dbuf = bw->dbuf;
+  unsigned *dbuf = bw->dbuf;
   int *byteCount = bw->byteCount;
 
   // Turn byteCount into cumulative occurrence counts of 0 to n-1.
@@ -516,7 +516,7 @@ static int read_bunzip_data(struct bunzip_data *bd)
 static int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw,
   int out_fd, char *outbuf, int len)
 {
-  unsigned int *dbuf = bw->dbuf;
+  unsigned *dbuf = bw->dbuf;
   int count, pos, current, run, copies, outbyte, previous, gotcount = 0;
 
   for (;;) {
@@ -610,7 +610,7 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
   int len)
 {
   struct bunzip_data *bd;
-  unsigned int i;
+  unsigned i;
 
   // Figure out how much data to allocate.
   i = sizeof(struct bunzip_data);

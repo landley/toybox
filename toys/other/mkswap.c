@@ -24,7 +24,7 @@ void mkswap_main(void)
 {
   int fd = xopen(*toys.optargs, O_RDWR), pagesize = sysconf(_SC_PAGE_SIZE);
   off_t len = fdlength(fd);
-  unsigned int pages = (len/pagesize)-1, *swap = (unsigned int *)toybuf;
+  unsigned pages = (len/pagesize)-1, *swap = (unsigned *)toybuf;
   char *label = (char *)(swap+7), *uuid = (char *)(swap+3);
 
   // Write header. Note that older kernel versions checked signature
@@ -35,7 +35,7 @@ void mkswap_main(void)
   xlseek(fd, 1024, SEEK_SET);
   create_uuid(uuid);
   if (TT.L) strncpy(label, TT.L, 15);
-  xwrite(fd, swap, 129*sizeof(unsigned int));
+  xwrite(fd, swap, 129*sizeof(unsigned));
   xlseek(fd, pagesize-10, SEEK_SET);
   xwrite(fd, "SWAPSPACE2", 10);
   fsync(fd);
