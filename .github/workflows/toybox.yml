@@ -29,4 +29,4 @@ jobs:
     - name: Setup
       run: sudo apt-get install build-essential
     - name: Configure build and test
-      run: VERBOSE=all CC=clang make defconfig tests
+      run: VERBOSE=all CC=gcc make defconfig tests  # Changed from CC=clang to CC=gcc
