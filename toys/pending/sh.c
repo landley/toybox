@@ -3760,6 +3760,7 @@ static void do_prompt(char *prompt)
 {
   char *s, *ss, c, cc, *pp = toybuf;
   int len, ll;
+  time_t t;
 
   if (!prompt) return;
   while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
@@ -3782,7 +3783,48 @@ static void do_prompt(char *prompt)
       // Ignore bash's "nonprintable" hack; query our cursor position instead.
       if (cc=='[' || cc==']') continue;
       else if (cc=='$') *pp++ = getuid() ? '$' : '#';
-      else if (cc=='h' || cc=='H') {
+      else if (cc=='d'||cc=='D'||cc=='t'||cc=='T'||cc=='@'||cc=='A') {
+        t = time(NULL);
+        char *fmt = "%a %b %d";
+        if (cc=='D') {
+          char *end;
+          if (*prompt!='{') {
+            *pp++ = '\\';
+            *pp++ = 'D';
+            continue;
+          }
+          prompt++;
+          if (!(end = strchr(prompt, '}'))) {
+            *pp++ = '\\';
+            *pp++ = 'D';
+            continue;
+          }
+          if (prompt==end) {
+            const char ascfmt[] = "%X";
+            fmt = strncpy(xmalloc(sizeof(ascfmt)), ascfmt, sizeof(ascfmt));
+            prompt++;
+          } else {
+            fmt = strncpy(xmalloc(end-prompt), prompt, end-prompt);
+            fmt[end-prompt] = '\0';
+            prompt = end+1;
+          }
+        } else if (cc=='t') {
+          const char tfmt[] = "%H:%M:%S";
+          fmt = strncpy(xmalloc(sizeof(tfmt)), tfmt, sizeof(tfmt));
+        } else if (cc=='T') {
+          const char Tfmt[] = "%I:%M:%S";
+          fmt = strncpy(xmalloc(sizeof(Tfmt)), Tfmt, sizeof(Tfmt));
+        } else if (cc=='@') {
+          const char atfmt[] = "%I:%M %p";
+          fmt = strncpy(xmalloc(sizeof(atfmt)), atfmt, sizeof(atfmt));
+        } else if (cc=='A') {
+          const char Afmt[] = "%R";
+          fmt = strncpy(xmalloc(sizeof(Afmt)), Afmt, sizeof(Afmt));
+        }
+        strftime(pp, len, fmt, localtime(&t));
+        pp += strlen(pp);
+        if (cc!='d') free(fmt);
+      } else if (cc=='h' || cc=='H') {
         *pp = 0;
         gethostname(pp, len);
         pp[len-1] = 0;
@@ -3791,7 +3833,16 @@ static void do_prompt(char *prompt)
       } else if (cc=='s') {
         s = getbasename(*toys.argv);
         while (*s && len--) *pp++ = *s++;
-      } else if (cc=='w') {
+      } else if (cc=='u') {
+        struct passwd *pw;
+        if ((pw = xgetpwuid(getuid()))) {
+          ll = strlen(pw->pw_name);
+          pp = stpncpy(pp, pw->pw_name, ll>len ? len : ll);
+        }
+      } else if (cc=='v'||cc=='V') {
+        ll = strlen(TOYBOX_VERSION);
+        pp = stpncpy(pp, TOYBOX_VERSION, ll>len ? len : ll);
+      } else if (cc=='w'||cc=='W') {
         if ((s = getvar("PWD"))) {
           if ((ss = getvar("HOME")) && strstart(&s, ss)) {
             *pp++ = '~';
