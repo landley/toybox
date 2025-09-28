@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_TASKSET(NEWTOY(taskset, "^pa", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TASKSET(NEWTOY(taskset, "^p(pid)a(all-tasks)", TOYFLAG_USR|TOYFLAG_BIN))
 USE_NPROC(NEWTOY(nproc, "a(all)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NPROC
@@ -28,8 +28,8 @@ config TASKSET
     is allowed to run on. PID without a mask displays existing affinity.
     A PID of zero means the taskset process.
 
-    -p	Set/get affinity of given PID instead of a new command
-    -a	Set/get affinity of all threads of the PID
+    -p	Set/get affinity of given PID instead of a new command (--pid)
+    -a	Set/get affinity of all threads of the PID (--all-tasks)
 */
 
 #define FOR_taskset

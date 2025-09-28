@@ -22,6 +22,7 @@ testcmd 'set mask to all' '$MASK taskset -p $BASHPID | sed "s/.*: //"' "$MASK\n"
 testcmd 'set mask to first' '1 taskset -p $BASHPID | sed "s/.*: //"' '1\n' '' ''
 testcmd 'set mask to last' '$LAST taskset -p $BASHPID | sed "s/.*: //"' "$LAST\n" '' ''
 testcmd '-p 0 is current process' '1 taskset -p 0 | sed "s/.*: //"' '1\n' '' ''
+testcmd '--pid 0 is current process' '1 taskset --pid 0 | sed "s/.*: //"' '1\n' '' ''
 toyonly testcmd 'no arguments shows current mask' '1 taskset' '1\n' '' ''
 testcmd 'run on first' '1 ps -o psr= $BASHPID | xargs' '0\n' '' ''
 testcmd 'run on last' '$LAST ps -o psr= $BASHPID | xargs' "$((CPUS-1))\n" '' ''
