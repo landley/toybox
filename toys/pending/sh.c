@@ -453,6 +453,25 @@ GLOBALS(
 
 #define DEBUG 0
 
+void debug_show_fds()
+{
+  int x = 0, fd = open("/proc/self/fd", O_RDONLY);
+  DIR *X = fdopendir(fd);
+  struct dirent *DE;
+  char *s, *ss = 0, buf[4096], *sss = buf;
+
+  if (!X) return;
+  for (; (DE = readdir(X));) {
+    if (atoi(DE->d_name) == fd) continue;
+    s = xreadlink(ss = xmprintf("/proc/self/fd/%s", DE->d_name));
+    if (s && *s != '.') sss += sprintf(sss, ", %s=%s"+2*!x++, DE->d_name, s);
+    free(s); free(ss);
+  }
+  *sss = 0;
+  dprintf(2, "%d fd:%s\n", getpid(), buf);
+  closedir(X);
+}
+
 // functions contain pipelines contain functions: prototype because loop
 static void free_pipeline(void *pipeline);
 // recalculate needs to get/set variables, but setvar_found calls recalculate
@@ -522,25 +541,6 @@ static void syntax_err(char *s)
   sherror_msg("syntax error: %s", s);
   toys.exitval = 2;
   if (!dashi()) xexit();
-}
-
-void debug_show_fds()
-{
-  int x = 0, fd = open("/proc/self/fd", O_RDONLY);
-  DIR *X = fdopendir(fd);
-  struct dirent *DE;
-  char *s, *ss = 0, buf[4096], *sss = buf;
-
-  if (!X) return;
-  for (; (DE = readdir(X));) {
-    if (atoi(DE->d_name) == fd) continue;
-    s = xreadlink(ss = xmprintf("/proc/self/fd/%s", DE->d_name));
-    if (s && *s != '.') sss += sprintf(sss, ", %s=%s"+2*!x++, DE->d_name, s);
-    free(s); free(ss);
-  }
-  *sss = 0;
-  dprintf(2, "%d fd:%s\n", getpid(), buf);
-  closedir(X);
 }
 
 static char **nospace(char **ss)
@@ -1554,7 +1554,7 @@ static int pipe_subshell(char *s, int len, int out)
 
 // grab variable or special param (ala $$) up to len bytes. Return value.
 // set *used to length consumed. Does not handle $* and $@
-char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
+static char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
 {
   char *s = 0, *ss, cc = *str;
   unsigned uu;
@@ -1694,8 +1694,8 @@ static int wildcard_match(char *s, char *p, struct sh_arg *deck, int flags)
 
 // skip to next slash in wildcard path, passing count active ranges.
 // start at pattern[off] and deck[*idx], return pattern pos and update *idx
-char *wildcard_path(char *pattern, int off, struct sh_arg *deck, int *idx,
-  int count)
+static char *wildcard_path(char *pattern, int off, struct sh_arg *deck,
+  int *idx, int count)
 {
   char *p, *old;
   int i = 0, j = 0;
@@ -1730,7 +1730,7 @@ char *wildcard_path(char *pattern, int off, struct sh_arg *deck, int *idx,
 // Filesystem traversal callback
 // pass on: filename, portion of deck, portion of pattern,
 // input: pattern+offset, deck+offset. Need to update offsets.
-int do_wildcard_files(struct dirtree *node)
+static int do_wildcard_files(struct dirtree *node)
 {
   struct dirtree *nn;
   char *pattern, *patend;
@@ -1886,7 +1886,7 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
 
 // Copy string until } including escaped }
 // if deck collect wildcards, and store terminator at deck->v[deck->c]
-char *slashcopy(char *s, char *c, struct sh_arg *deck)
+static char *slashcopy(char *s, char *c, struct sh_arg *deck)
 {
   char *ss;
   long ii, jj;
@@ -1923,6 +1923,8 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss = ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
   struct sh_arg deck = {0};
+
+  // TODO: ! history expansion
 
   // Tilde expansion
   if (!(flags&NO_TILDE) && *str == '~') {
@@ -3620,7 +3622,7 @@ flush:
 }
 
 // Find + and - jobs. Returns index of plus, writes minus to *minus
-int find_plus_minus(int *minus)
+static int find_plus_minus(int *minus)
 {
   long long when, then;
   int i, plus;
@@ -3637,14 +3639,47 @@ int find_plus_minus(int *minus)
   return plus;
 }
 
-char is_plus_minus(int i, int plus, int minus)
+static char is_plus_minus(int i, int plus, int minus)
 {
   return (i == plus) ? '+' : (i == minus) ? '-' : ' ';
 }
 
 
+// Return T.jobs index or -1 from identifier
+// Note, we don't return "ambiguous job spec", we return the first hit or -1.
+// TODO %% %+ %- %?ab
+static int find_job(char *s)
+{
+  char *ss;
+  long ll = strtol(s, &ss, 10);
+  int i, j;
+
+  if (!TT.jobs.c) return -1;
+  if (!*s || (!s[1] && strchr("%+-", *s))) {
+    int minus, plus = find_plus_minus(&minus);
+
+    return (*s == '-') ? minus : plus;
+  }
+
+  // Is this a %1 numeric jobspec?
+  if (s != ss && !*ss)
+    for (i = 0; i<TT.jobs.c; i++)
+      if (((struct sh_process *)TT.jobs.v[i])->job == ll) return i;
+
+  // Match start of command or %?abc
+  for (i = 0; i<TT.jobs.c; i++) {
+    struct sh_process *pp = (void *)TT.jobs.v[i];
+
+    if (strstart(&s, *pp->arg.v)) return i;
+    if (*s != '?' || !s[1]) continue;
+    for (j = 0; j<pp->arg.c; j++) if (strstr(pp->arg.v[j], s+1)) return i;
+  }
+
+  return -1;
+}
+
 // We pass in dash to avoid looping over every job each time
-char *show_job(struct sh_process *pp, char dash)
+static char *show_job(struct sh_process *pp, char dash)
 {
   char *s = "Run", *buf = 0;
   int i, j, len, len2;
@@ -3665,7 +3700,7 @@ char *show_job(struct sh_process *pp, char dash)
 }
 
 // Wait for pid to exit and remove from jobs table, returning process or 0.
-struct sh_process *wait_job(int pid, int nohang)
+static struct sh_process *wait_job(int pid, int nohang)
 {
   struct sh_process *pp QUIET;
   int ii, status, minus, plus;
@@ -4899,39 +4934,6 @@ void exec_main(void)
   TT.isexec = 0;
   toys.exitval = 127;
   environ = old;
-}
-
-// Return T.jobs index or -1 from identifier
-// Note, we don't return "ambiguous job spec", we return the first hit or -1.
-// TODO %% %+ %- %?ab
-int find_job(char *s)
-{
-  char *ss;
-  long ll = strtol(s, &ss, 10);
-  int i, j;
-
-  if (!TT.jobs.c) return -1;
-  if (!*s || (!s[1] && strchr("%+-", *s))) {
-    int minus, plus = find_plus_minus(&minus);
-
-    return (*s == '-') ? minus : plus;
-  }
-
-  // Is this a %1 numeric jobspec?
-  if (s != ss && !*ss)
-    for (i = 0; i<TT.jobs.c; i++)
-      if (((struct sh_process *)TT.jobs.v[i])->job == ll) return i;
-
-  // Match start of command or %?abc
-  for (i = 0; i<TT.jobs.c; i++) {
-    struct sh_process *pp = (void *)TT.jobs.v[i];
-
-    if (strstart(&s, *pp->arg.v)) return i;
-    if (*s != '?' || !s[1]) continue;
-    for (j = 0; j<pp->arg.c; j++) if (strstr(pp->arg.v[j], s+1)) return i;
-  }
-
-  return -1;
 }
 
 void jobs_main(void)
