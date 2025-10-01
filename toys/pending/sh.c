@@ -2639,11 +2639,7 @@ static int expand_redir(struct sh_process *pp, struct sh_arg *arg, int skip)
   for (j = skip; j<arg->c; j++) {
     int saveclose = 0, bad = 0;
 
-    if (!strcmp(s = arg->v[j], "!")) {
-      pp->not ^= 1;
-
-      continue;
-    }
+    s = arg->v[j];
 
     // Handle <() >() redirectionss
     if ((*s == '<' || *s == '>') && s[1] == '(') {
