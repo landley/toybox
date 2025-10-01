@@ -226,10 +226,15 @@ refusing to adopt release 5.0 in 2015, and no longer even pretends to support
 it (which affects Debian derivatives like Ubuntu and Knoppix).
 Toybox has stayed on 4.1 for similar reasons.</p>
 
-<p>That said, Posix by itself isn't enough, and this was the next most
-comprehensive standards effort for Linux so far, so we salvage what we can.
+<p>Posix by itself isn't enough, and this was the next most
+comprehensive standards effort for Linux so far.
 A lot of historical effort went into producing the standard before the
-Linux Foundation took over.</p>
+Linux Foundation took over. But LSB was much more prominent when toybox
+started, and is now noticeably obsolete. The main reason it hasn't
+been removed is toybox command implementations are sorted into directories
+(which become menuconfig sub-menus) and moving toys/lsb/*.c elsewhere means
+you'd have to say git log --follow to see the history. The churn probably
+isn't worth it, despite LSB's modern irrelevance.</p>
 
 <h3>Analysis</h3>
 
@@ -246,7 +251,7 @@ tar umount useradd userdel usermod xargs zcat
 </b></blockquote>
 
 <p>Where posix specifies one of those commands, LSB's deltas tended to be
-accomodations for broken tool versions which ween't up to date with the
+accomodations for broken tool versions which weren't up to date with the
 standard yet. (See <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/more.html>more</a> and <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/xargs.html>xargs</a>
 for examples.)</p>
 
@@ -272,44 +277,50 @@ su sync tar umount useradd userdel usermod zcat
 </span>
 </b></blockquote>
 
-<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3><!--Jan 2025-->
-
-<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3><!--Jan 2025-->
-<p>They're very nice, but there's thousands of them. The signal to noise
-ratio here is terrible, and neither is a good indicator of whether a linux
-system should or should not include a given command in its basic command set.</p>
-
-<p>Discussion of standards wouldn't be complete without the Internet
-Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection and Michael Kerrisk's
-<a href=https://www.kernel.org/doc/man-pages/>Linux man-pages project</a>...
-except these aren't standards, they're collections of documentation with
-low barriers to inclusion. They're not saying "you should support
-X", they're saying "if you do, here's how".
-Thus neither really helps us select which commands to include.</p>
-
+<h3><a name=man /><a href="#man">Manual Pages</a></h3><!--Jan 2025-->
 <p>Unix's first production deployment in 1970 was a typesetting system for
-AT&amp;T's internal patent and trademark licensing office (providing the
+AT&amp;T's internal patent and trademark licensing office, providing the
 budget for Bell Labs' engineers to port their prototype system from a
-surplus PDP-7 fished out of an attic to a newly purchased PDP-11), and
+surplus PDP-7 fished out of an attic to a newly purchased PDP-11. Unix
 has retained a robust documentation tradition ever since, albeit still
 written in the old "troff" typesetting language designed to control 1970's
 daisy wheel printers, and in a terse style intended to save both memory
 and paper. Still: every command in a descendant of unix should have an
-entry in the unix instruction manual, with section 1 (ala "man 1 ls") listing
+entry in the unix instruction manual, with
+<a href=https://man7.org/linux/man-pages/man1/intro.1.html>section 1</a>
+(ala "man 1 ls") listing
 commands available to normal users and section 8 ("man 8 mount") listing
 system administration commands for use by the root account. Run "man -k ."
 to see every manual page currently installed onthe system.</p>
 
-<p>The modern Linux man pages project has loosened up a bitwebsite includes commands from git, yum, perf, postgres,
-flatpack... It's useful for examining the features of a command you've
-already decided to include, but useless for deciding _what_ to include.</p>
+<p>The modern Linux man pages project is maintained by
+<a href=https://man7.org/linux/man-pages/man1/intro.1.html>Michael
+Kerrisk</a> and <a href=https://mirrors.edge.kernel.org/pub/linux/docs/man-pages/book/>Alejandro Colomar</a>.
+I've never looked at the PDF version, but the website includes commands from
+git, yum, perf, postgres, flatpack... It's useful for examining the features
+of a command you've already decided to include, but useless for deciding
+_what_ to include.</p>
 
-<p>The RFCs are mostly about protocols and file formats, not commands.
+<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3><!--Jan 2025-->
+<p>The Internet Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection
+started when the early internet pioneers wrote up documentation and proposals
+about the network they were building, and a man named Jon Postel collected
+and archived them (until his death in 1998 when a committee took over).
 The documents are numbered based on the order they were received, with
 no real attempt at coherently indexing the result.
-The noise level is also extremely high: there's thousands of RFCs, many
-describing a proposed idea that never took off, and most of the rest are
-extensions to or replacements for earlier RFCs. Less than 1% of the resulting
+As with the man-pages, they're very nice, but there's thousands of them,
+the signal to noise ratio here is terrible, and nothing here is a good
+indicator of whether a linux system should or should not include a given
+command in its basic command set. This is another collection of documentation
+with a low barrier to inclusion. They're not saying "you should support
+X", they're saying "if you do, here's how", which does not
+help us select which commands to include.</p>
+
+<p>RFCs are mostly about protocols and file formats, not commands.
+The noise level is extremely high: there's thousands of RFCs, many
+describing a proposed idea that never took off, most of the rest are
+extensions to or replacements for earlier RFCs, and even a few April Fool's
+entries. Less than 1% of the resulting
 documents are currently relevant to toybox. As with man pages they can be
 <a href=https://www.ietf.org/rfc/rfc0610.txt>long and complicated</a> or
 <a href=https://www.ietf.org/rfc/rfc1951.txt>terse and impenetrable</a>,
@@ -323,10 +334,10 @@ and <a href=https://tldp.org/HOWTO/Bootdisk-HOWTO/buildroot.html>excellent</a>
 <a href=https://linuxfromscratch.org/hints/downloads/files/OLD/bsd-init.txt>documents</a>
 have no obvious modern alternative.)</p>
 
-<p>That said, RFC documents can be useful (especially for networking protocols)
-and the four URL templates provided by the recommended starting files
-for new commands (hello.c and skeleton.c in the toys/example directory)
-point to example posix, lsb, man, and rfc pages online.</p>
+<p>That said, RFC documents can be useful (especially for networking protocols
+and data compression/archive formats) and the four URL templates provided by the
+recommended starting files for new commands (hello.c and skeleton.c in the
+toys/example directory) point to example posix, lsb, man, and rfc pages online.</p>
 
 <hr />
 <a name="dev_env">
