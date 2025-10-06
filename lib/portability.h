@@ -155,7 +155,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 #define IS_BIG_ENDIAN 0
 #endif
 
-#ifdef __OpenBSD__
+#if defined(__OpenBSD__)
 #define bswap_16(x) swap16(x)
 #define bswap_32(x) swap32(x)
 #define bswap_64(x) swap64(x)
