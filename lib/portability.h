@@ -246,7 +246,7 @@ int posix_fallocate(int, off_t, off_t);
 #include <xlocale.h>
 #endif
 
-#ifdef __NetBSD__
+#if defined(__NetBSD__) && !defined(statfs)
 #include <sys/statvfs.h>
 #define statfs statvfs
 #endif
