@@ -151,7 +151,8 @@ void check_help(char **arg)
   }
 }
 
-#ifdef __NetBSD__
+#if defined(__NetBSD__) && !defined(uselocale)
+// use a No-OP for NetBSD instead of uselocale() for compatability 
 #define uselocale(...) do {} while (0)
 #endif
 
