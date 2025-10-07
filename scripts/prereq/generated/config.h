@@ -922,9 +922,6 @@
 #define CFG_SHA512SUM 0
 #define USE_SHA512SUM(...)
 #define SKIP_SHA512SUM(...) __VA_ARGS__
-#define CFG_B3SUM 0
-#define USE_B3SUM(...)
-#define SKIP_B3SUM(...) __VA_ARGS__
 #define CFG_MKNOD 0
 #define USE_MKNOD(...)
 #define SKIP_MKNOD(...) __VA_ARGS__
