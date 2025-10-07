@@ -7,26 +7,20 @@
  *
  * TODO: *m$ ala printf("%1$d:%2$.*3$d:%4$.*3$d\n", hour, min, precision, sec);
 
-USE_PRINTF(NEWTOY(printf, "<1?^r#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_PRINTF(NEWTOY(printf, "<1?^", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config PRINTF
   bool "printf"
   default y
   help
-    usage: printf [-r COUNT] FORMAT [ARGUMENT...]
+    usage: printf FORMAT [ARGUMENT...]
 
     Format and print ARGUMENT(s) according to FORMAT, using C printf syntax
     (% escapes for cdeEfgGiosuxX, \ escapes for abefnrtv0 or \OCTAL or \xHEX).
-
-    -r	Repeat output COUNT types (0 repeats until killed)
 */
 
 #define FOR_printf
 #include "toys.h"
-
-GLOBALS(
-  long r;
-)
 
 // Detect matching character (return true/false) and advance pointer if match.
 static int chrstart(char **s, char c)
@@ -145,12 +139,6 @@ void printf_main(void)
 
     // Posix says to keep looping through format until we consume all args.
     // This only works if the format actually consumed at least one arg.
-    if (!seen || !*arg) {
-      if (FLAG(r) && --TT.r) {
-        f = *toys.optargs;
-        arg = toys.optargs+1;
-        if (TT.r<0) TT.r++;
-      } else break;
-    }
+    if (!seen || !*arg) break;
   }
 }
