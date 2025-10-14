@@ -37,6 +37,125 @@ bootable under QEMU (built using a <a href=https://github.com/landley/linux/tree
 <u>Build</u>:
 -->
 
+<a name="14-10-2025" /><a href="#14-10-2025"><hr><h2><b>October 14, 2025</b></h2></a>
+<blockquote>
+<p>
+There was a terribly ghastly silence. There was a terribly ghastly noise.
+There was a terribly ghastly silence.
+</p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.13.tar.gz>Toybox 0.8.13</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.13>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.13>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.13>mkroot images</a>
+bootable under QEMU 10.1.0 (built using a <a href=/bin/mkroot/0.8.13/linux-patches/>lightly patched</a> linux-6.17).</p>
+
+<p>This development cycle finally started replacing the old <b>kconfig/*.c</b>
+plumbing (dating back to the 2.6 kernel) with a new <b>scripts/kconfig.c</b>
+(which among other things lets toybox build on macos without homebrew),
+and added trap and alias support to <b>toysh</b>.</p>
+
+<p><u>New commands</u>: Added <b>nologin</b> and <b>hd</b> (no options, just
+traditional 16 byte/line hex+ascii output).</p>
+
+<p><u>Features</u>: added <b>chmod -cv</b>,
+made <b>kill -l</b> list multiple signals, added
+<b>taskset -a</b> as an alias for --all, and calling it without
+arguments prints the current mask.
+Elliott Hughes implemented <b>dd oflag=append oflag=direct iflags=direct</b>
+and <b>xargs -a</b>, Brian Norris added <b>pgrep -a</b> and taught <b>lspci</b>
+to support larger register offsets, Aleksander Morgado added <b>log -b</b>,
+Jeffery Miller added <b>dd conv=nocreat</b>, Jignesh Patel added
+<b>lsusb -t</b>.</p>
+
+<p><u>Bugfixes</u>:
+<b>tar -T /dev/null</b> creates an empty archive, <b>test -nt -ot</b>
+treats an existing file as always newer than a missing file.</b>
+<b>toy_exec_which()</b> clears inherited signal handlers for internal command
+calls, <b>ps -o psr= $$</b> no longer outputs a blank header line,
+<b>readahead</b> was using the wrong value on some platforms (for sadly
+<a href=https://github.com/landley/toybox/commit/a3e5f1b1eaf2>complicated reasons</a> having to do with legacy syscall
+padding of 64 bit values on 32 bit platforms),
+<b>devmem</b> properly zeroes small reads and supports big endian
+targets (reported by Hsiang-Ying Fu),
+Hongsheng Peng reported an <b>ftpget</b> bug (spurious error report because a
+response wasn't being read),
+Jesse Rosenstock pointed out that very long <b>taskset</b> masks (more than 32768
+processors) would overrun toybuf,
+LuK1337 fixed an SELinux incompatibility in <b>tar</b> (trailing NUL byte
+was included in the record length),
+Brian Norris fixed <b>pgrep</b> not to treat unknown arguments as process
+filters and made the -f option not imply -a, and made <b>lspci -xxxx</b>
+properly display large register offsets,
+Tai Groot fixed <b>crontab</b> to retain original file ownership,
+and <b>modinfo</b> tag searches now include a leading NUL to avoid
+false positives (reported by moetayuko).
+</p>
+
+<u>Library</u>: removed <b>poke()</b> and friends (inlined the only caller),
+disabled octal support in <b>atolx()</b> (decimal-looking numbers with leading
+zeroes not being decimal just confuses people in the 21st century).
+Ustav Munedra fixed <b>xsendfile_len()</b> which wasn't reliably exiting with
+error when writing to the destination failed (and thus commands like
+<b>cp</b> didn't always notice disk errors or short writes,
+ttiinn noticed that <b>setgid()</b> was using uid not gid.</p>
+
+<p><u>Mkroot</u>: CROSS= now accepts multiple comma separated targets.</p>
+
+<p><u>Pending</u>: New <b>hexdump</b> command from Moritz Röhrich... although
+we already have posix od, xxd, hexedit, and now a simple hd, none of which
+share code with each other. The shell grew <b>trap</b> and signal handling support,
+fixed $SHLVL counting, fixed $PATH prefix assignments, wildcards don't expand "."
+and "..", allow ! and redirects to interleave with prefix assignments,
+the debug printfs use #define DEBUG instead of being commented out,
+and Avery Terrel implemented several more $PS1 escapes in the prompt
+logic. Elliott Hughes added ip6gre to <b>ip</b>.
+Oliver Webb identified several upstream fixes to the public domain <b>xzcat</b>
+repo we could use, including the new ARM64 BCJ decoder.
+Dmitry Koroban pointed out a fix needed in <b>dhcp</b>,
+and Zikai Chen added <b>dhcp -u</b> to use UDP instead of broadcast replies.
+Brian Mayer fixed <b>getty</b> printing double backslah.
+Kana Steimle made <b>crontab</b> update the timestamp to ensure crond notices
+changes.</p>
+
+<p><u>Cleanup</u>: Minor cleanups to <b>hexdump</b>, <b>kill</b>, <b>lsusb</b>,
+several rounds of cleanup to <b>xzcat</b>, and <b>killall5</b> no longer
+depends on <b>kill</b>.</p>
+
+<p><u>Portability</u>: don't call getentropy() on ANDROID_API&lt;29.
+The new kconfig plumbing plus the hermetic scripts/build lets you build
+toybox on macos without homebrew, although you still need /bin/bash.</p>
+
+<p><u>Documentation</u>: The "Binaries" link in the nav bar on the left now
+goes to all published binaries, not just the latest version. The status
+page now includes a buildroot_cmd category. Various updates to the roadmap and
+design pages, and the release checklist.
+Jesse Rosenstock documented that toybox's <b>tasket</b> treats PID 0 as
+the current process (which is what sched_getaffinity() has always done
+and you have to go out of your way to break it).</p>
+
+<p><u>Test suite</u>: error reporting now displays multiline command
+lines using $'' escape syntax. Added more tests for pgrep, sh, dd, tar, test,
+chmod, taskset, xzcat, kill, cp, and xargs.</p>
+
+<p><u>Build</u>: replaced most uses of the kconfig/ directory with a new
+<b>scripts/kconfig.c</b> (handling defconfig, allnoconfig, allyesconfig,
+and randconfig, but not yet menuconfig, with support for $KCONFIG_ALLCONFIG
+and $KCONFIG_CONFIG for miniconfig and mkroot and single builds), replaced <b>scripts/config2help.c</b>
+with a new TOYFLAG_MOREHELP(CFG_BLAH) macro that lets lines help text prefixed
+with ! drop out when the specified config symbol isn't enabled,
+<b>logpath</b> now depends on the multiplexer being disabled (instead of
+warning when not built standalone), single command builds now disable
+TOYFLAG_HELP and TOYFLAG_SUID for commands that don't need them.</p>
+
+<p><u>Compiler bugs</u>: gcc --as-needed breaks libasan, for example on debian's
+gcc 12.2.0 with binutils 2.40 the following dies with a null pointer dereference calling
+crypt(): <b>gcc -fsanitize=address -static-libasan -xc - -Wl,--as-needed -lcrypt
+&lt;&lt;&lt;$'#include<crypt.h>\nint main(void){crypt("one", "two");}' &amp;&amp;
+./a.out</b></p>
+
+
 <a name="18-01-2025" /><a href="#18-01-2025"><hr><h2><b>Jan 18, 2025</b></h2></a>
 <blockquote>
 <p>The regular early morning yell of horror was the sound of Arthur Dent waking
