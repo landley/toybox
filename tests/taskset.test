@@ -15,22 +15,14 @@ fi
 MASK=$(printf %x $(((1<<CPUS)-1)))
 LAST=$(printf %x $((1<<(CPUS-1))))
 
-# pid 0 means the taskset process itself.
-testing 'set mask to all' \
-  '(taskset $MASK taskset -p 0 | sed "s/.*: //")' "$MASK\n" '' ''
-testing 'set mask to first' \
-  '(taskset 1 taskset -p 0 | sed "s/.*: //")' '1\n' '' ''
-testing 'set mask to last' \
-  '(taskset $LAST taskset -p 0 | sed "s/.*: //")' "$LAST\n" '' ''
-
-# even $BASHPID is parent not child, so fetch mask from /proc
-testing 'run on first' \
-  'X=$(taskset 1 cat /proc/self/stat); x() { echo ${39};}; x $X' '0\n' '' ''
-testing 'run on last' \
-  'X=$(taskset $LAST cat /proc/self/stat); x() { echo ${39};}; x $X' \
-  "$((CPUS-1))\n" '' ''
-
-testing "long mask doesn't segfault" \
-  'taskset $(printf %99999s | tr \  0)f echo; echo $?' '\n0\n' '' ''
-testing "taskset error checking" \
-  'taskset 0 echo nope 2>/dev/null; echo $?' '1\n' '' ''
+testcmd 'set mask to all' '$MASK taskset -p $BASHPID | sed "s/.*: //"' "$MASK\n" '' ''
+testcmd 'set mask to first' '1 taskset -p $BASHPID | sed "s/.*: //"' '1\n' '' ''
+testcmd 'set mask to last' '$LAST taskset -p $BASHPID | sed "s/.*: //"' "$LAST\n" '' ''
+testcmd '-p 0 is current process' '1 taskset -p 0 | sed "s/.*: //"' '1\n' '' ''
+toyonly testcmd 'no arguments shows current mask' '1 taskset' '1\n' '' ''
+testcmd 'run on first' '1 ps -o psr= $BASHPID | xargs' '0\n' '' ''
+testcmd 'run on last' '$LAST ps -o psr= $BASHPID | xargs' "$((CPUS-1))\n" '' ''
+testcmd "long mask doesn't segfault" \
+  '$(printf %99999s | tr \  0)f echo; echo $?' '\n0\n' '' ''
+testcmd "error checking" '0 echo nope 2>/dev/null; echo $?' '1\n' '' ''
+testcmd "error checking2" 'walrus echo nope 2>/dev/null; echo $?' '1\n' '' ''
