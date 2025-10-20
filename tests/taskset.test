@@ -11,6 +11,7 @@ then
   return 2 > /dev/null
   exit
 fi
+[ $CPUS -gt 63 ] && CPUS=63
 MASK=$(printf %x $(((1<<CPUS)-1)))
 LAST=$(printf %x $((1<<(CPUS-1))))
 
@@ -22,10 +23,9 @@ testing 'set mask to first' \
 testing 'set mask to last' \
   '(taskset $LAST taskset -p 0 | sed "s/.*: //")' "$LAST\n" '' ''
 
-# alas procps-ng always says "-" for -o cpu so fetch the field from /proc
+# even $BASHPID is parent not child, so fetch mask from /proc
 testing 'run on first' \
-  'X=$(taskset 1 cat /proc/self/stat); x() { echo ${39};}; x $X' \
-  '0\n' '' ''
+  'X=$(taskset 1 cat /proc/self/stat); x() { echo ${39};}; x $X' '0\n' '' ''
 testing 'run on last' \
   'X=$(taskset $LAST cat /proc/self/stat); x() { echo ${39};}; x $X' \
   "$((CPUS-1))\n" '' ''
