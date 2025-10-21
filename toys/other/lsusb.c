@@ -3,7 +3,7 @@
  * Copyright 2013 Andre Renaud <andre@bluewatersys.com>
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
 
-USE_LSUSB(NEWTOY(lsusb, "ti:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSUSB(NEWTOY(lsusb, "vti:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_LSPCI(NEWTOY(lspci, "eDmkn@x@i:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
@@ -26,10 +26,11 @@ config LSUSB
   bool "lsusb"
   default y
   help
-    usage: lsusb [-ti]
+    usage: lsusb [-vti]
 
     List USB hosts/devices.
 
+    -v	Verbose
     -t	Tree format
     -i	ID database (default /etc/usb.ids[.gz])
 */
@@ -43,6 +44,7 @@ GLOBALS(
 
   void *ids, *class;
   int count;
+  struct usb_bus *usb_buses;
 )
 
 // Structures for tree display
@@ -193,14 +195,164 @@ static int list_usb(struct dirtree *new)
   return 0;
 }
 
-// Tree display functions
-static struct usb_bus *usb_buses = NULL;
-
 static char *readat(int dir, char *name)
 {
   off_t len = sizeof(toybuf);
 
   return readfileat(dir, name, toybuf, &len) ? : "";
+}
+
+static void print_device_descriptor(unsigned char *p, int vid, int pid,
+  char *n1, char *n2, char *s_man, char *s_prod, char *s_ser)
+{
+  uint16_t bcdUSB = le16toh(*(uint16_t *)(p+2));
+  uint16_t bcdDevice = le16toh(*(uint16_t *)(p+12));
+  char *class_name = "", *sub_name = "";
+
+  printf("Device Descriptor:\n");
+  printf("  bLength                %2u\n", p[0]);
+  printf("  bDescriptorType         %2u\n", p[1]);
+  printf("  bcdUSB               %x.%02x\n", bcdUSB >> 8, bcdUSB & 0xff);
+  get_names((struct dev_ids *)TT.class, p[4], p[5], &class_name, &sub_name);
+
+  char *dev_proto_str = "";
+  if (p[4] == 9 && p[5] == 0 && p[6] == 1) dev_proto_str = "Single TT";
+  printf("  bDeviceClass            %d %s\n", p[4], class_name);
+  printf("  bDeviceSubClass         %d\n", p[5]);
+  printf("  bDeviceProtocol         %d %s\n", p[6], dev_proto_str);
+  printf("  bMaxPacketSize0        %2u\n", p[7]);
+  printf("  idVendor           0x%04x %s\n", vid, n1);
+  printf("  idProduct          0x%04x %s\n", pid, n2);
+  printf("  bcdDevice            %x.%02x\n", bcdDevice >> 8, bcdDevice & 0xff);
+  printf("  iManufacturer           %d %s\n", p[14], s_man);
+  printf("  iProduct                %d %s\n", p[15], s_prod);
+  printf("  iSerial                 %d %s\n", p[16], s_ser);
+  printf("  bNumConfigurations      %d\n", p[17]);
+}
+
+static void print_config_descriptor(unsigned char *p)
+{
+  uint16_t total_len = le16toh(*(uint16_t *)(p+2));
+
+  printf("  Configuration Descriptor:\n");
+  printf("    bLength                 %d\n", p[0]);
+  printf("    bDescriptorType         %d\n", p[1]);
+  printf("    wTotalLength       0x%04x\n", total_len);
+  printf("    bNumInterfaces          %d\n", p[4]);
+  printf("    bConfigurationValue     %d\n", p[5]);
+  printf("    iConfiguration          %d\n", p[6]);
+  printf("    bmAttributes         0x%02x\n", p[7]);
+  if (p[7] & 0x40) printf("      Self Powered\n");
+  if (p[7] & 0x20) printf("      Remote Wakeup\n");
+  printf("    MaxPower              %dmA\n", p[8]*2);
+}
+
+static void print_interface_descriptor(unsigned char *p)
+{
+  char *class_name = "", *sub_name = "";
+
+  get_names((struct dev_ids *)TT.class, p[5], p[6], &class_name, &sub_name);
+  char *if_proto_str = "";
+  if (p[5] == 9 && p[6] == 0 && p[7] == 0) if_proto_str = "Full speed (or root) hub";
+
+  printf("    Interface Descriptor:\n");
+  printf("      bLength                 %d\n", p[0]);
+  printf("      bDescriptorType         %d\n", p[1]);
+  printf("      bInterfaceNumber        %d\n", p[2]);
+  printf("      bAlternateSetting       %d\n", p[3]);
+  printf("      bNumEndpoints           %d\n", p[4]);
+  printf("      bInterfaceClass         %d %s\n", p[5], class_name);
+  printf("      bInterfaceSubClass      %d\n", p[6]);
+  printf("      bInterfaceProtocol      %d %s\n", p[7], if_proto_str);
+  printf("      iInterface              %d\n", p[8]);
+}
+
+static void print_endpoint_descriptor(unsigned char *p)
+{
+  uint16_t max_packet = le16toh(*(uint16_t *)(p+4));
+  int num_transactions = ((max_packet>>11)&3)+1;
+  int packet_size = max_packet & 0x7ff;
+  char *transfer_types[] = {"Control", "Isochronous", "Bulk", "Interrupt"};
+  char *synch_types[] = {"None", "Asynchronous", "Adaptive", "Synchronous"};
+  char *usage_types[] = {"Data", "Feedback", "Implicit Feedback", "Reserved"};
+
+  printf("      Endpoint Descriptor:\n");
+  printf("        bLength                 %d\n", p[0]);
+  printf("        bDescriptorType         %d\n", p[1]);
+  printf("        bEndpointAddress     0x%02x  EP %d %s\n", p[2], p[2] & 0x0f, (p[2] & 0x80) ? "IN" : "OUT");
+  printf("        bmAttributes            %d\n", p[3]);
+  printf("          Transfer Type            %s\n", transfer_types[p[3] & 0x03]);
+  printf("          Synch Type               %s\n", synch_types[(p[3] >> 2) & 0x03]);
+  printf("          Usage Type               %s\n", usage_types[(p[3] >> 4) & 0x03]);
+  printf("        wMaxPacketSize     0x%04x  %dx %d bytes\n", max_packet, num_transactions, packet_size);
+  printf("        bInterval              %d\n", p[6]);
+}
+
+static int list_usb_verbose(struct dirtree *new)
+{
+  int busnum = 0, devnum = 0, pid = 0, vid = 0;
+  char *n1, *n2;
+  char *path = NULL;
+  off_t file_len = sizeof(toybuf);
+  int len, fd;
+  unsigned char *descriptors_data;
+  unsigned char *p = (unsigned char *)toybuf;
+
+  if (!new->parent) return DIRTREE_RECURSE;
+  if (7 != scan_uevent(new, 3, (struct scanloop[]){{"BUSNUM=%u", &busnum, 0},
+    {"DEVNUM=%u", &devnum, 0}, {"PRODUCT=%x/%x", &pid, &vid}}))
+    return 0;
+
+  get_names(TT.ids, pid, vid, &n1, &n2);
+  printf("Bus %03d Device %03d: ID %04x:%04x %s %s\n",
+      busnum, devnum, pid, vid, n1, n2);
+
+  path = xmprintf("%s/descriptors", new->name);
+  if (!readfileat(dirtree_parentfd(new), path, toybuf, &file_len)) {
+    free(path);
+    return 0;
+  }
+  len = file_len;
+
+  // Copy descriptor data to a separate buffer to prevent it from being
+  // overwritten by subsequent calls to readat() which use toybuf.
+  memcpy(descriptors_data = xmalloc(len), toybuf, len);
+
+  char *s_man = NULL, *s_prod = NULL, *s_ser = NULL;
+  fd = openat(dirtree_parentfd(new), new->name, O_RDONLY);
+  if (fd >= 0) { // TODO: use readat() directly into s_man/s_prod/s_ser
+    s_man = xmprintf("%s", chomp(readat(fd, "manufacturer")));
+    s_prod = xmprintf("%s", chomp(readat(fd, "product")));
+    s_ser = xmprintf("%s", chomp(readat(fd, "serial")));
+    close(fd);
+  }
+
+  for (p = descriptors_data; p < descriptors_data + len; p += p[0]) {
+    if (!*p || p+*p > descriptors_data+len) break;
+    switch (p[1]) {
+    case 1:
+      // Pass empty string literal if xmprintf failed or file read failed
+      print_device_descriptor(p, pid, vid, n1, n2, s_man ? : "", s_prod ? : "", s_ser ? : "");
+      break;
+    case 2:
+      print_config_descriptor(p);
+      break;
+    case 4:
+      print_interface_descriptor(p);
+      break;
+    case 5:
+      print_endpoint_descriptor(p);
+      break;
+    }
+  }
+  xputc('\n');
+  free(s_man);
+  free(s_prod);
+  free(s_ser);
+  free(descriptors_data);
+  free(path);
+
+  return 0;
 }
 
 static struct usb_device *create_device(struct dirtree *node)
@@ -228,7 +380,7 @@ static struct usb_bus *find_or_create_bus(unsigned int busnum)
 {
   struct usb_bus *bus, **pp;
 
-  for (pp = &usb_buses; (bus = *pp); pp = &bus->next)
+  for (pp = &TT.usb_buses; (bus = *pp); pp = &bus->next)
     if (bus->busnum == busnum) return bus;
 
   bus = xzalloc(sizeof(*bus));
@@ -259,7 +411,7 @@ static int scan_usb_devices_tree(struct dirtree *node)
 {
   if (!node->parent) return DIRTREE_RECURSE;
   if (!strchr(node->name, ':'))
-    if (isdigit(*node->name) || !strncmp(node->name, "usb", 3)) 
+    if (isdigit(*node->name) || !strncmp(node->name, "usb", 3))
       add_device_to_tree(create_device(node));
 
   return 0;
@@ -291,11 +443,13 @@ void lsusb_main(void)
 
   if (FLAG(t)) {
     dirtree_read("/sys/bus/usb/devices/", scan_usb_devices_tree);
+  } else if (FLAG(v)) {
+    dirtree_read("/sys/bus/usb/devices/", list_usb_verbose);
   } else dirtree_read("/sys/bus/usb/devices/", list_usb);
   if (FLAG(t)) {
     struct usb_bus *bus;
 
-    for (bus = usb_buses; bus; bus = bus->next) {
+    for (bus = TT.usb_buses; bus; bus = bus->next) {
       printf("/:  Bus %02u.Port 1: Dev 1, Class=root_hub, Driver=hub/0p, 480M\n", bus->busnum);
       if (bus->first_child) print_device_tree(bus->first_child, 4);
     }
