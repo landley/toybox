@@ -11,9 +11,12 @@ then
   return 2 > /dev/null
   exit
 fi
-[ $CPUS -gt 63 ] && CPUS=63
-MASK=$(printf %x $(((1<<CPUS)-1)))
-LAST=$(printf %x $((1<<(CPUS-1))))
+# Masks can be >64 bits but shell bitshifts usually can't
+MOVER= LOVER= CCNT=$CPUS
+while [ $CCNT -gt 8 ]; do MOVER+=ff; LOVER+=00; CCNT=$((CCNT-8)); done
+[ $CCNT -gt 0 ] &&
+  MASK=$(printf %x $(((1<<CCNT)-1)))$MOVER &&
+  LAST=$(printf %x $((1<<(CCNT-1))))$LOVER
 
 testcmd 'set mask to all' '$MASK taskset -p $BASHPID | sed "s/.*: //"' "$MASK\n" '' ''
 testcmd 'set mask to first' '1 taskset -p $BASHPID | sed "s/.*: //"' '1\n' '' ''
