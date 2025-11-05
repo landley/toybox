@@ -82,6 +82,8 @@ testing "parallel sleep" "
   B=\`xargs_sleep -P 2\` &&
   C=\`xargs_sleep -P 0\` &&
   [ \${A} -gt \${B} -a \${B} -gt \${C} ] && echo OK || echo FAIL" "OK\n" "" ""
+testing "--process-slot-var" "xargs -n 1 -P 1 --process-slot-var=V printenv V"\
+  "0\n0\n0\n" "" "one\ntwo\nthree\n"
 
 # TODO: what exactly is -x supposed to do? why does coreutils output "one"?
 #testing "-x" "xargs -x -s 9 || echo expected" "one\nexpected\n" "" "one\ntwo\nthree"

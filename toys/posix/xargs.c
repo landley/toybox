@@ -9,7 +9,7 @@
  * TODO: -L	Max number of lines of input per command
  * TODO: -x	Exit if can't fit everything in one command
 
-USE_XARGS(NEWTOY(xargs, "^a:E:P#<0(null)=1optr(no-run-if-empty)n#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^(process-slot-var):a:E:P#<0(null)=1optr(no-run-if-empty)n#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
@@ -31,6 +31,8 @@ config XARGS
     -r	Don't run with empty input (otherwise always run command once)
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr
+
+    --process-slot-var NAME	Set environment variable NAME in children
 */
 
 #define FOR_xargs
@@ -38,11 +40,12 @@ config XARGS
 
 GLOBALS(
   long s, n, P;
-  char *E, *a;
+  char *E, *a, *process_slot_var;
 
   long entries, bytes, np;
   char delim;
   FILE *tty;
+  pid_t *pids;
 )
 
 // If !entry count TT.bytes and TT.entries, stopping at max.
@@ -101,23 +104,31 @@ static void signal_P(int sig)
 
 static void waitchild(int options)
 {
-  int ii, status;
+  int pid, i, status;
 
-  if (1>waitpid(-1, &status, options)) return;
+  if ((pid = waitpid(-1, &status, options)) <= 0) return;
+
   TT.np--;
-  ii = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
-  if (ii == 255) {
+  for (i = 0; i < TT.P; ++i) {
+    if (TT.pids[i] == pid) {
+      TT.pids[i] = 0;
+      break;
+    }
+  }
+
+  i = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
+  if (i == 255) {
     error_msg("%s: exited with status 255; aborting", *toys.optargs);
     toys.exitval = 124;
-  } else if ((ii|1)==127) toys.exitval = ii;
-  else if (ii>127) toys.exitval = 125;
-  else if (ii) toys.exitval = 123;
+  } else if ((i|1)==127) toys.exitval = i;
+  else if (i>127) toys.exitval = 125;
+  else if (i) toys.exitval = 123;
 }
 
 void xargs_main(void)
 {
   struct double_list *dlist = 0, *dtemp;
-  int entries, bytes, done = 0;
+  int entries, bytes, slot, done = 0;
   char *data = 0, **out = 0;
   pid_t pid = 0;
   FILE *args_fp = TT.a ? xfopen(TT.a, "re") : stdin;
@@ -145,6 +156,8 @@ void xargs_main(void)
   for (entries = 0, bytes = -1; entries < toys.optc; entries++)
     bytes += strlen(toys.optargs[entries])+1+sizeof(char *)*!FLAG(s);
   if (bytes >= TT.s) error_exit("command too long");
+
+  if (TT.P) TT.pids = xzalloc(sizeof(pid_t) * TT.P);
 
   // Loop through exec chunks.
   while (data || !done) {
@@ -206,12 +219,17 @@ void xargs_main(void)
       } else fprintf(stderr, "\n");
     }
 
+    TT.np++;
+    for (slot = 0; slot < TT.P && TT.pids[slot]; ++slot);
+
     if (!(pid = XVFORK())) {
       if (!TT.a) close(0);
+      if (TT.process_slot_var)
+        xsetenv(xmprintf("%s=%d", TT.process_slot_var, slot), 0);
       xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY|O_CLOEXEC);
       xexec(out);
     }
-    TT.np++;
+    if (TT.pids) TT.pids[slot] = pid;
   }
   while (TT.np) waitchild(0);
   if (TT.tty) fclose(TT.tty);
