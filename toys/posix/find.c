@@ -421,7 +421,7 @@ static int do_find(struct dirtree *new)
           test = *arg;
         }
 
-      } else if (strchr("acm", *s)
+      } else if (stridx("acm", *s) != -1
         && (!strcmp(s+1, "time") || !strcmp(s+1, "min")))
       {
         if (check) {
