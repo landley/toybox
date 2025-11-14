@@ -548,9 +548,16 @@ static void scan_elf()
     }
 
     if (FLAG(S)) {
-      char sh_flags[12] = {}, *p = sh_flags;
+      char sh_flags[13] = {}, *p = sh_flags;
+      unsigned long long flags = s.flags;
 
-      for (j=0; j<12; j++) if (s.flags&(1<<j)) *p++ = "WAXxMSILOGTC"[j];
+      for (j=0; j<12; j++) {
+        if (flags&(1<<j)) {
+          *p++ = "WAXxMSILOGTC"[j];
+          flags &= ~(1<<j);
+        }
+      }
+      if (flags) *p++ = 'x';
       printf("  [%2d] %-17s %-15s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
              i, s.name, sh_type(s.type), w, s.addr, s.offset, s.size,
              s.entsize, sh_flags, s.link, s.info, s.addralign);
