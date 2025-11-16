@@ -29,3 +29,5 @@ vitest "insert multiple times ascii" "iab\x1bicd\x1bief\x1b" "xyz" "acefdbxyz"
 
 vitest "insert multi yank move and push ascii" "ixyz\x1byyjp" \
   "abc def\nghi jkl\nmno pqr\n" "xyzabc def\nghi jkl\nxyzabc def\nmno pqr\n"
+
+testcmd "ZZ save" "-s /dev/stdin input 1>/dev/null 2>/dev/null && cat input" "helloabc def" "abc def" "ihello\x1bZZ"

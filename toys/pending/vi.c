@@ -66,7 +66,7 @@ GLOBALS(
 
   char *filename;
   int vi_mode, tabstop, list, cur_col, cur_row, scr_row, drawn_row, drawn_col,
-      count0, count1, vi_mov_flag;
+      count0, count1, vi_mov_flag, vi_exit;
   unsigned screen_height, screen_width;
   char vi_reg, *last_search;
   struct str_line {
@@ -1228,6 +1228,15 @@ static int vi_find_prev(char reg, int count0, int count1)
   return 1;
 }
 
+static int vi_ZZ(char reg, int count0, int count1)
+{
+  if (modified() && write_file(0) != 1) {
+    return 1; // Write failed, don't exit
+  }
+  TT.vi_exit = 1;
+  return 1;
+}
+
 //NOTES
 //vi-mode cmd syntax is
 //("[REG])[COUNT0]CMD[COUNT1](MOV)
@@ -1252,6 +1261,7 @@ struct vi_special_param {
   {"I", &vi_I},
   {"J", &vi_join},
   {"O", &vi_O},
+  {"ZZ", &vi_ZZ},
   {"N", &vi_find_prev},
   {"n", &vi_find_next},
   {"o", &vi_o},
@@ -1848,6 +1858,8 @@ void vi_main(void)
           break;
       }
     }
+    // Check for exit flag (used by ZZ command)
+    if (TT.vi_exit) goto cleanup_vi;
   }
 cleanup_vi:
   linelist_unload();
