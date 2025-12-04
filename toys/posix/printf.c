@@ -97,7 +97,7 @@ void printf_main(void)
 
         // Parse width.precision between % and type indicator.
         *to++ = '%';
-        while (strchr("-+# '0", *f) && (to-toybuf)<10) *to++ = *f++;
+        while (*f && strchr("-+# '0", *f) && (to-toybuf)<10) *to++ = *f++;
         for (;;) {
           if (chrstart(&f, '*')) {
             if (*arg) wp[i] = atolx(*arg++);
@@ -111,6 +111,7 @@ void printf_main(void)
         aa = *arg ? *arg++ : "";
 
         // Output %esc using parsed format string
+        if (!c) error_exit("bad %s", *toys.optargs);
         if (c == 'b') {
           while (*aa)
             putchar(chrstart(&aa, '\\') ? handle_slash(&aa, 1) : *aa++);

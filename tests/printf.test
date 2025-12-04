@@ -87,3 +87,8 @@ testcmd "%b \e" "'%b' '\\e' | xxd -p" "1b\n" "" ""
 testcmd "\e" "'\\e' | xxd -p" "1b\n" "" ""
 
 testcmd '\0 in %b' '%b ab\\x07\\0x07 | xxd -p' '61620700783037\n' '' ''
+
+testcmd 'short err1' '% 2>/dev/null || echo yes' 'yes\n' '' ''
+testcmd 'short err2' '"%*" 2>/dev/null || echo yes' 'yes\n' '' ''
+testcmd 'short err3' '"%*." 2>/dev/null || echo yes' 'yes\n' "" ""
+testcmd 'short err4' '"%*.123" 2>/dev/null || echo yes' 'yes\n' "" ""
