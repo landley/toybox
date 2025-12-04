@@ -719,7 +719,7 @@ static char *unescape_delimited_string(char **pstr, char *delim)
       if (!mode) {
         mode = ']';
         if (from[1]=='-' || from[1]==']') *(to++) = *(from++);
-      } else if (mode == ']' && strchr(".=:", from[1])) {
+      } else if (mode == ']' && stridx(".=:", from[1]) != -1) {
         *(to++) = *(from++);
         mode = *from;
       }
