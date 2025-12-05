@@ -53,6 +53,11 @@ struct ph {
   unsigned long long offset, vaddr, paddr, filesz, memsz, align;
 };
 
+#define EM_ARM 40
+#define EM_ARM64 183
+#define EM_RISCV 243
+#define EM_X86_64 62
+
 static long long elf_get(char **p, int len)
 {
   long long result;
@@ -551,21 +556,23 @@ static void scan_elf()
       char sh_flags[13] = {}, *p = sh_flags;
       unsigned long long flags = s.flags;
 
-      for (j=0; j<12; j++) {
-        if (flags&(1<<j)) {
-          *p++ = "WAXxMSILOGTC"[j];
-          flags &= ~(1<<j);
-        }
-      }
+      #define DO_FLAG(bit, ch) \
+        do { if (flags & (bit)) { *p++ = ch; flags &= ~(bit); } } while (0)
+      for (j=0; j<12; j++) DO_FLAG((1<<j), "WAXxMSILOGTC"[j]);
+      if (machine == EM_ARM || machine == EM_ARM64) DO_FLAG(0x20000000, 'y');
+      else if (machine == EM_X86_64) DO_FLAG(0x10000000, 'l');
       if (flags) *p++ = 'x';
       printf("  [%2d] %-17s %-15s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
              i, s.name, sh_type(s.type), w, s.addr, s.offset, s.size,
              s.entsize, sh_flags, s.link, s.info, s.addralign);
     }
   }
-  if (FLAG(S) && TT.shnum)
+  if (FLAG(S) && TT.shnum) {
     printf("Key:\n  (W)rite, (A)lloc, e(X)ecute, (M)erge, (S)trings, (I)nfo\n"
-           "  (L)ink order, (O)S, (G)roup, (T)LS, (C)ompressed, x=unknown\n");
+           "  (L)ink order, (O)S, (G)roup, (T)LS, (C)ompressed, (x) unknown\n");
+    if (machine == EM_ARM || machine == EM_ARM64) printf("  (y) purecode\n");
+    else if (machine == EM_X86_64) printf("  (l) large\n");
+  }
 
   if (FLAG(l)) {
     xputc('\n');
@@ -685,7 +692,7 @@ static void scan_elf()
   }
 
   // TODO: ARC/ARM/CSKY have these too.
-  if (FLAG(A) && machine == 243) { // RISCV
+  if (FLAG(A) && machine == EM_RISCV) {
     for (i=0; i<TT.shnum; i++) {
       if (!get_sh(i, &s)) continue;
       if (s.type == 0x70000003 /*SHT_RISCV_ATTRIBUTES*/) {
