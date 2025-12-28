@@ -25,7 +25,7 @@ void demo_scankey_main(void)
   char c = 'X', scratch[16];
   int key, x, y;
 
-  t[0] = t[1] = x = tick = 0;
+  t[0] = t[1] = x = tick = key = 0;
   memset(scratch, 0, 16);
   y = 1;
 
@@ -35,11 +35,8 @@ void demo_scankey_main(void)
   xset_terminal(1, 1, 0, 0); // Raw mode
 
   for (;;) {
-    printf("\e[%u;%uH%c", y+1, x+1, c);
     t[1&++tick] = time(0);
     if (t[0] != t[1]) terminal_probesize(&width, &height);
-    // Don't block first time through, to force header print
-    key = scan_key_getsize(scratch, -1*!!t[0], &width, &height);
     printf("\e[HESC to exit: ");
     // Print unknown escape sequence
     if (*scratch) {
@@ -49,8 +46,11 @@ void demo_scankey_main(void)
         printf("%c", key);
       printf("] ");
     } else printf("key=%d ", key);
-    printf("x=%d y=%d width=%d height=%d\e[K", x, y, width, height);
+    printf("x=%d y=%d width=%d height=%d tick=%u\e[K", x, y, width, height, tick);
+    printf("\e[%u;%uH%c", y+1, x+1, c);
     fflush(0);
+
+    key = scan_key_getsize(scratch, -1, &width, &height);
 
     if (key == -2) continue;
     if (key <= ' ') break;
