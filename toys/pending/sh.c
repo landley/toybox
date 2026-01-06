@@ -395,7 +395,7 @@ GLOBALS(
     char *name;
     struct sh_pipeline {  // pipeline segments: linked list of arg w/metadata
       struct sh_pipeline *next, *prev, *end;
-      short count, here, type, noalias;
+      short count, here, type, noalias, flags;
       long lineno;
       struct sh_arg {
         char **v;
@@ -488,6 +488,10 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 #define OPT_C	0x200
 #define OPT_x	0x400
 #define OPT_u	0x800
+#define OPT_e	0x1000
+
+// Context flag for errexit - set during parsing to indicate command can trigger errexit
+#define ERREXIT_OK  0x0100
 
 // only export $PWD and $OLDPWD on first cd
 #define OPT_cd  0x80000000
@@ -1481,6 +1485,7 @@ if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_sho
     else if (!pid) {
       add_fcall()->pp = (void *)1;
       if (str) {
+        TT.options &= ~OPT_e;
         TT.ff->source = fmemopen(str, len, "r");
         longjmp(TT.forkchild, 1);
       }
@@ -1513,7 +1518,7 @@ if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_sho
     close(254);
     // TODO: need ff->name and ff->source's lineno
     dprintf(pipes[1], "%lld %u %ld %u %u\n", TT.SECONDS,
-      TT.options, get_lineno(0), TT.pid, TT.bangpid);
+      TT.options & (str ? ~OPT_e : ~0), get_lineno(0), TT.pid, TT.bangpid);
 
     for (i = 0, vv = visible_vars(); vv[i]; i++)
       dprintf(pipes[1], "%u %lu\n%.*s", (unsigned)strlen(vv[i]->str),
@@ -3098,12 +3103,20 @@ static void free_pipeline(void *pipeline)
 }
 
 // Append a new pipeline to function, returning pipeline and pipeline's arg
-static struct sh_pipeline *add_pl(struct sh_pipeline **ppl, struct sh_arg **arg)
+static struct sh_pipeline *add_pl(struct sh_pipeline **ppl, struct sh_arg **arg, struct double_list *expect)
 {
   struct sh_pipeline *pl = xzalloc(sizeof(struct sh_pipeline));
 
   if (arg) *arg = pl->arg;
   pl->lineno = TT.ff->lineno;
+  pl->flags = ERREXIT_OK;  // By default, commands can trigger errexit
+
+  // If we are in a condition (expecting "then" or "do"), disable errexit
+  if (expect && expect->data) {
+    if (!strcmp(expect->data, "then") || !strcmp(expect->data, "do\0B"))
+      pl->flags &= ~ERREXIT_OK;
+  }
+
   dlist_add_nomalloc((void *)ppl, (void *)pl);
 
   return pl->end = pl;
@@ -3230,7 +3243,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
     }
 
     // Is this a new pipeline segment?
-    if (!pl) pl = add_pl(&TT.ff->pl, &arg);
+    if (!pl) pl = add_pl(&TT.ff->pl, &arg, *expect);
 
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
@@ -3265,7 +3278,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
           if (pl->prev->type == 2) {
             // Add a call to "true" between empty ) ;;
             arg_add(arg, xstrdup(":"));
-            pl = add_pl(&TT.ff->pl, &arg);
+            pl = add_pl(&TT.ff->pl, &arg, *expect);
           }
           pl->type = 129;
         } else {
@@ -3305,7 +3318,10 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
     s = xstrndup(start, end-start);
     if (TT.alias.c && !pl->noalias) {
       // ! x=y and x<y can all go before command name
-      if (!strcmp(s, "!")) start = 0;
+      if (!strcmp(s, "!")) {
+        start = 0;
+        pl->flags &= ~ERREXIT_OK;
+      }
       else if ((start = varend(s))!=s && start[*start=='+']=='=') start = 0;
       else if (anystart(skip_redir_prefix(s), (void *)redirectors)) {
         pl->noalias = -2;
@@ -3361,7 +3377,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
         if (arg->c==3) {
           if (strcmp(s, "in")) goto flush;
           pl->type = 1;
-          (pl = add_pl(&TT.ff->pl, &arg))->type = 129;
+          (pl = add_pl(&TT.ff->pl, &arg, *expect))->type = 129;
         }
 
         continue;
@@ -3378,7 +3394,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
           // esac right after "in" or ";;" ends block, fall through
           if (arg->c>1) {
             arg->v[1] = 0;
-            pl = add_pl(&TT.ff->pl, &arg);
+            pl = add_pl(&TT.ff->pl, &arg, *expect);
             arg_add(arg, s);
           } else pl->type = 0;
         } else {
@@ -3386,7 +3402,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
           if (i>0 && ((i&1)==!!strchr("|)", *s) || strchr(";(", *s)))
             goto flush;
           if (*s=='&' || !strcmp(s, "||")) goto flush;
-          if (*s==')') pl = add_pl(&TT.ff->pl, &arg);
+          if (*s==')') pl = add_pl(&TT.ff->pl, &arg, *expect);
 
           continue;
         }
@@ -3435,6 +3451,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
+      else if (!strcmp(s, "&&") || !strcmp(s, "||")) pl->flags &= ~ERREXIT_OK;
       pl->count = -1;
 
       continue;
@@ -3590,7 +3607,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
       // Transplant function body into new struct, re-circling both lists
       pl2 = pl->next;
       // Add NOP 'f' segment (TODO: remove need for this?)
-      (funky->pipeline = add_pl(&pl2, 0))->type = 'f';
+      (funky->pipeline = add_pl(&pl2, 0, 0))->type = 'f';
       // Find end of block
       for (i = 0, pl3 = pl2->next;;pl3 = pl3->next)
         if (pl3->type == 1) i++;
@@ -4253,6 +4270,11 @@ do_then:
       } else {
         toys.exitval = wait_pipeline(pplist);
         llist_traverse(pplist, (void *)free_process);
+        // If errexit is enabled and we failed, exit
+        if ((TT.options & OPT_e) && toys.exitval != 0) {
+          struct sh_pipeline *pl = TT.ff->pl;
+          if (pl && (pl->flags & ERREXIT_OK)) xexit();
+        }
       }
       pplist = 0;
     }
@@ -4695,8 +4717,8 @@ void exit_main(void)
 // lib/args.c can't +prefix & "+o history" needs space so parse cmdline here
 void set_main(void)
 {
-  char *cc, *ostr[] = {"braceexpand", "noclobber", "xtrace"};
-  int ii, jj, kk, oo = 0, dd = 0;
+  char *cc, *ostr[] = {"braceexpand", "noclobber", "xtrace", "nounset", "errexit"};
+  int ii, jj, kk, oo = 0, dd = 0, o_sign = 0;
 
   // display visible variables
   if (!*toys.optargs) {
@@ -4715,7 +4737,7 @@ void set_main(void)
     if ((cc = toys.optargs[ii]) && !(dd = stridx("-+", *cc)+1) && oo--) {
       for (jj = 0; jj<ARRAY_LEN(ostr); jj++) if (!strcmp(cc, ostr[jj])) break;
       if (jj != ARRAY_LEN(ostr)) {
-        if (dd==1) TT.options |= OPT_B<<jj;
+        if (o_sign==1) TT.options |= OPT_B<<jj;
         else TT.options &= ~(OPT_B<<jj);
 
         continue;
@@ -4727,8 +4749,8 @@ void set_main(void)
     oo = 0;
     if (!cc || !dd) break;
     for (jj = 1; cc[jj]; jj++) {
-      if (cc[jj] == 'o') oo++;
-      else if (-1 != (kk = stridx("BCxu", cc[jj]))) {
+      if (cc[jj] == 'o') { oo++; o_sign = dd; }
+      else if (-1 != (kk = stridx("BCxue", cc[jj]))) {
         if (*cc == '-') TT.options |= OPT_B<<kk;
         else TT.options &= ~(OPT_B<<kk);
       } else error_exit("bad -%c", toys.optargs[ii][1]);
