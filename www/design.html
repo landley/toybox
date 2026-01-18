@@ -278,7 +278,7 @@ of a user will generally bit-rot before it finds one.</p>
 
 <p>The are a lot of potential microoptimizations (on some architectures
 using char instead of int as a loop index is noticeably slower, on some
-architectures C bitfields are surprisingly inefficient, & is often faster
+architectures C bitfields are surprisingly inefficient, &amp; is often faster
 than % in a tight loop, conditional assignment avoids branch prediction
 failures...) but they're generally not worth doing unless you're trying to
 speed up the middle of a tight inner loop chewing through a large amount
@@ -287,6 +287,14 @@ and fewer system calls (buffer some input/output and do a big read/write
 instead of a bunch of little small ones) is usually the big win. But
 be careful about cacheing stuff: the two persistently hard problems in computer
 science are naming things, cache coherency, and off by one errors.</p>
+
+<p>For example: TOYFLAG_LINEBUF and TOYFLAG_NOBUF micromanaging the FILE * flushing of
+stdout is one of the uglier warts in toybox's design, and I'd love to
+work out how NOT to do that if possible, but the performance and usability
+impacts are significant enough people complained. Having "while true; do
+echo -n .; sleep 1; done | tee out.txt" produce output without "grep"
+being an order of magnitude slower than alternative implementations required
+some compromises.</p>
 
 <b><h3>Simplicity</h3></b>
 
@@ -388,12 +396,60 @@ programmers should strive to be lazy and dumb</a>?</p>
 <hr>
 <a name="portability"><b><h2><a href="#portability">Portability issues</a></h2></b>
 
-<b><h3>Platforms</h3></b>
-<p>Toybox should run on Android (all commands with musl-libc, as large a subset
-as practical with bionic), and every other hardware platform Linux runs on.
-Other posix/susv4 environments (perhaps MacOS X or newlib+libgloss) are vaguely
-interesting but only if they're easy to support; I'm not going to spend much
-effort on them.</p>
+<b><h3>Build platforms</h3></b>
+<p>Toybox is mostly-C11 code built with bash scripts. It has no mandatory
+library dependencies other than libc, and while it uses "make" as a convenience
+wrapper to provide an expected api (see "make help") under the covers that's
+just calling things like <b>scripts/make.sh</b>, <b>scripts/install.sh</b>,
+and <b>scripts/test.sh</b>.</p>
+
+<p>Toybox uses some C
+extensions originated in gcc but since implemented by clang and
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2025-July/030784.html>many other</a> compilers. Right now it requires bash, but
+part of the definition of toybox's eventual 1.0 release is for the
+built-in shell to run all of toybox's own build and test scripts.</p>
+
+<p>(The legacy "make menuconfig" code, which is in the process of being
+replaced by scripts/kconfig.c, is the other big nonportable chunk. It requires ncurses, and
+cannot easily be invoked without gnu make. This also needs to go away
+before the 1.0 release.)</p>
+
+<p>Toybox comes with a <b>scripts/prereq/build.sh</b> that allows toybox
+to provide its own prerequisites, building the command line utilities used
+by the full build with a simple "cc *.c" invocation against saved headers
+that disable all optional features. The following works on MacOSX without
+Homebrew:</p>
+
+<blockquote><pre>
+$ make clean macos_defconfig
+$ scripts/prereq/build.sh #ignoring SO many warnings
+$ mkdir prereq; mv toybox-prereq prereq/
+$ for i in $(prereq/toybox-prereq); do ln -s toybox-prereq prereq/$i; done
+$ PATH=$PWD/prereq:$PATH scripts/make.sh
+$ ./toybox
+</pre></blockquote>
+
+<b><h3>Target platforms</h3></b>
+<p>Toybox is a Linux program, which should run on every supported
+<a href=/bin/toybox/latest/>hardware platform</a> (32 and 64 bit, big
+and little endian, mmu and nommu), and run on Android (all commands with
+musl-libc, as large a subset as practical with bionic).
+A surprising number of other systems emulate Linux (from FreeBSD's Linuxulator
+to Windows Subsystem for Linux) or otherwise provide Linux binary compatibility,
+and we're interested in bug reports from those environments too.</p>
+
+<p>A subset of the commands build and run natively on FreeBSD and MacOSX,
+but sufficiently different native APIs behind "ps" or "nproc" mean some command
+implementations aren't currently portable off Linux. (There are lib/portability.h and
+lib/portability.c files that try to gloss over simpler differences, but
+"you don't have /proc" is kind of a big one.) The QNX guys send me the
+occasional bug report or question about their toybox port, but haven't
+provided a build environment to replicate their work (or even a qnx_defconfig
+listing the commands they've got working).</p>
+
+<p>Other posix/susv4 environments (the way busybox was once ported to
+newlib+libgloss) are vaguely interesting but only if they're easy to support;
+I don't currently have reason to spend much effort on them.</p>
 
 <p>I don't do windows.</p>
 
@@ -713,7 +769,7 @@ gotta break somewhere and even Linus admits there isn't another obvious
 place to do so. (80 columns came from punched cards, which came
 from civil war era dollar bill sorting boxes IBM founder Herman Hollerith
 bought secondhand when bidding to run the 1890 census. "Totally arbitrary"
-plus "100 yeas old" = standard.)</p>
+plus "100 years old" = standard, just ask the qwerty keyboard layout.)</p>
 
 <p>If statements with a single line body go on the same line when the result
 fits in 80 columns, on a second line when it doesn't. We usually only use
@@ -758,6 +814,15 @@ we're referring to more than one element of blah. Similarly, NULL is
 really just 0 (and C will automatically typecast 0 to anything, except in
 varargs), "if (function() != NULL)" is the same as "if (function())",
 "x = (blah == NULL);" is "x = !blah;", and so on.</p>
+
+<p>Toybox commands use "bottom up" style to avoid unnecessary function
+prototypes. The command_main() function is usually at the end of the
+file, and everything it calls comes before it in the file.
+This is an example of <a href=https://en.wikipedia.org/wiki/Single_source_of_truth>SPOT</a>
+(Single Point Of Truth) architecture, where data exists in one place where
+possible so we don't need to worry about mulitiple instances falling out of
+sync: each declaration also serving as a prototype for later calls in the
+same file means the argument list and return type don't have to be repeated.</p>
 
 <p>The goal is to be
 concise, not cryptic: if you're worried about the code being hard to
