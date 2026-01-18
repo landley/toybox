@@ -126,11 +126,12 @@ struct wc_data {
 
 struct xargs_data {
   long s, n, P;
-  char *E, *a;
+  char *E, *a, *process_slot_var;
 
   long entries, bytes, np;
   char delim;
   FILE *tty;
+  pid_t *pids;
 };
 extern union global_union {
 	struct gzip_data gzip;
