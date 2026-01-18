@@ -266,7 +266,7 @@ failing tests. The default VERBOSE=fail stops at the first such failure.</p>
 <hr /><h2><a name="when" />Q: When were historical toybox versions released?</h2>
 
 <p>A: For vanilla releases, check the
-<a href=https://github.com/landley/toybox/tags>date on the commit tag</a>
+<a href=https://codeberg.org/landley/toybox/tags>date on the commit tag</a>
 or <a href=https://landley.net/toybox/downloads/binaries/>the
 example binaries</a> against the output of "toybox --version".
 Between releases the --version
@@ -299,7 +299,7 @@ info for that one.</p>
 
 <p>A: Ideally on the <a href=http://lists.landley.net/listinfo.cgi/toybox-landley.net>mailing list</a>, although <a href=mailto:rob@landley.net>emailing the
 maintainer</a> is a popular if slightly less reliable alternative.
-Issues submitted to <a href=https://github.com/landley/toybox>github</a>
+Issues submitted to <a href=https://codeberg.org/landley/toybox>codeberg</a>
 are generally dealt with less promptly, but mostly get done eventually.
 AOSP has its <a href=https://source.android.com/setup/contribute/report-bugs>own bug reporting mechanism</a> (although for toybox they usually forward them
 to the mailing list) and Android vendors usually forward them to AOSP which
@@ -334,8 +334,8 @@ and its original author (Rob Landley)
 continues to maintain the open source project.</p>
 
 <p>Android's base OS maintainer (Elliott Hughes, I.E. enh)
-<a href=https://github.com/landley/toybox/commit/69a9f257234a>ported</a>
-<a href=https://github.com/landley/toybox/commit/6a29bb1ebe62>toybox</a>
+<a href=https://codeberg.org/landley/toybox/commit/69a9f257234a>ported</a>
+<a href=https://codeberg.org/landley/toybox/commit/6a29bb1ebe62>toybox</a>
 to Android in 2014, merged it into Android M (Marshmallow), and remains
 Android's toybox maintainer. (He explained it in his own words in
 <a href=http://androidbackstage.blogspot.com/2016/07/episode-53-adb-on-adb.html>this podcast</a>, starting either 18 or 20 minutes in depending how
@@ -381,7 +381,7 @@ and thus spends less time coding than he does sitting in meetings where testers
 talk to security people about vendor issues.</p>
 
 <p>Android has many other coders and security people who submit the occasional
-toybox patch, but of the last 1000 commits at the <a href=https://github.com/landley/toybox/commit/88b34c4bd3f8>time
+toybox patch, but of the last 1000 commits at the <a href=https://codeberg.org/landley/toybox/commit/88b34c4bd3f8>time
 of writing</a> this FAQ entry, Elliott submitted 276 and all other google.com
 or android.com addresses combined totaled 17. (Rob submitted 591, leaving
 116 from other sources, but for both Rob and Elliott there's a lot of "somebody
@@ -554,6 +554,8 @@ $ exit
 <p>But the rest of the hermetic build works without it:</p>
 
 <blockquote><pre>
+$ cc scripts/kconfig.c
+$ KCONFIG_ALLCONFIG=kconfig/macos_miniconfig ./a.out -n &gt; .config
 $ scripts/prereq/build.sh #ignoring SO many warnings
 $ mkdir prereq; mv toybox-prereq prereq/
 $ for i in $(prereq/toybox-prereq); do ln -s toybox-prereq prereq/$i; done
@@ -680,13 +682,13 @@ Cobol, most people just try to get on with their lives.)</p>
 <p>These cross compilers are built from the
 <a href=http://musl.libc.org/>musl-libc</a> maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
-project, built by running toybox's <a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in that directory,
+project, built by running toybox's <a href=https://codeberg.org/landley/toybox/src/branch/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in that directory,
 and then symlink the resulting "ccc" subdirectory into toybox where
 "make root CROSS=" can find them, ala:</p>
 
 <blockquote><b><pre>
 cd ~
-git clone https://github.com/landley/toybox
+git clone https://codeberg.org/landley/toybox
 git clone https://github.com/richfelker/musl-cross-make
 cd musl-cross-make
 ../toybox/scripts/mcm-buildall.sh # this takes a while
@@ -720,7 +722,7 @@ LDFLAGS=--static make distclean defconfig toybox CROSS=m68k-linux-musl-
 won't run on your host unless you install musl's libc.so into the system
 libraries (which is an accident waiting to happen adding a second C library
 to most glibc linux distribution) or play with $LD_LIBRARY_PATH.
-(The <a href=https://github.com/landley/toybox/blob/master/scripts/root/dynamic>dynamic</a> package
+(The <a href=https://codeberg.org/landley/toybox/src/branch/master/mkroot/packages/dynamic>dynamic</a> package
 in mkroot copies the shared libraries out of the toolchain to create a dynamic
 linking environment in the root filesystem, but it's not nearly as well
 tested.)</p>
@@ -824,9 +826,12 @@ auditable version of the cmdline portion of that base.</p>
 
 <hr /><h2><a name="mkroot" />Q: How do you build a working Linux system with toybox?</h2>
 
-<p>A: Toybox has a built-in <a href=https://github.com/landley/toybox/blob/master/mkroot/mkroot.sh>system builder</a> called "<a href=https://github.com/landley/toybox/blob/master/mkroot/README>mkroot</a>", with the Makefile target "<b>make
-root</b>". To enter the resulting root filesystem, "<b>sudo chroot
-root/host/fs /init</b>". Type "exit" to get back out.</p>
+<p>A: Toybox has a built-in
+<a href=https://codeberg.org/landley/toybox/src/branch/master/mkroot/mkroot.sh>system builder</a>
+called "<a href=https://codeberg.org/landley/toybox/src/branch/master/mkroot/README>mkroot</a>",
+with the Makefile target "<b>make root</b>". To enter the resulting root
+filesystem, "<b>sudo chroot root/host/fs /init</b>".
+Type "exit" to get back out.</p>
 
 <p>Prebuilt binary versions of these system images, suitable for running
 under the emulator <a href=https://qemu.org>qemu</a>, are uploaded to
@@ -865,13 +870,14 @@ pointing at a directory full of cross compilers. The ones I test this with are
 built from the musl-libc maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
 project, built by running toybox's
-<a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in a musl-cross-make checkout directory,
+<a href=https://codeberg.org/landley/toybox/src/branch/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a>
+in a musl-cross-make checkout directory,
 and then symlinking the resulting "ccc" subdirectory into toybox where CROSS=
 can find them:</p>
 
 <blockquote><b><pre>
 cd ~
-git clone https://github.com/landley/toybox
+git clone https://codeberg.org/landley/toybox
 git clone https://github.com/richfelker/musl-cross-make
 cd musl-cross-make
 ../toybox/scripts/mcm-buildall.sh # this takes a while

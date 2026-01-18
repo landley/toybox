@@ -468,8 +468,8 @@ the linux kernel source's
 utf8 and unicode, and our terminal control outputs ANSI
 <a href=https://man7.org/linux/man-pages/man4/console_codes.4.html>escape sequences</a>.
 Toybox gets <a href=faq.html#cross>tested</a> with gcc and llvm on glibc,
-musl-libc, and bionic, plus occasional <a href=https://github.com/landley/toybox/blob/master/kconfig/freebsd_miniconfig>FreeBSD</a> and
-<a href=https://github.com/landley/toybox/blob/master/kconfig/macos_miniconfig>MacOS</a> builds for subsets
+musl-libc, and bionic, plus occasional <a href=https://codeberg.org/landley/toybox/src/branch/master/kconfig/freebsd_miniconfig>FreeBSD</a> and
+<a href=https://codeberg.org/landley/toybox/src/branch/master/kconfig/macos_miniconfig>MacOS</a> builds for subsets
 of the commands.</p>
 
 <p>For the build environment and runtime environment, toybox depends on
@@ -508,7 +508,7 @@ it's not out yet.)</p>
 We use a few of the new features like compound literals (6.5.2.5) and structure
 initialization by member name with unnamed members zeroed (6.7.9),
 but mostly we "officially" went from c99 to C11 to work around a
-<a href=https://github.com/landley/toybox/commit/3625a260065b>clang compiler bug</a>.
+<a href=https://codeberg.org/landley/toybox/commit/3625a260065b>clang compiler bug</a>.
 The main thing we use from c99 that c89 hadn't had was // single line comments.
 (We mostly don't even use C99's explicit width data types, ala uint32_t and
 friends, because LP64 handles that for us.)</p>

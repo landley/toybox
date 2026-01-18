@@ -151,7 +151,7 @@ The three important URLs for communicating with the toybox project are:
 
   mailing list: http://lists.landley.net/listinfo.cgi/toybox-landley.net
 
-  git repo: http://github.com/landley/toybox
+  git repo: http://codeberg.org/landley/toybox
 
 The maintainer prefers patches be sent to the mailing list. If you use git,
 the easy thing to do is:
@@ -161,7 +161,7 @@ the easy thing to do is:
 Then send a file attachment. The list holds messages from non-subscribers
 for moderation, but I usually get to them in a day or two.
 
-I download github pull requests as patches and apply them with "git am"
+I download codeberg pull requests as patches and apply them with "git am"
 (which avoids gratuitous merge commits). Sometimes I even remember to close
 the pull request.
 
