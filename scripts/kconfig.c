@@ -145,8 +145,7 @@ struct kconfig *read_Config(char *name, struct kconfig *contain)
     // start a new config entry?
     else if ((ii = strany(ss, keywords))) {
       struct kconfig *kt = calloc(sizeof(struct kconfig), 1);
-
-      if (ii>5) contain = kc->contain;
+      if (ii>5) contain = contain->contain;
       kt->contain = contain;
       if (ii<4) contain = kt;
       if (klist) kc = (kc->next = kt);
@@ -237,6 +236,21 @@ int depends(struct kconfig *klist, struct kconfig *kc)
   return rc;
 }
 
+void set_val(struct kconfig *kk, char *val)
+{
+  struct kconfig *k2;
+
+  if (!strcmp(kk->contain->type, "choice")) {
+    for (k2 = kk; k2->contain == kk->contain; k2 = k2->next) {
+      free(k2->value);
+      k2->value = 0;
+    }
+    free(kk->contain->def);
+    kk->contain->def = strdup(kk->symbol);
+  }
+  val = strdup(val);
+  bump(&kk->value, &val);
+}
 
 // Set values for symbols
 void read_dotconfig(struct kconfig *klist, FILE *fp)
@@ -262,12 +276,7 @@ void read_dotconfig(struct kconfig *klist, FILE *fp)
       continue;
     }
     if (!(kk = lookup(klist, name))) dprintf(2, "bad symbol %s\n", name);
-    else {
-// TODO   if (!strcmp(kc->contain->type, "choice"))
-
-      s = strdup(val);
-      bump(&kk->value, &s);
-    }
+    else set_val(kk, val);
   }
 
   fclose(fp);
