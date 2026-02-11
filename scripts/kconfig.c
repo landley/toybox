@@ -191,7 +191,7 @@ int value(struct kconfig *kc)
   if (*kc->type!='b') return atoi(s);
   if (kc->value) return *kc->value=='y';
   if (cfgtype==1 || !*kc->prompt) return *s=='y';
-  if (cfgtype==4) return random()&1;
+  if (cfgtype==3) return random()&1;
   return !!cfgtype;
 }
 
@@ -312,7 +312,7 @@ void options(char *opt)
 // TODO  if ((fp = fopen(getenv("KCONFIG_CONFIG") ? : ".config")))
 //    read_dotconfig(kc, fp);
 
-  if (-1 != (cfgtype = strany(opt, (char *[]){"-n", "-d", "-y", 0})-1)) {
+  if (-1 != (cfgtype = strany(opt, (char *[]){"-n", "-d", "-y", "-r", 0})-1)) {
     time_t t = time(0);
     struct tm *tt = localtime(&t);
     char buf[64];

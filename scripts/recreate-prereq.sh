@@ -16,16 +16,17 @@ CMDLIST="$(echo toybox; echo ln; ./toybox cut -DF 1 log.txt | sort -u | grep -v 
 
 # Create minimal dependency-free build
 
-make clean allnoconfig KCONFIG_ALLCONFIG=prereq.mini
-make toybox
-cat > scripts/prereq/build.sh << 'EOF'
+make clean allnoconfig KCONFIG_ALLCONFIG=prereq.mini &&
+make toybox &&
+cat > scripts/prereq/build.sh << 'EOF' &&
 #!/bin/sh
 
 BUILD='cc -funsigned-char -I scripts/prereq -I . -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing -DTOYBOX_VERSION=""'
 LINK=''
 EOF
-grep -A999 FILES= generated/build.sh >> scripts/prereq/build.sh
-sed -i 's/ toybox$/&-prereq/' scripts/prereq/build.sh
+grep -A999 FILES= generated/build.sh >> scripts/prereq/build.sh &&
+sed -i 's/ toybox$/&-prereq/' scripts/prereq/build.sh &&
+chmod +x scripts/prereq/build.sh || exit 1
 
 # harvest stripped down headers
 

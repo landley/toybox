@@ -1,28 +1,43 @@
   toybox          - Build unified toybox with commands selected in .config
-  defconfig       - Write .config with default answers (max sane config).
+  defconfig       - Write .config with default answers (max sane config)
+  allyesconfig    - New config where all options are accepted with yes
+                    This may not actually compile, it's a starting point
+                    for further configuration (probably with menuconfig)
+  allnoconfig     - New config where all options are answered with no
+  randconfig      - New config with random answer to all options
+  silentoldconfig - Same as oldconfig, but quietly
+  macos_defconfig - Select commands known to build on macosx
+  bsd_defconfig   - Select commands known to build on freebsd
+  android_defconfig - Select commands available on android
+
   COMMANDNAME     - Build individual toybox command as a standalone binary.
   list            - List COMMANDNAMEs you can build standalone.
   list_example    - List example commands (often used by the test suite)
   list_pending    - List unfinished COMMANDNAMEs out of toys/pending.
   change          - Build each command standalone under change/.
-  baseline        - Create toybox_old for use by bloatcheck.
-  bloatcheck      - Report size differences between old and current versions
+
   test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)
   tests           - Run test suite against all compiled commands.
                     export TEST_HOST=1 to test host command, VERBOSE=all
                     to show all failures.
+  baseline        - Create toybox_old for use by bloatcheck.
+  bloatcheck      - Report size differences between old and current versions
+
   clean           - Delete temporary files.
   distclean       - Delete everything that isn't shipped.
+
   install_airlock - Install toybox and host toolchain (plus $TOOLCHAIN if any)
                     into $PREFIX directory, providing $PATH for hermetic builds.
   install_flat    - Install toybox into $PREFIX directory.
   install         - Install toybox into subdirectories of $PREFIX.
   uninstall_flat  - Remove toybox from $PREFIX directory.
   uninstall       - Remove toybox from subdirectories of $PREFIX.
-  root            - Build/package root filesystem under root/ controlled by
-                    CROSS= cross compile (see scripts/mcm-buildall.sh)
-                    LINUX= build kernel from this source, configured for qemu
-  run_root        - boot toyroot under qemu, I.E. cd root/$CROSS && ./qemu-*.sh
+
+  root            - Build/package root filesystem under root/ by calling
+                    mkroot/mkroot.sh which is controlled by
+                    CROSS= cross compile target (see scripts/mcm-buildall.sh)
+                    LINUX= build kernel from this source as configured for qemu
+  run_root        - boot toyroot under qemu by calling root/$CROSS/run-qemu.sh
 
 example: make defconfig toybox install LDFLAGS="--static" CROSS_COMPILE=armv5l-
 or     : make root run_root CROSS=sh4 LINUX=~/linux

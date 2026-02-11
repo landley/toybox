@@ -1,51 +1,64 @@
-# Makefile for toybox.
-# Copyright 2006 Rob Landley <rob@landley.net>
+# Simple makefile wrapper, see "make help". Mostly calls various build scripts:
 
-# If people set these on the make command line, use 'em
-# Note that CC defaults to "cc" so the one in configure doesn't get
-# used when scripts/make.sh and such called through "make".
-
-HOSTCC?=cc
+# scripts/make.sh - compile toybox
+# scripts/install.sh - install toybox
+# scripts/genconfig.sh - create/modify .config file
+# scripts/test.sh - run tests against command(s)
+# scripts/single.sh - build standalone command(s)
+# scripts/change.sh - build all commands standalone
+# mkroot/mkroot.sh - build self-contained test system bootable under qemu
 
 export CROSS_COMPILE CFLAGS OPTIMIZE LDOPTIMIZE CC HOSTCC V STRIP ASAN
 
 all: toybox
 
-KCONFIG_CONFIG ?= .config
-KCONFIG_TOP ?= Config.in
+export KCONFIG_CONFIG ?= .config
 
-toybox generated/unstripped/toybox: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*/*.c scripts/*.sh Config.in
+toybox generated/unstripped/toybox: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*/*.c scripts/*.sh
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
 	uninstall uninstall_flat tests help change defconfig \
-	list list_example list_pending root run_root
+	list list_example list_pending root run_root \
+	defconfig randconfig allyesconfig allnoconfig silentoldconfig \
+	macos_defconfig bsd_defconfig android_defconfig
+
 .SUFFIXES: # Disable legacy behavior
 
 include kconfig/Makefile
 -include .singlemake
 
-$(KCONFIG_CONFIG): $(KCONFIG_TOP)
-	@if [ -e "$(KCONFIG_CONFIG)" ]; then $(MAKE) silentoldconfig; \
+$(KCONFIG_CONFIG): Config.in generated/Config.in
+	@if [ -e "$(KCONFIG_CONFIG)" ]; then \
+	KCONFIG_ALLCONFIG=$(KCONFIG_CONFIG) scripts/genconfig.sh -d; \
 	else echo "Not configured (run '$(MAKE) defconfig' or '$(MAKE) menuconfig')";\
 	exit 1; fi
 
-$(KCONFIG_TOP): generated/Config.in generated/Config.probed generated/unstripped/kconfig
-generated/Config.probed: generated/Config.in
 generated/Config.in: toys/*/*.c scripts/genconfig.sh scripts/kconfig.c
-	scripts/genconfig.sh
 
-defconfig: $(KCONFIG_TOP) generated/Config.in
-	generated/unstripped/kconfig -d > $(KCONFIG_CONFIG)
+defconfig:
+	scripts/genconfig.sh -d
 
-randconfig: $(KCONFIG_TOP) generated/Config.in
-	generated/unstripped/kconfig -r > $(KCONFIG_CONFIG)
+randconfig:
+	scripts/genconfig.sh -r
 
-allyesconfig: $(KCONFIG_TOP) generated/Config.in
-	generated/unstripped/kconfig -y > $(KCONFIG_CONFIG)
+allyesconfig:
+	scripts/genconfig.sh -y
 
-allnoconfig: $(KCONFIG_TOP) generated/Config.in
-	generated/unstripped/kconfig -n > $(KCONFIG_CONFIG)
+allnoconfig:
+	scripts/genconfig.sh -n
+
+silentoldconfig:
+	KCONFIG_ALLCONFIG=$(KCONFIG_CONFIG) scripts/genconfig.sh -d
+
+macos_defconfig:
+	KCONFIG_ALLCONFIG=scripts/macos_miniconfig scripts/genconfig.sh -n
+
+bsd_defconfig:
+	KCONFIG_ALLCONFIG=scripts/bsd_miniconfig scripts/genconfig.sh -n
+
+android_defconfig:
+	KCONFIG_ALLCONFIG=scripts/android_miniconfig scripts/genconfig.sh -n
 
 # Development targets
 baseline: generated/unstripped/toybox
@@ -79,6 +92,7 @@ root_clean:
 clean::
 	@chmod -fR 700 generated 2>/dev/null || true
 	@rm -rf toybox generated change install .singleconfig*
+	@rm -rf prereq prereq.mini toybox-prereq
 	@echo cleaned
 
 # If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
@@ -94,7 +108,7 @@ root:
 	mkroot/mkroot.sh $(MAKEFLAGS)
 
 run_root:
-	cd root/"$${CROSS:-host}" && ./run-qemu.sh
+	root/"$${CROSS:-host}"/run-qemu.sh
 
 help::
 	@cat scripts/help.txt

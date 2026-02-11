@@ -94,3 +94,5 @@ echo -e ".PHONY: $WORKING $PENDING" | $SED 's/ \([^ ]\)/ test_\1/g'
 ) > .singlemake
 
 brun kconfig -h > "$GENDIR"/help.h || exit 1
+
+[ $# -ne 1 ] || brun kconfig "$1" > "${KCONFIG_CONFIG:-.config}"
