@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-13
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: brew install gnu-sed
     - name: Configure
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: sudo apt-get install build-essential
     - name: Configure build and test
