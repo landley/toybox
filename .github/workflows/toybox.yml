@@ -5,6 +5,7 @@ on:
     - cron:  '0 2 * * *'
   push:
     branches: [ master ]
+  pull_request:
 
 jobs:
   MacOS-13:
