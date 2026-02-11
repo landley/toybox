@@ -8,8 +8,8 @@ on:
   pull_request:
 
 jobs:
-  MacOS-13:
-    runs-on: macos-13
+  MacOS:
+    runs-on: macos-14
 
     steps:
     - uses: actions/checkout@v6
