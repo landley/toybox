@@ -22,8 +22,8 @@ jobs:
     - name: Test
       run: VERBOSE=all make tests
 
-  Ubuntu-22_04:
-    runs-on: ubuntu-22.04
+  Ubuntu:
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v6
