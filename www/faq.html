@@ -536,43 +536,33 @@ other meanings to the Makefile, and you have to use scripts/single.sh or
 
 <hr /><h2><a name="hermetic">How do I build toybox on a system with a broken $PATH?</a></h2>
 
-<p>Toybox can provide its own build prerequisites (I.E
-perform a "hermetic" build) using the script <b>scripts/prereq/build.sh</b>
-which is a canned minimal toybox build that basically does "cc *.c" against
-saved headers to build the commands needed by the rest of the build.</p>
+<p>Toybox can provide its own build prerequisites (I.E perform a "hermetic"
+build) via <b>scripts/prereq/build.sh</b> which is a canned minimal toybox
+build script that basically does "cc *.c" against
+saved headers to build just the commands needed by the the full toybox
+build scripts.</p>
 
-<p>At the moment, building toybox on mac requires homebrew to get a .config
-file, ala:</p>
+<p>The wrapper <b>scripts/prereq/use.sh</b> calls that hermetic build.sh
+script to create a minimal <b>toybox-prereq</b>, then populates a directory
+of symlinks to those toybox commands plus the cc/ld/as/strip binaries
+out of the host $PATH, and finally runs <b>scripts/genconfig.sh</b> and
+<b>scripts/make.sh</b>
+to configure and build a full toybox binary. By default it builds defconfig,
+but can take as its first argument a miniconfig file.</p>
 
-<blockquote><pre>
-$ homebrew
-$ make macos_defconfig
-$ make clean
-$ exit
-</pre></blockquote>
+<p>So to build toybox on MacOS (without homebrew) run
+<b>scripts/prereq/use.sh scripts/macos_miniconfig</b> and it should
+create a toybox binary configured for mac using the host toolchain.
+The scripts directory also contains freebsd_miniconfig and
+android_miniconfig files enumerating the commands known to work
+under those operating systems.</p>
 
-<p>But the rest of the hermetic build works without it:</p>
-
-<blockquote><pre>
-$ cc scripts/kconfig.c
-$ KCONFIG_ALLCONFIG=kconfig/macos_miniconfig ./a.out -n &gt; .config
-$ scripts/prereq/build.sh #ignoring SO many warnings
-$ mkdir prereq; mv toybox-prereq prereq/
-$ for i in $(prereq/toybox-prereq); do ln -s toybox-prereq prereq/$i; done
-$ PATH=$PWD/prereq:$PATH scripts/make.sh
-$ ./toybox
-</pre></blockquote>
-
-<p>If you already have an appropriate .config file you can copy in you
-don't need homebrew at all (and can skip the first section above).
-Editing one up by hand for qnx and similar is currently left as an exercise
-for the reader (but it's a fairly simple text file format).</p>
-
-<p>The files in the scripts/prereq directory were created by
+<p>Most of the files in the scripts/prereq directory were created by
 <b>scripts/recreate-prereq.sh</b> which records the commands used by
 a toybox build, harvests stripped down headers, and writes a build.sh
 to compile the appropriate source files. It's a couple dozen lines of
-bash if you're interested.</p>
+bash if you're interested. (Yes we check in generated files, to break
+a chicken-and-egg cycle.)</p>
 
 <p>At the moment toybox's full scripts/make.sh still requires bash
 (until toysh is finished and promoted out of pending). Freebsd users
@@ -581,9 +571,14 @@ to work around their distro's policy insisting that /bin/env can be
 trusted to live at a specific path but /bin/bash can't. (On Android both
 env and sh live in /system/bin, which is at least internally consistent.)</p>
 
-<p>Toybox does not yet provide "make" either. You can call scripts/make.sh
-directly (and scripts/test.sh and scripts/single.sh) if you've got a .config,
-but until kconfig/ is replaced defconfig/menuconfig still need gmake.</p>
+<p>Toybox does not yet provide "make" either. The Makefile is mostly convenience
+wrappers around shell scripts, so you can directly call
+"scripts/genconfig.sh -d" (defconfig), scripts/make.sh, scripts/install.sh,
+scripts/test.sh, scripts/single.sh and so on, all without needing make.
+The exception is menuconfig: most config
+functions have been migrated to scripts/genconfig.sh using scripts/kconfig.c,
+but for the moment menuconfig is still using the old kconfig/ infrastructure
+and thus still needs gmake.</p>
 
 <hr /><h2><a name="cross" />Q: How do I cross compile toybox?</h2>
 
