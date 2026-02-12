@@ -7,7 +7,7 @@
 if [ ! -x toybox-prereq ]
 then
   echo building toybox-prereq
-  scripts/prereq/build.sh || exit 1
+  rm -rf generated && scripts/prereq/build.sh || exit 1
 fi
 
 # Install prerequisites into subdir and prepend to path
@@ -26,6 +26,4 @@ else
 fi
 
 # Run configure and build
-rm -rf generated &&
-scripts/genconfig.sh $ARG &&
-scripts/make.sh
+rm -rf generated && scripts/genconfig.sh $ARG && scripts/make.sh
