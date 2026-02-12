@@ -13,7 +13,8 @@ fi
 # Install prerequisites into subdir and prepend to path
 rm -rf prereq && mkdir -p prereq && cp toybox-prereq prereq/toybox &&
 for i in $(prereq/toybox); do ln -sf toybox prereq/$i; done &&
-export PATH="$PWD/prereq:$PATH" &&
+for i in cc as ld strip; do ln -sf $(prereq/toybox which $i) prereq/$i; done &&
+export PATH="$PWD/prereq" &&
 
 # Are we using a miniconfig?
 if [ -z "$1" ]
@@ -25,5 +26,6 @@ else
 fi
 
 # Run configure and build
+rm -rf generated &&
 scripts/genconfig.sh $ARG &&
 scripts/make.sh
