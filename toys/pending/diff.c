@@ -15,7 +15,7 @@ config DIFF
   bool "diff"
   default n
   help
-    usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] [-F REGEX ] FILE1 FILE2
+    usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] [-F REGEX] FILE1 FILE2
 
     -a	Treat all files as text
     -b	Ignore changes in the amount of whitespace
