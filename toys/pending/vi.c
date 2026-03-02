@@ -330,6 +330,7 @@ static int modified()
   if (TT.slices->next != TT.slices->prev) return 1;
   if (!TT.text || !TT.slices) return 0;
   if (!TT.text->node || !TT.slices->node) return 0;
+  if (TT.text->node->len == 1 && TT.slices->node->len == 1 && *TT.text->node->data == '\n') return 0;
   if (TT.text->node->alloc != MMAP) return 1;
   if (TT.text->node->len != TT.slices->node->len) return 1;
   if (!TT.text->node->len) return 1;
