@@ -7,8 +7,9 @@
  * and https://www.cs.dartmouth.edu/~doug/diff.pdf
  *
  * Deviations from posix: always does -u
+ * TODO: -I (ignore-matching-lines)
 
-USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(no-dereference);(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):F(show-function-line):L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):(old-line-format):(no-dereference)(new-line-format):(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):F(show-function-line):L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
@@ -591,7 +592,6 @@ static void show_label(char *prefix, char *filename, struct stat *sb)
 static void do_symlink_diff(char **files)
 {
   size_t i;
-  int s = sizeof(toybuf)/2;
 
   TT.is_symlink = 1;
   TT.differ = 0;
@@ -688,7 +688,7 @@ static void do_diff(char **files)
 
     struct diff *t, *ptr1 = d, *ptr2 = d;
     while (i) {
-      long a,b;
+      long a;
 
       // trim context to file len.
       if (TT.new_line_format || TT.U>TT.file[0].len) TT.U = TT.file[0].len;
@@ -698,7 +698,6 @@ static void do_diff(char **files)
       }
       //Handle the context stuff
       a =  ptr1->a;
-      b = minof(TT.file[0].len, ptr1->b);
       if (i == x + 1) ptr1->suff = maxof(1, a-TT.U);
       else if (ptr1[-1].prev >= ptr1->a-TT.U) ptr1->suff = ptr1[-1].prev+1;
       else ptr1->suff =  ptr1->a-TT.U;
