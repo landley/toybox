@@ -530,6 +530,7 @@ static int fill_envp(dhcpc_result_t *res)
 static void run_script(dhcpc_result_t *res,  char *name)
 {
   volatile int error = 0;
+  int wstatus = 0;
   pid_t pid;
   char *argv[3];
   struct stat sts;
@@ -557,10 +558,15 @@ static void run_script(dhcpc_result_t *res,  char *name)
     error = errno;
     _exit(111);
   }
+  waitpid(pid, &wstatus, 0);
   if (error) {
-    waitpid(pid, NULL,0);
     errno = error;
     perror_msg("script exec failed");
+  } else if (!WIFEXITED(wstatus)) {
+    perror_msg("script process wait failed");
+  } else if (WEXITSTATUS(wstatus)) {
+    errno = WEXITSTATUS(wstatus);
+    perror_msg("script exited with non-zero code: %d", WEXITSTATUS(wstatus));
   }
   dbg("script complete.\n");
 }
