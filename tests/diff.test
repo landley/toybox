@@ -44,6 +44,7 @@ testcmd "--strip-trailing-cr on" '-u --strip-trailing-cr a b; echo $?' \
 echo -e "1\n2" > aa
 echo -e "1\n3" > bb
 testcmd "line format" "--unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
+testcmd "line format non-collated" "--unchanged-line-format U%l --old-line-format D%l --new-line-format A%l aa bb" "U1D2A3" "" ""
 testcmd "line format empty" "--unchanged-line-format= --old-line-format=D%l --new-line-format=A%l aa bb" "D2A3" "" ""
 
 ln -s aa cc
@@ -111,6 +112,25 @@ int baz() {
 }
 '> b
 testcmd 'show function' "--show-function-line=' {$' -U1 -L lll -L rrr a b" \
+'--- lll
++++ rrr
+@@ -1,2 +1,2 @@
+-int bar() {
++int barbar() {
+ }
+@@ -7,3 +7,3 @@ int foo() {
+ int baz() {
+-  1
++  1a
+   {2
+@@ -11,3 +11,3 @@ int baz() {
+   4
+-  foo
++  bar
+ }
+' \
+'' ''
+testcmd 'show function non-collated' "-F ' {$' -U1 -L lll -L rrr a b" \
 '--- lll
 +++ rrr
 @@ -1,2 +1,2 @@
