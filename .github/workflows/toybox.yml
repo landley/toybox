@@ -5,13 +5,14 @@ on:
     - cron:  '0 2 * * *'
   push:
     branches: [ master ]
+  pull_request:
 
 jobs:
-  MacOS-13:
-    runs-on: macos-13
+  MacOS:
+    runs-on: macos-14
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: brew install gnu-sed
     - name: Configure
@@ -21,11 +22,11 @@ jobs:
     - name: Test
       run: VERBOSE=all make tests
 
-  Ubuntu-22_04:
-    runs-on: ubuntu-22.04
+  Ubuntu:
+    runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: sudo apt-get install build-essential
     - name: Configure build and test
