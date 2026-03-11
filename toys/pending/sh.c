@@ -62,6 +62,7 @@ USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(trap, "lp", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(umask, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unalias, "<1a", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(wait, "n", TOYFLAG_NOFORK))
@@ -344,6 +345,16 @@ config TRAP
 
     The special signal EXIT gets called before the shell exits, RETURN when
     a function or source returns, and DEBUG is called before each command.
+
+config UMASK
+bool
+  default n
+  depends on SH
+  help
+    usage: umask [mask]
+
+    Sets the file creation mode mask.
+    An empty mask causes the current mask to be printed.
 
 config UNALIAS
   bool
@@ -5159,6 +5170,15 @@ void source_main(void)
   TT.ff->shift = 1; // $0 is shell name, not source file name
   for (ii = 0; toys.argv[ii]; ii++);
   TT.ff->arg.c = ii;
+}
+
+void umask_main(void)
+{
+  if (toys.optc) {
+    toys.old_umask = string_to_mode(*toys.optargs, 0);
+  } else {
+    printf("%04o\n", umask(0));
+  }
 }
 
 #define FOR_unalias
