@@ -231,7 +231,7 @@ void blkid_main(void)
 
   if (*toys.optargs && !FLAG(L) && !FLAG(U)) loopfiles(toys.optargs, do_blkid);
   else {
-    unsigned int ma, mi, sz, fd;
+    unsigned ma, mi, sz, fd;
     char name[32], device[5+32];
     FILE *fp = xfopen("/proc/partitions", "r");
 
