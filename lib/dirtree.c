@@ -126,7 +126,7 @@ static struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (S_ISDIR(new->st.st_mode) && (flags & df)) {
     // TODO: check openat returned fd for errors... and do what about it?
-    if (*new->name) fd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
+    if (*new->name) fd = openat(dirtree_parentfd(new), new->name, O_RDONLY | O_CLOEXEC);
     if (flags&DIRTREE_BREADTH) {
       new->again |= DIRTREE_BREADTH;
       if ((DIRTREE_ABORT & dirtree_recurse(new, 0, fd, flags)) ||
