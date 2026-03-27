@@ -185,7 +185,7 @@ static void utmp_entry(void)
   int fd;
 
   // We're responsible for ensuring that the utmp file exists.
-  if (access(_PATH_UTMP, F_OK) && (fd = open(_PATH_UTMP, O_CREAT, 0664)) != -1)
+  if (access(_PATH_UTMP, F_OK) && (fd = open(_PATH_UTMP, O_RDONLY|O_CREAT, 0664)) != -1)
     close(fd);
 
   // Find any existing entry.
