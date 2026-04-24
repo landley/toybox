@@ -1274,7 +1274,7 @@ if (DEBUG) dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
     if (from >= 0 && to != dup2(from, to)) {
       if (hfd >= 0) close(hfd);
 
-      return 1;
+      return 1; // filehandle exhaustion
     }
   } else {
     hfd = to;
@@ -1287,7 +1287,7 @@ if (DEBUG) dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
   rr[2*cnt-1] = hfd;
   rr[2*cnt] = to;
 
-  return 0;
+  return 0; // success
 }
 
 // restore displaced filehandles, closing high filehandles they were copied to
@@ -4273,6 +4273,11 @@ advance:
   if (pplist) {
     toys.exitval = wait_pipeline(pplist);
     llist_traverse(pplist, (void *)free_process);
+  }
+
+  if (TT.ff) {
+    unredirect(TT.ff->blk->urd);
+    TT.ff->blk->urd = 0;
   }
 }
 

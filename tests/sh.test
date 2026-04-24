@@ -5,7 +5,7 @@
 # TODO make fake pty wrapper for test infrastructure
 
 # testing "name" "command" "result" "infile" "stdin"
-# texpect "name" "command" [R]I/O/E"string" X[ERR]
+# txpect "name" "command" [R]I/O/E"string" X[ERR]
 
 # Use "bash" name for host, "sh" for toybox. (/bin/sh is often defective.)
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
@@ -192,6 +192,8 @@ testing "exec2" "exec echo hello; echo $?" "hello\n" "" ""
 # ; | && ||
 testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
 testing "simple pipe" "echo hello | cat" "hello\n" "" ""
+shxpect "interactive simple pipe" I$'echo hello | cat\n' O$'hello\n' E"$P" \
+  I$'echo second | cat\n' O$'second\n' E"$P" I$'exit 3' X3
 testing "&&" "true && echo hello" "hello\n" "" ""
 testing "&&2" "false && echo hello" "" "" ""
 testing "||" "true || echo hello" "" "" ""
@@ -425,7 +427,7 @@ testing "IFS combinations" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
   "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
 
-$BROKEN testing "! isn't special" "echo !" "!\n" "" ""
+testing "! alone isn't special" "echo !" "!\n" "" ""
 testing "! by itself" '!; echo $?' "1\n" "" ""
 testing "! true" '! true; echo $?' "1\n" "" ""
 testing "! ! true" '! ! true; echo $?' "0\n" "" ""
