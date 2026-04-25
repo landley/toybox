@@ -453,7 +453,7 @@ GLOBALS(
 
 #define DEBUG 0
 
-void debug_show_fds()
+static void debug_show_fds()
 {
   int x = 0, fd = open("/proc/self/fd", O_RDONLY);
   DIR *X = fdopendir(fd);
@@ -1291,18 +1291,19 @@ if (DEBUG) dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
 }
 
 // restore displaced filehandles, closing high filehandles they were copied to
-static void unredirect(int *urd)
+static void unredirect(int **urd)
 {
-  int *rr = urd+1, i;
+  int *rr = 1+*urd, i;
 
-  if (!urd) return;
+  if (!*urd) return;
 
-  for (i = 0; i<*urd; i++, rr += 2) if (rr[0] != -1) {
+  for (i = 0; i<**urd; i++, rr += 2) if (rr[0] != -1) {
     // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
     dup2(rr[0], rr[1]);
     close(rr[0]);
   }
-  free(urd);
+  free(*urd);
+  *urd = 0;
 }
 
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
@@ -1368,7 +1369,7 @@ static struct sh_pipeline *pop_block(void)
 
   // when ending a block, free, cleanup redirects and pop stack.
   if (blk->pout != -1) close(blk->pout);
-  unredirect(blk->urd);
+  unredirect(&blk->urd);
   llist_traverse(blk->fdelete, llist_free_arg);
   free(blk->farg.v);
   if (TT.ff->blk->next) {
@@ -1447,8 +1448,7 @@ static void end_fcall(void)
   free(ff->blk);
   free_function(ff->function);
   if (ff->pp) {
-    unredirect(ff->pp->urd);
-    ff->pp->urd = 0;
+    unredirect(&ff->pp->urd);
     free_process(ff->pp);
   }
 
@@ -1547,7 +1547,7 @@ static int pipe_subshell(char *s, int len, int out)
   fcntl(pipes[!in], F_SETFD, FD_CLOEXEC);
   run_subshell(s, len);
   fcntl(pipes[!in], F_SETFD, 0);
-  unredirect(uu);
+  unredirect(&uu);
 
   return pipes[out];
 }
@@ -3969,8 +3969,7 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
       }
 
       // pipe data into and out of this segment, I.E. leading/trailing |
-      unredirect(TT.ff->blk->urd);
-      TT.ff->blk->urd = 0;
+      unredirect(&TT.ff->blk->urd);
       TT.ff->blk->pipe = 0;
 
       // Consume pipe from previous segment as stdin.
@@ -4275,10 +4274,7 @@ advance:
     llist_traverse(pplist, (void *)free_process);
   }
 
-  if (TT.ff) {
-    unredirect(TT.ff->blk->urd);
-    TT.ff->blk->urd = 0;
-  }
+  if (TT.ff) unredirect(&TT.ff->blk->urd);
 }
 
 // set variable

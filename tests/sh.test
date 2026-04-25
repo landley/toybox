@@ -136,6 +136,7 @@ testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
 rm -f echo2
 testing 'redirect prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
   '10\n\n' '' ''
+testing 'redirect before command' '< input cat' 'hello' 'hello' ''
 testing 'double quotes' 'echo \x "\x" "\\" "\$" "\`"' 'x \x \ $ `\n' '' ''
 testing 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n' '' ''
 testing 'escape makes argument' 'echo \  | wc -c' '2\n' '' ''
@@ -164,6 +165,9 @@ testing 'prefix assignment decision made after variable expansion' \
 testing 'assignment with redirect is persistent, not prefix' \
   'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
 testing 'assignment with not is persistent' '! a=b; echo $a $?' 'b 1\n' '' ''
+testing '! ! redirect prefix assignment exported not persistent' \
+  '! ! > file.txt A=B env; echo $?; grep ^A= file.txt; echo $A' \
+  '0\nA=B\n\n' '' ''
 
 $BROKEN testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
   'true\nabc\n' '' ''
