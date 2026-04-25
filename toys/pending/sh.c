@@ -3946,7 +3946,7 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
       }
 
       if (TT.options&OPT_x) {
-        char *ss, *ps4 = getvar("PS4");
+        char *sss, *ps4 = getvar("PS4");
         struct sh_fcall *ff;
 
         // duplicate first char of ps4 call depth times
@@ -3955,16 +3955,16 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
           for (ff = TT.ff, i = 0; ff != TT.ff->prev; ff = ff->next)
             if (ff->source && ff->name) i++;
           j = getutf8(ps4, k = strlen(ps4), 0);
-          ss = xmalloc(i*j+k+1);
-          for (k = 0; k<i; k++) memcpy(ss+k*j, ps4, j);
-          strcpy(ss+k*j, ps4+j);
-          do_prompt(ss);
-          free(ss);
+          sss = xmalloc(i*j+k+1);
+          for (k = 0; k<i; k++) memcpy(sss+k*j, ps4, j);
+          strcpy(sss+k*j, ps4+j);
+          do_prompt(sss);
+          free(sss);
 
           // TODO resolve variables
-          ss = pl2str(TT.ff->pl, 1);
-          dprintf(2, "%s\n", ss);
-          free(ss);
+          sss = pl2str(TT.ff->pl, 1);
+          dprintf(2, "%s\n", sss);
+          free(sss);
         }
       }
 
