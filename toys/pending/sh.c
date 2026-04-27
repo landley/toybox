@@ -453,7 +453,7 @@ GLOBALS(
 
 #define DEBUG 0
 
-static void debug_show_fds()
+static void debug_show_fds(char *who)
 {
   int x = 0, fd = open("/proc/self/fd", O_RDONLY);
   DIR *X = fdopendir(fd);
@@ -468,7 +468,7 @@ static void debug_show_fds()
     free(s); free(ss);
   }
   *sss = 0;
-  dprintf(2, "%d fd:%s\n", getpid(), buf);
+  dprintf(2, "%d %s fd:%s\n", getpid(), who, buf);
   closedir(X);
 }
 
@@ -1261,7 +1261,7 @@ static int save_redirect(int **rd, int from, int to)
 {
   int cnt, hfd, *rr;
 
-if (DEBUG) dprintf(2, "%d redir %d to %d\n", getpid(), from, to);
+if (DEBUG) dprintf(2, "%d redir %p %d to %d\n", getpid(), rd, from, to);
   if (from == to) return 0;
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
@@ -1474,7 +1474,7 @@ static void end_fcall(void)
 static int run_subshell(char *str, int len)
 {
   pid_t pid;
-if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_show_fds(); }
+if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_show_fds("run_subshell"); }
   // The with-mmu path is significantly faster.
   if (CFG_TOYBOX_FORK) {
     if ((pid = fork())<0) perror_msg("fork");
@@ -2629,7 +2629,7 @@ static char *expand_one_arg(char *new, unsigned flags)
 // saved to pp->delete. Returns zero for success, nonzero for failure.
 static int expand_redir(struct sh_process *pp, struct sh_arg *arg, int skip)
 {
-  char *s = s, *ss, *sss, *cv = 0;
+  char *s = 0, *ss, *sss, *cv = 0;
   int j, to, from, here = 0;
 
   TT.hfd = 10;
@@ -3031,7 +3031,7 @@ static struct sh_process *run_command(void)
 
     jj = tl ? tl->flags : 0;
     TT.ff->_ = pp->arg.v[pp->arg.c-1];
-if (DEBUG) { dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds(); }
+if (DEBUG) { dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds("run_command"); }
 // TODO: figure out when can exec instead of forking, ala sh -c blah
 
     // Is this command a builtin that should run in this process?
@@ -3923,6 +3923,8 @@ static void run_lines(void)
       free(dl);
       TT.ff->source = fmemopen(ss, strlen(ss), "r");
     }
+
+    // If we've run out of pipeline segments, pop fcall or return to read input
     if (!TT.ff->pl) {
       if (TT.ff->source) break;
       i = TT.ff->signal;
@@ -3931,6 +3933,7 @@ static void run_lines(void)
       if (!i || !TT.ff || !TT.ff->pl) goto advance;
     }
 
+    // grab first arg, second arg, and ending control character (ala ; or |)
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
@@ -3939,12 +3942,14 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
 
     // Skip disabled blocks, handle pipes and backgrounding
     if (TT.ff->pl->type<2) {
+      // skip disabled blocks
       if (!TT.ff->blk->run) {
         TT.ff->pl = TT.ff->pl->end->next;
 
         continue;
       }
 
+      // set -x tracing
       if (TT.options&OPT_x) {
         char *sss, *ps4 = getvar("PS4");
         struct sh_fcall *ff;
@@ -5105,6 +5110,7 @@ void unalias_main(void)
 #define FOR_wait
 #include "generated/flags.h"
 
+// TODO this is always doing -f
 void wait_main(void)
 {
   struct sh_process *pp;
