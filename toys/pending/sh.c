@@ -1411,18 +1411,18 @@ static void free_function(struct sh_function *funky)
   free(funky);
 }
 
-static int free_process(struct sh_process *pp)
+static struct sh_process *free_process(struct sh_process *pp)
 {
-  int rc;
+  struct sh_process *next;
 
-  if (!pp) return 127;
-  rc = pp->exit;
+  if (!pp) return 0;
+  next = pp->next;
   if (!--pp->refcount) {
     llist_traverse(pp->delete, llist_free_arg);
     free(pp);
   }
 
-  return rc;
+  return next;
 }
 
 // Clean up and pop TT.ff
@@ -3729,7 +3729,7 @@ static int wait_pipeline(struct sh_process *pp)
 {
   int rc = 0;
 
-  for (dlist_terminate(pp); pp; pp = pp->next) {
+  for (dlist_terminate(pp); pp; pp = free_process(pp)) {
     if (pp->pid) {
       // TODO job control: not xwait, handle EINTR ourselves and check signals
       pp->exit = xwaitpid(pp->pid);
@@ -3740,11 +3740,14 @@ static int wait_pipeline(struct sh_process *pp)
   }
 
   // Check for background jobs exiting
-  while ((pp = wait_job(-1, 1)) && dashi()) {
-    char *s = show_job(pp, pp->dash);
+  while ((pp = wait_job(-1, 1))) {
+    if (dashi()) {
+      char *s = show_job(pp, pp->dash);
 
-    dprintf(2, "%s\n", s);
-    free(s);
+      dprintf(2, "%s\n", s);
+      free(s);
+    }
+    free_process(pp);
   }
 
   return rc;
@@ -3940,7 +3943,6 @@ static void run_lines(void)
 if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type, TT.ff->pl, TT.ff);
     if (!pplist) TT.hfd = 10;
 
-    // Skip disabled blocks, handle pipes and backgrounding
     if (TT.ff->pl->type<2) {
       // skip disabled blocks
       if (!TT.ff->blk->run) {
@@ -3985,7 +3987,7 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
         TT.ff->blk->pout = -1;
       }
 
-      // Create output pipe and save next process's stdin in pout
+      // if | out create output pipe and save next process's stdin in pout
       if (ctl && *ctl == '|' && ctl[1] != '|') {
         int pipes[2] = {-1, -1};
 
@@ -4254,10 +4256,7 @@ do_then:
         pplist->job = ++TT.jobcnt;
         arg_add(&TT.jobs, (void *)pplist);
         if (dashi()) dprintf(2, "[%u] %u\n", pplist->job,pplist->pid);
-      } else {
-        toys.exitval = wait_pipeline(pplist);
-        llist_traverse(pplist, (void *)free_process);
-      }
+      } else toys.exitval = wait_pipeline(pplist);
       pplist = 0;
     }
 advance:
@@ -4274,10 +4273,7 @@ advance:
   }
 
   // clean up any unfinished stuff
-  if (pplist) {
-    toys.exitval = wait_pipeline(pplist);
-    llist_traverse(pplist, (void *)free_process);
-  }
+  if (pplist) toys.exitval = wait_pipeline(pplist);
 
   if (TT.ff) unredirect(&TT.ff->blk->urd);
 }
@@ -5118,13 +5114,19 @@ void wait_main(void)
   long long ll;
   char *s;
 
-  // TODO does -o pipefail affect return code here
-  if (FLAG(n)) toys.exitval = free_process(wait_job(-1, 0));
-  else if (!toys.optc) while (TT.jobs.c) {
-    if (!(pp = wait_job(-1, 0))) break;
+  // TODO does -o pipefail affect return code here (%job can be a pipeline)
+  if (!toys.optc || FLAG(n)) while (TT.jobs.c) {
+    pp = wait_job(-1, 0);
+    ii = pp ? pp->exit : 127;
+    free_process(pp);
+    if (FLAG(n)) {
+      toys.exitval = ii;
+      break;
+    }
   } else for (ii = 0; ii<toys.optc; ii++) {
     ll = estrtol(toys.optargs[ii], &s, 10);
     if (errno || *s) {
+      // TODO %job can be a pipeline, add tests
       if (-1 == (jj = find_job(toys.optargs[ii]))) {
         error_msg("%s: bad pid/job", toys.optargs[ii]);
         continue;
@@ -5135,6 +5137,7 @@ void wait_main(void)
       if (toys.signal) toys.exitval = 128+toys.signal;
       break;
     }
-    toys.exitval = free_process(pp);
+    toys.exitval = pp->exit;
+    free_process(pp);
   }
 }
