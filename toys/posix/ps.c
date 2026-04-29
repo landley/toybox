@@ -1616,8 +1616,6 @@ static void top_common(
 
     // Don't re-fetch data if it's not time yet, just re-display existing data.
     for (;;) {
-      char was, is;
-
       if (recalc) {
         qsort(mix.tb, mix.count, sizeof(struct procpid *), (void *)ksort);
         if (!FLAG(b)) {
@@ -1726,12 +1724,11 @@ static void top_common(
         lines = header_line(lines, 0);
         // print line of header labels for currently displayed fields
         get_headers(TT.fields, pos = toybuf, sizeof(toybuf));
-        for (i = 0, is = ' '; *pos; pos++) {
-          was = is;
-          is = *pos;
-          if (isspace(was) && !isspace(is) && i++==TT.sortpos && pos!=toybuf)
-            pos[-1] = '[';
-          if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
+        for (i = 0; *pos; i++) {
+          while (isspace(*pos)) pos++;
+          if (pos!=toybuf && i==TT.sortpos-TT.scroll) pos[-1] = '[';
+          while (*pos && !isspace(*pos)) pos++;
+          if (*pos && i==TT.sortpos-TT.scroll) *pos++ = ']';
         }
         if (FLAG(b)) while (isspace(*(pos-1))) --pos;
         *pos = 0;
