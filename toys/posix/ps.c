@@ -1724,11 +1724,11 @@ static void top_common(
         lines = header_line(lines, 0);
         // print line of header labels for currently displayed fields
         get_headers(TT.fields, pos = toybuf, sizeof(toybuf));
-        for (i = 0; *pos; i++) {
+        for (i = TT.scroll; *pos; i++) {
           while (isspace(*pos)) pos++;
-          if (pos!=toybuf && i==TT.sortpos-TT.scroll) pos[-1] = '[';
+          if (pos!=toybuf && i==TT.sortpos) pos[-1] = '[';
           while (*pos && !isspace(*pos)) pos++;
-          if (*pos && i==TT.sortpos-TT.scroll) *pos++ = ']';
+          if (*pos && i==TT.sortpos) *pos++ = ']';
         }
         if (FLAG(b)) while (isspace(*(pos-1))) --pos;
         *pos = 0;
