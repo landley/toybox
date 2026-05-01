@@ -45,7 +45,7 @@ void devmem_main(void)
   int ii, writing = toys.optc > 2, bytes = 4, fd;
   unsigned long data = 0, map_len QUIET,
     addr = xatolu(*toys.optargs, sizeof(long));
-  void *map QUIET, *p QUIET;
+  void *map, *p = 0;
   char *pdata;
 
   // WIDTH?
@@ -77,7 +77,7 @@ void devmem_main(void)
   // Not using peek()/memcpy() because registers care about size of read/write.
   if (writing) for (ii = 2; ii<toys.optc; ii++) {
     data = xatolu(toys.optargs[ii], bytes);
-    if (FLAG(no_mmap)) xwrite(fd, pdata, bytes);
+    if (!p) xwrite(fd, pdata, bytes);
     else {
       if (bytes==1) *(char *)p = data;
       else if (bytes==2) *(unsigned short *)p = data;
@@ -86,7 +86,7 @@ void devmem_main(void)
       p += bytes;
     }
   } else {
-    if (FLAG(no_mmap)) xread(fd, pdata, bytes);
+    if (!p) xread(fd, pdata, bytes);
     else {
       if (bytes==1) data = *(char *)p;
       else if (bytes==2) data = *(unsigned short *)p;
@@ -97,7 +97,7 @@ void devmem_main(void)
   }
 
   if (CFG_TOYBOX_FORK) {
-    if (FLAG(no_mmap)) close(fd);
+    if (!p) close(fd);
     else munmap(map, map_len);
   }
 }
