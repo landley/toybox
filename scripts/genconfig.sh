@@ -15,7 +15,7 @@ genconfig()
   for i in ANDROID FDPIC
   do
     X=n
-    [ "${DEFINES/#define __${i}__ /}" != "$DEFINES" ] && X=y
+    [ "${DEFINES/\#define __${i}__ /}" != "$DEFINES" ] && X=y
 
     echo -e "config IS_$i\n\tbool\n\tdefault $X\n" || return 1
   done
