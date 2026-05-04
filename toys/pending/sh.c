@@ -1419,6 +1419,7 @@ static struct sh_process *free_process(struct sh_process *pp)
   next = pp->next;
   if (!--pp->refcount) {
     llist_traverse(pp->delete, llist_free_arg);
+    unredirect(&pp->urd);
     free(pp);
   }
 
@@ -1447,10 +1448,7 @@ static void end_fcall(void)
   while (pop_block());
   free(ff->blk);
   free_function(ff->function);
-  if (ff->pp) {
-    unredirect(&ff->pp->urd);
-    free_process(ff->pp);
-  }
+  free_process(ff->pp);
 
   // Unblock signal we just finished handling
   if (TT.ff->signal) {
@@ -4579,22 +4577,24 @@ void alias_main(void)
   char *s;
   int i, j;
 
+  // print all aliases
   if (!toys.optc || FLAG(p))
     for (i = 0; i<TT.alias.c; i++) puts(TT.alias.v[i]); // TODO $'escape'
 
+  // print/assign aliases
   for (i = 0; i<toys.optc; i++) {
     if (!(s = strchr(toys.optargs[i], '='))) {
       for (j = 0; j<TT.alias.c && (s = TT.alias.v[j]); j++)
-        if (strstart(&s, toys.optargs[i]) && *s++=='=') break;
+        if (strstart(&s, toys.optargs[i]) && *s=='=') break;
       if (j==TT.alias.c) sherror_msg("%s: not found", TT.alias.v[j]);
-      else printf("alias %s=%s\n", TT.alias.v[j], s); // TODO $'escape'
+      else printf("alias %s\n", TT.alias.v[j]); // TODO $'escape'
     } else {
-      for (i = 0; i<TT.alias.c; i++)
-        if (!memcmp(TT.alias.v[i], toys.optargs[i], s+1-toys.optargs[i])) break;
-      if (i==TT.alias.c) arg_add(&TT.alias, xstrdup(toys.optargs[i]));
+      for (j = 0; j<TT.alias.c; j++)
+        if (!smemcmp(TT.alias.v[j], toys.optargs[i],s+1-toys.optargs[i])) break;
+      if (j==TT.alias.c) arg_add(&TT.alias, xstrdup(toys.optargs[i]));
       else {
-        free(toys.optargs[i]);
-        toys.optargs[i] = xstrdup(toys.optargs[i]);
+        free(TT.alias.v[j]);
+        TT.alias.v[j] = xstrdup(toys.optargs[i]);
       }
     }
   }
