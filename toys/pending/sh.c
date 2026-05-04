@@ -4935,9 +4935,18 @@ void exec_main(void)
   char *ee[1] = {0}, **old = environ;
 
   // discard redirects and return if nothing to exec
-  free(TT.ff->pp->urd);
-  TT.ff->pp->urd = 0;
-  if (!toys.optc) return;
+  if (!toys.optc) {
+    int i, j, *urd = TT.ff->pp->urd, *rr = urd+1;
+
+    // Close saved high file descriptors marked CLOEXEC
+    for (i = 0; i<*urd; i++, rr += 2)
+      if (rr[0]!=-1 && -1!=(j = fcntl(rr[0], F_GETFL)) && (j&FD_CLOEXEC))
+        close(rr[0]);
+    free(urd);
+    TT.ff->pp->urd = 0;
+
+    return;
+  }
 
 //TODO zap isexec
   // exec, handling -acl
