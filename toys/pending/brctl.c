@@ -47,7 +47,7 @@ static void get_ports(char *bridge, int *indices)
   unsigned long args[4] = { BRCTL_GET_PORT_LIST,
     (unsigned long) ifindices, MAX_BRIDGES, 0 };
 
-  memset(ifindices, 0, MAX_BRIDGES);
+  memset(ifindices, 0, MAX_BRIDGES * sizeof(*ifindices));
   args[1] = (unsigned long)ifindices;
   xstrncpy(ifr.ifr_name, bridge, IFNAMSIZ);
   ifr.ifr_data = (char *)args;
