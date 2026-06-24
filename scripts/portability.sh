@@ -32,7 +32,7 @@ fi
 if [ -n "$ASAN" ]; then
   # Turn ASan on and disable most optimization to get more readable backtraces.
   # (Technically ASAN is just "-fsanitize=address" and the rest is optional.)
-  export CFLAGS="$CFLAGS -fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -static-libasan"
+  export CFLAGS="$CFLAGS -fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -static-libsan"
   export NOSTRIP=1
   # Ignore leaks on exit. TODO
   export ASAN_OPTIONS="detect_leaks=0"
