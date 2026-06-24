@@ -97,6 +97,12 @@ void switch_root_main(void)
   // Ok, enough safety checks: wipe root partition.
   dirtree_read("/", del_node);
 
+  // Fix the appearance of the mount table in the newroot chroot
+  if (mount(".", "/", NULL, MS_MOVE, NULL)) {
+    perror_msg("mount");
+    goto panic;
+  }
+
   // Enter the new root before starting init
   if (chroot(".")) {
     perror_msg("chroot");
