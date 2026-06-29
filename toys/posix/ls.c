@@ -130,9 +130,12 @@ static int numlen(long long ll)
 
 static int print_with_h(char *s, long long value, int blocks)
 {
+  if (FLAG(h)) {
+    if (blocks) value *= 1024;
+    return human_readable(s, value, 0);
+  }
   if (blocks) value = (value * 1024) / TT.block_size;
-  if (FLAG(h)) return human_readable(s, value, 0);
-  else return sprintf(s, "%lld", value);
+  return sprintf(s, "%lld", value);
 }
 
 // Figure out size of printable entry fields for display indent/wrap
