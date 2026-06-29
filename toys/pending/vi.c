@@ -289,8 +289,12 @@ static int cut_str(size_t offset, size_t len)
       //cut full
       spos += s->node->len;
       offset += s->node->len;
-      s = dlist_pop(&s);
-      if (s == TT.slices) TT.slices = s->next;
+      {
+        struct slice_list *removed = s;
+        s = s->next;
+        if (TT.slices == removed) TT.slices = s;
+        dlist_pop(&removed);
+      }
 
     } else if (spos < offset && ( end >= spos+s->node->len)) {
       //cut end
@@ -326,10 +330,10 @@ static int cut_str(size_t offset, size_t len)
 }
 static int modified()
 {
-  if (TT.text->next !=  TT.text->prev) return 1;
-  if (TT.slices->next != TT.slices->prev) return 1;
   if (!TT.text || !TT.slices) return 0;
   if (!TT.text->node || !TT.slices->node) return 0;
+  if (TT.text->next !=  TT.text->prev) return 1;
+  if (TT.slices->next != TT.slices->prev) return 1;
   if (TT.text->node->len == 1 && TT.slices->node->len == 1 && *TT.text->node->data == '\n') return 0;
   if (TT.text->node->alloc != MMAP) return 1;
   if (TT.text->node->len != TT.slices->node->len) return 1;
@@ -540,7 +544,7 @@ static size_t text_strstr(size_t offset, char *str, int dir)
       if (!dir) pos -= bytes;
       else pos += bytes;
     }
-  } while (pos < (dir ? 0 : TT.filesize));
+  } while (dir ? pos < TT.filesize : pos > 0);
 
   return SIZE_MAX;
 }
@@ -732,9 +736,9 @@ static int vi_yank(char reg, size_t from, int flags)
   if (TT.vi_mov_flag&0x80000000) start = TT.cursor, end = from;
   else TT.cursor = start; //yank moves cursor to left pos always?
 
-  if (TT.yank.alloc < end-from) {
-    size_t new_bounds = (1+end-from)/1024;
-    new_bounds += ((1+end-from)%1024) ? 1 : 0;
+  if (TT.yank.alloc < end-start+1) {
+    size_t new_bounds = (1+end-start)/1024;
+    new_bounds += ((1+end-start)%1024) ? 1 : 0;
     new_bounds *= 1024;
     TT.yank.data = xrealloc(TT.yank.data, new_bounds);
     TT.yank.alloc = new_bounds;
@@ -1808,8 +1812,10 @@ void vi_main(void)
           break;
         default: //add chars to ex command until ENTER
           if (key >= ' ' && key < 0x7F) { //might be utf?
-            if (TT.il->len == TT.il->alloc) {
-              TT.il->data = realloc(TT.il->data, TT.il->alloc*2);
+            if (TT.il->len + 1 >= TT.il->alloc) {
+              char *tmp = realloc(TT.il->data, TT.il->alloc*2);
+              if (!tmp) { show_error("out of memory"); break; }
+              TT.il->data = tmp;
               TT.il->alloc *= 2;
             }
             TT.il->data[TT.il->len] = key;
@@ -1848,7 +1854,9 @@ void vi_main(void)
               utf8_dec(key, utf8_code, &utf8_dec_p))
           {
             if (TT.il->len+utf8_dec_p+1 >= TT.il->alloc) {
-              TT.il->data = realloc(TT.il->data, TT.il->alloc*2);
+              char *tmp = realloc(TT.il->data, TT.il->alloc*2);
+              if (!tmp) { show_error("out of memory"); break; }
+              TT.il->data = tmp;
               TT.il->alloc *= 2;
             }
             strcpy(TT.il->data+TT.il->len, utf8_code);
