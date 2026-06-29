@@ -390,7 +390,7 @@ static int conf_choice(struct menu *menu)
 		}
 		if (!child)
 			continue;
-		if (line[strlen(line) - 1] == '?') {
+		if (line[0] && line[strlen(line) - 1] == '?') {
 			printf("\n%s\n", child->sym->help ?
 				child->sym->help : nohelp_text);
 			continue;
