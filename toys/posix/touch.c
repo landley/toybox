@@ -72,7 +72,7 @@ void touch_main(void)
     } else {
       if (!utimensat(AT_FDCWD, s, ts, FLAG(h)*AT_SYMLINK_NOFOLLOW)) continue;
       if (FLAG(c)) continue;
-      if (access(s, F_OK) && (-1!=(fd = open(s, O_CREAT, 0666)))) {
+      if (access(s, F_OK) && (-1!=(fd = open(s, O_WRONLY | O_CREAT, 0666)))) {
         close(fd);
         if (toys.optflags) ss--;
         continue;

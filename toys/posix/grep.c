@@ -484,7 +484,7 @@ static int do_grep_r(struct dirtree *new)
   if (new->parent && !FLAG(h)) toys.optflags |= FLAG_H;
 
   name = dirtree_path(new, 0);
-  do_grep(openat(dirtree_parentfd(new), new->name, O_NONBLOCK|O_NOCTTY), name);
+  do_grep(openat(dirtree_parentfd(new), new->name, O_RDONLY|O_NONBLOCK|O_NOCTTY), name);
   free(name);
 
   return 0;

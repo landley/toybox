@@ -269,7 +269,7 @@ static void open_logfiles(void)
     } else tfd->logfd = open(tfd->filename, O_CREAT | O_WRONLY | O_APPEND, 0666);
     if (tfd->logfd < 0) {
       tfd->filename = "/dev/console";
-      tfd->logfd = open(tfd->filename, O_APPEND);
+      tfd->logfd = open(tfd->filename, O_WRONLY | O_APPEND);
     }
   }
 }

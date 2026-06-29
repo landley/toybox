@@ -364,7 +364,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // In this case only show dirname/total header when given -R.
     dt = indir->child;
     if (dt && S_ISDIR(dt->st.st_mode) && !dt->next && !(FLAG(d)||FLAG(R))) {
-      listfiles(open(dt->name, 0), TT.singledir = dt);
+      listfiles(open(dt->name, O_RDONLY), TT.singledir = dt);
 
       return;
     }
@@ -573,7 +573,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     // Recurse into dirs if at top of the tree or given -R
     if (!indir->parent || (FLAG(R) && dirtree_notdotdot(sort[ul])))
-      listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
+      listfiles(openat(dirfd, sort[ul]->name, O_RDONLY), sort[ul]);
     free((void *)sort[ul]->extra);
   }
   free(sort);
