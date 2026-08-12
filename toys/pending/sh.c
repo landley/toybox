@@ -1041,6 +1041,7 @@ bad:
 static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 {
   struct sh_vars *vv = 0, *was;
+  struct sh_fcall *new;
   char *ss;
 
   if (!s) return 0;
@@ -1053,7 +1054,9 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   }
 
   // Add if necessary, set value, and remove again if we added but set failed
-  if (!(was = vv = findvar(s, &ff))) (vv = addvar(s, ff))->flags = VAR_NOFREE;
+  if (!(was = vv = findvar(s, &new)) || (ff && new!=ff))
+    (vv = addvar(s, ff = ff ? : TT.ff->prev))->flags = VAR_NOFREE;
+  else ff = new;
   if (!setvar_found(s, freeable, vv)) {
     if (!was) memmove(vv, vv+1, sizeof(struct sh_vars)*(ff->varslen-- -(vv-ff->vars)));
 
@@ -1068,7 +1071,7 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 // Returns sh_vars * or 0 for failure (readonly, etc)
 static struct sh_vars *setvar(char *str)
 {
-  return setvar_long(str, 1, TT.ff->prev);
+  return setvar_long(str, 1, 0);
 }
 
 
@@ -2999,7 +3002,7 @@ static struct sh_process *run_command(int local)
 
     if ((ss = expand_one_arg(s = prefix.v[jj], NO_IFS))) {
       if (!local && ss==s) ss = xstrdup(ss);
-      if ((vv = setvar_long(ss, ss!=s, local ? TT.ff : TT.ff->prev)))
+      if ((vv = setvar_long(ss, ss!=s, local ? TT.ff : 0)))
         if (local) vv->flags |= VAR_EXPORT;
     } else pp->exit = 1;
   }

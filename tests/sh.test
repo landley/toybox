@@ -170,6 +170,12 @@ testing 'assignment with not is persistent' '! a=b; echo $a $?' 'b 1\n' '' ''
 testing '! ! redirect prefix assignment exported not persistent' \
   '! ! > file.txt A=B env; echo $?; grep ^A= file.txt; echo $A' \
   '0\nA=B\n\n' '' ''
+testing 'prefix assignment pipe-local' 'ABC=abc; ABC=def true | echo $ABC' \
+  'abc\n' '' ''
+testing 'prefix assignment exports' \
+  'ABC=abc; ABC=def env | grep ^ABC=; echo $ABC' 'ABC=def\nabc\n' '' ''
+testing 'redundant prefix assignment' \
+  'ABC=abc; ABC=def ABC=ghi env | grep ^ABC=; echo $ABC' 'ABC=ghi\nabc\n' '' ''
 
 $BROKEN testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
   'true\nabc\n' '' ''
