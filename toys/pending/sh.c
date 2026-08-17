@@ -486,7 +486,7 @@ static void debug_show_fds(char *who)
 
 // functions contain pipelines contain functions: prototype because loop
 static void free_pipeline(void *pipeline);
-// recalculate needs to get/set variables, but setvar_found calls recalculate
+// recalculate can get/set variables, setvar calls recalculate for -i
 static struct sh_vars *setvar(char *str);
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
@@ -676,7 +676,6 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
     ff->varscap += 32;
     ff->vars = xrealloc(ff->vars, (ff->varscap)*sizeof(*ff->vars));
   }
-  if (!s) return ff->vars;
   ff->vars[ff->varslen].flags = 0;
   ff->vars[ff->varslen].str = s;
 
@@ -943,6 +942,17 @@ static void cache_ifs(char *s, struct sh_fcall *ff)
 // ft
 // TODO VAR_ARRAY VAR_DICT
 
+// Error and return 1 for readonly variable
+static int check_rovar(struct sh_vars *var)
+{
+  if (var && (var->flags&VAR_READONLY)) {
+    sherror_msg("%.*s: read only", varend(var->str)-var->str, var->str);
+    return 1;
+  }
+
+  return 0;
+}
+
 // Assign new name=value string for existing variable. s takes x=y or x+=y
 static struct sh_vars *setvar_found(char *s, int freeable, struct sh_vars *var)
 {
@@ -951,10 +961,7 @@ static struct sh_vars *setvar_found(char *s, int freeable, struct sh_vars *var)
   long long ll;
   int cc, vlen = varend(s)-s;
 
-  if (flags&VAR_READONLY) {
-    sherror_msg("%.*s: read only", vlen, s);
-    goto bad;
-  }
+  if (check_rovar(var)) goto bad;
 
   // If += has no old value (addvar placeholder or empty old var) yank the +
   if (s[vlen]=='+' && (var->str==s || !strchr(var->str, '=')[1])) {
@@ -1074,7 +1081,6 @@ static struct sh_vars *setvar(char *str)
   return setvar_long(str, 1, 0);
 }
 
-
 // returns whether variable found (whiteout doesn't count)
 static int unsetvar(char *name)
 {
@@ -1082,22 +1088,21 @@ static int unsetvar(char *name)
   struct sh_vars *var = findvar(name, &ff);
   int len = varend(name)-name;
 
+  if (check_rovar(var)) return 1;
   if (!var || (var->flags&VAR_WHITEOUT)) return 0;
-  if (var->flags&VAR_READONLY) sherror_msg("readonly %.*s", len, name);
-  else {
-    // turn local into whiteout
-    if (ff != TT.ff->prev) {
-      var->flags = VAR_WHITEOUT;
-      if (!(var->flags&VAR_NOFREE))
-        (var->str = xrealloc(var->str, len+2))[len+1] = 0;
-    // free from global context
-    } else {
-      if (!(var->flags&VAR_NOFREE)) free(var->str);
-      memmove(var, var+1, sizeof(struct sh_vars)*(ff->varslen-- -(var-ff->vars)));
-    }
-    if (!strcmp(name, "IFS"))
-      do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
+
+  // turn local into whiteout
+  if (ff != TT.ff->prev) {
+    var->flags = VAR_WHITEOUT;
+    if (!(var->flags&VAR_NOFREE))
+      (var->str = xrealloc(var->str, len+2))[len+1] = 0;
+  // free from global context
+  } else {
+    if (!(var->flags&VAR_NOFREE)) free(var->str);
+    memmove(var, var+1, sizeof(struct sh_vars)*(ff->varslen-- -(var-ff->vars)));
   }
+  if (!strcmp(name, "IFS"))
+    do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
 
   return 1;
 }
@@ -1425,6 +1430,7 @@ static void free_function(struct sh_function *funky)
   free(funky);
 }
 
+// returns pp->next to more easily avoid use-after-free.
 static struct sh_process *free_process(struct sh_process *pp)
 {
   struct sh_process *next;
@@ -4322,47 +4328,40 @@ advance:
   if (TT.ff) unredirect(&TT.ff->blk->urd);
 }
 
-// set variable
-static struct sh_vars *initvar(char *name, char *val)
+// Modify existing variable, adding/removing flags and/or changing value
+// for = or += str. Creates whiteout at ff if adding flags without assignment
+// for variable not found.
+static struct sh_vars *set_varflags_long(char *str, unsigned set,
+  unsigned unset, struct sh_fcall *ff)
 {
-  return addvar(xmprintf("%s=%s", name, val ? : ""), TT.ff);
-}
-
-static struct sh_vars *initvardef(char *name, char *val, char *def)
-{
-  return initvar(name, (!val || !*val) ? def : val);
-}
-
-// export existing "name" or assign/export name=value string (making new copy)
-static void set_varflags(char *str, unsigned set_flags, unsigned unset_flags)
-{
-  struct sh_vars *shv = 0;
-  struct sh_fcall *ff;
+  struct sh_vars *shv;
   char *s;
 
   // Make sure variable exists and is updated
   if (strchr(str, '=')) shv = setvar(xstrdup(str));
-  else if (!(shv = findvar(str, &ff))) {
-    if (!set_flags) return;
-    shv = addvar(str = xmprintf("%s=", str), TT.ff->prev);
+  else if (!(shv = findvar(str, &ff))) { // pass ff to find existing whiteout
+    if (!set) return 0;
+    shv = addvar(str = xmprintf("%s=", str), ff ? : TT.ff->prev);
     shv->flags = VAR_WHITEOUT;
-  } else if (shv->flags&VAR_WHITEOUT) shv->flags |= VAR_EXPORT;
-  if (!shv || (shv->flags&VAR_EXPORT)) return;
+  }
 
   // Resolve magic for export (bash bug compatibility, really should be dynamic)
-  if (shv->flags&VAR_MAGIC) {
+  if ((shv->flags&VAR_MAGIC) && (set&VAR_EXPORT)) {
     s = shv->str;
     shv->str = xmprintf("%.*s=%s", (int)(varend(str)-str), str, getvar(str));
     if (!(shv->flags&VAR_NOFREE)) free(s);
     else shv->flags ^= VAR_NOFREE;
   }
-  shv->flags |= set_flags;
-  shv->flags &= ~unset_flags;
+  shv->flags |= set;
+  shv->flags &= ~unset;
+
+  return shv;
 }
 
-static void export(char *str)
+// Add flags to a variable, creating global whiteout if necessary
+static void set_varflags(char *str, unsigned set)
 {
-  set_varflags(str, VAR_EXPORT, 0);
+  set_varflags_long(str, set, 0, 0);
 }
 
 FILE *fpathopen(char *name)
@@ -4427,15 +4426,22 @@ static void nommu_reentry(void)
     (s = xmalloc(len+1))[len] = 0;
     for (ii = 0; ii<len; ii += pid)
       if (1>(pid = fread(s+ii, 1, len-ii, TT.ff->source))) error_exit(0);
-    set_varflags(s, ll, 0);
+    set_varflags(s, ll);
   }
+}
+
+// quick set variable we know does not exist yet
+static struct sh_vars *initvar(char *name, char *val)
+{
+  return addvar(xmprintf("%s=%s", name, val ? : ""), TT.ff);
 }
 
 // init locals, sanitize environment, handle nommu subshell handoff
 static void subshell_setup(void)
 {
   int ii, from, uid = getuid();
-  struct passwd *pw = getpwuid(uid);
+  struct passwd *pw = getpwuid(uid) ? :
+    &(struct passwd){.pw_dir = "/", .pw_shell = "/bin/sh", .pw_name = toybuf};
   char *s, *ss, *magic[] = {"SECONDS", "RANDOM", "LINENO", "GROUPS", "BASHPID",
     "EPOCHREALTIME", "EPOCHSECONDS"},
     *readonly[] = {xmprintf("EUID=%d", geteuid()), xmprintf("UID=%d", uid),
@@ -4451,12 +4457,11 @@ static void subshell_setup(void)
 
   // Add local variables that can be overwritten
   initvar("PATH", _PATH_DEFPATH);
-  if (!pw) pw = (void *)toybuf; // first use, so still zeroed
-  sprintf(toybuf+1024, "%u", uid);
-  initvardef("HOME", pw->pw_dir, "/");
-  initvardef("SHELL", pw->pw_shell, "/bin/sh");
-  initvardef("USER", pw->pw_name, toybuf+1024);
-  initvardef("LOGNAME", pw->pw_name, toybuf+1024);
+  sprintf(toybuf, "%u", uid);
+  initvar("HOME", pw->pw_dir);
+  initvar("SHELL", pw->pw_shell);
+  initvar("USER", pw->pw_name);
+  initvar("LOGNAME", pw->pw_name);
   gethostname(toybuf, sizeof(toybuf)-1);
   initvar("HOSTNAME", toybuf);
   uname(&uu);
@@ -4503,7 +4508,7 @@ static void subshell_setup(void)
   free(ss);
 
   // TODO: this is in pipe, not environment
-  if (!(ss = getvar("SHLVL"))) export("SHLVL=1"); // Bash 5.0
+  if (!(ss = getvar("SHLVL"))) set_varflags("SHLVL=1", VAR_EXPORT);
   else {
     char buf[16];
 
@@ -4720,8 +4725,8 @@ void cd_main(void)
   free(dd);
 
   if (!(TT.options&OPT_cd)) {
-    export("OLDPWD");
-    export("PWD");
+    set_varflags("OLDPWD", VAR_EXPORT);
+    set_varflags("PWD", VAR_EXPORT);
     TT.options |= OPT_cd;
   }
 }
@@ -4916,8 +4921,8 @@ void export_main(void)
       continue;
     }
 
-    if (FLAG(n)) set_varflags(*arg, 0, VAR_EXPORT);
-    else export(*arg);
+    if (FLAG(n)) set_varflags_long(*arg, 0, VAR_EXPORT, 0);
+    else set_varflags(*arg, VAR_EXPORT);
   }
 }
 
@@ -4931,6 +4936,7 @@ void declare_main(void)
 // TODO: need a show_vars() to collate all the visible_vars() loop output
 // TODO: -g support including -gp
 // TODO: dump everything key=value and functions too
+// TODO: declare +r should error out: can't remove readonly
   if (!toys.optc) {
     struct sh_vars **vv = visible_vars();
 
@@ -4954,7 +4960,7 @@ void declare_main(void)
       error_msg("bad %s", *arg);
       continue;
     }
-    set_varflags(*arg, toys.optflags<<1, 0); // TODO +x unset
+    set_varflags(*arg, toys.optflags<<1); // TODO +x unset
   }
 }
 
@@ -5054,16 +5060,13 @@ void local_main(void)
 
   // set/move variables
   for (arg = toys.optargs; *arg; arg++) {
-    if ((eq = varend(*arg)) == *arg || (*eq && *eq != '=')) {
+    if ((eq = varend(*arg))==*arg || (*eq && *eq!='=')) {
       error_msg("bad %s", *arg);
       continue;
     }
 
     if ((var = findvar(*arg, &ff2)) && ff==ff2 && !*eq) continue;
-    if (var && (var->flags&VAR_READONLY)) {
-      error_msg("%.*s: readonly variable", (int)(varend(*arg)-*arg), *arg);
-      continue;
-    }
+    if (check_rovar(var)) continue;
 
     // Add local inheriting global status and setting whiteout if blank.
     if (!var || ff!=ff2) {
