@@ -8,7 +8,7 @@
 # txpect "name" "command" [R]I/O/E"string" X[ERR]
 
 # Use "bash" name for host, "sh" for toybox. (/bin/sh is often defective.)
-[ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
+[ -z "$SH" ] && { [ -z "$TEST_HOST" ] && export SH="sh" || export SH="bash" ; }
 # The expected prompt is different for root vs normal user
 [ $UID -eq 0 ] && P='# ' || P='$ '
 # insulate shell child process to get predictable results
@@ -160,6 +160,8 @@ $BROKEN testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo
   '123\n' '' ''
 $BROKEN testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
+testing 'prefix assignment does not persist in pipelines' \
+  'export A=bc; A=de echo | env | grep ^A=' 'A=bc\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
 testing 'prefix assignment decision made after variable expansion' \
@@ -200,6 +202,7 @@ testing 'eval8' $'false; eval ''; echo $?' '0\n' '' ''
 $BROKEN testing 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n' '' ''
 testing "exec" "exec echo hello" "hello\n" "" ""
 testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
+$BROKEN testing "exec redirect persists" 'exec {VAR}< <(echo hello); cat <&$VAR' 'hello\n' '' ''
 
 # ; | && ||
 testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
@@ -212,7 +215,7 @@ testing "||" "true || echo hello" "" "" ""
 testing "||2" "false || echo hello" "hello\n" "" ""
 testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
 testing "&& after function" "x(){ false;};x && echo yes" "" "" ""
-testing "|| after function" "x(){ false;};x || echo yes" "yes\n" "" ""
+testing "|| after function" "x(){ false;};x || echo no" "no\n" "" ""
 
 # redirection
 
@@ -288,8 +291,8 @@ testing "[oldmath]" 'echo $[1+2]' '3\n' '' ''
 testing "math basic priority" 'echo $((1+2*3**4))' '163\n' '' ''
 testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
 testing "math spaces" 'echo $(( ( 1 + 2 ) * 7 - 5 ** 2 ))' '-4\n' '' ''
-testing "((<)) isn't redirect" '((1<2)) </dev/null && echo yes' 'yes\n' '' ''
-testing "((>)) isn't redirect" '((1>2)) </dev/null || echo yes' 'yes\n' '' ''
+testing "((<)) isn't redirect" '((1<2)) && echo yes' 'yes\n' '' ''
+testing "((>)) isn't redirect" '((1>2)) || echo no' 'no\n' '' ''
 testing "((not math) )" '((echo hello) )' 'hello\n' '' ''
 testing "preincrement" 'echo $((++x)); echo $x' '1\n1\n' '' ''
 testing "preincrement vs prefix plus" 'echo $((+++x)); echo $x' '1\n1\n' '' ''
@@ -668,7 +671,7 @@ testing 'subshell inheritance' \
   'func() { source input; cat <(echo $xx; xx=456; echo $xx); echo $xx;}; echo local xx=123 > input; func; echo $xx' \
   '123\n456\n123\n\n' 'x' ''
 $BROKEN testing 'semicolon vs newline' \
-  'source input 2>/dev/null || echo yes' 'one\nyes\n' \
+  'source input 2>/dev/null || echo no' 'one\nno\n' \
   'echo one\necho two; echo |' ''
 $BROKEN testing 'syntax err pops to source but encapsulating function continues' \
   'func() { echo one; source <(echo -e "echo hello\necho |") 2>/dev/null; echo three;}; func; echo four' \
@@ -739,10 +742,10 @@ $BROKEN testing '[[split5]]' \
   '[[ $(cat) == "a b" ]] < <(echo a b) > potato && rm potato && echo ok' \
   'ok\n' '' ''
 # And token parsing leaking through: 1>2 is an error, 1 >2 is not
-testing '[[1>2]] is not a redirect' '[[ 1 >2 ]] || [ -e 2 ] || echo yup' \
-  'yup\n' '' ''
+testing '[[1>2]] is not a redirect' '[[ 1 >2 ]] || [ -e 2 ] || echo no' \
+  'no\n' '' ''
 testing "[[1 >0]] doesn't need that second space" \
-  '[[ 1 >0 ]] && { [ -e 2 ] || echo yup; }' 'yup\n' '' ''
+  '[[ 1 >0 ]] && { [ -e 2 ] || echo no; }' 'no\n' '' ''
 testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
   'yes\n' '' ''
 testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
@@ -760,6 +763,38 @@ testing 'if; is a syntax error but if $EMPTY; is not' \
 testing 'trap1' $'trap \'echo T=$?;false\' USR1;kill -s usr1 $$;echo A=$?' \
   'T=0\nA=0\n' '' ''
 
+# local/global/export/whiteout semantics
+testing 'look through unexported local' \
+  'x() { local ABC=def; export -n ABC; env | grep ABC; echo but $ABC; }
+   export ABC=abc; x; env | grep ABC; declare -p ABC' \
+  'ABC=abc\nbut def\nABC=abc\ndeclare -x ABC="abc"\n' '' ''
+$BROKEN testing 'lookthrough 2' \
+  'x() { local ABC=def; unset ABC; export | grep \ ABC=; }; export ABC=abc; x; echo click; export | grep \ ABC=' \
+  'click\ndeclare -x ABC="abc"\n' '' ''
+testing 'lookthrough 3' \
+  'x() { local ABC=def; export -n ABC; env | grep ^ABC=; echo but $ABC; export | grep ^ABC=; }
+   export ABC=abc; x; env | grep ^ABC=; export | grep \ ABC=' \
+  'ABC=abc\nbut def\nABC=abc\ndeclare -x ABC="abc"\n' '' ''
+$BROKEN testing 'lookthrough 4' \
+  'x() { local ABC=def; unset ABC; export ABC; env | grep ABC; echo x $ABC; export | grep ^ABC=; }
+   x2() { local ABC=def; unset ABC; ABC=other; env | grep ABC; echo x2 $ABC; export | grep ^ABC=; }
+   x3() { local ABC=def; export -n ABC; unset ABC; ABC=walrus; env | grep ABC; echo x3 $ABC; export | grep ^ABC=; }
+   x4() { local ABC=def; export -n ABC; unset ABC; export ABC; ABC=potato; env | grep ^ABC=; echo x4 $ABC; export | grep ABC=; }
+   export ABC=abc; x; x2; x3; x4; env | grep ^ABC=
+   export | grep \ ABC=' \
+   'ABC=abc\nx\nABC=abc\nx2 other\nABC=abc\nx3 walrus\nABC=potato\nx4 potato\ndeclare -x ABC="potato"\nABC=abc\ndeclare -x ABC="abc"\n' '' ''
+
+mkdir sub1 sub2
+echo echo hello | tee sub1/hello > sub2/hello
+chmod +x sub2/hello
+$BROKEN testing 'path logic continues to find +x but REMEMBERS failure' \
+  'PATH=sub1:sub2:$PATH hello; rm sub2/hello
+   PATH=sub1:sub2:$PATH hello |& sed "s/^[^:]*: *//"' \
+  'hello\nline 2: sub1/hello: Permission denied\n' '' ''
+rm -rf sub1 sub2
+
+# builtins
+
 shxpect 'alias' I$'alias abc=whoami\n' E"$P" I$'abc\n' O"$USER"$'\n'
 shxpect 'alias recursion' I$'alias echo="abc 123" abc="echo 456"\n' E"$P" \
   I$'echo 789\n' O$'456 123 789\n'
@@ -772,7 +807,12 @@ rm -f hello
 testing 'unalias' \
   $'alias abc=def\nalias | egrep -o \'(abc=|def)\'\nunalias abc\nalias' \
   'abc=\ndef\n' '' ''
+$BROKEN shxpect 'alias/unalias on same line' \
+  I$'alias abc=def;type abc;unalias abc;echo boing;type abc\n' \
+  O$'abc is aliased to `def\'\n' R$': type: abc: not found\n' X1
 
+testing 'unset is a honey badger' 'a=1; b=2; unset a=b; echo $? a=$a b=$b' \
+  '0 a=1 b=2\n' '' ''
 
 # TODO finish variable list from shell init
 

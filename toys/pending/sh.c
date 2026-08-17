@@ -463,6 +463,14 @@ static int anystrz(char *find, char *list)
   return 0;
 }
 
+// Match entire string. (Put longer ones first in list.)
+static int anyfullz(char *find, char *list)
+{
+  int len = anystrz(find, list);
+
+  return len ? !find[len] : 0;
+}
+
 #define DEBUG 0
 
 static void debug_show_fds(char *who)
@@ -490,10 +498,10 @@ static void free_pipeline(void *pipeline);
 static struct sh_vars *setvar(char *str);
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
-// making these const means I need to typecast the const away later to
-// avoid endless warnings.
 static const char *redirectors = "<<<\0<<-\0<<\0<&\0<>\0<\0>>\0>&\0>|\0>\0&>>\0"
   "&>\0";
+static const char *keywords = "{\0}\0(\0)\0((\0))\0[[\0]]\0if\0then\0elif\0"
+  "else\0fi\0do\0done\0case\0esac\0function\0for\0in\0select\0while\0until\0";
 
 // The order of these has to match the string in set_main()
 #define OPT_B	0x100
@@ -526,6 +534,12 @@ static long get_lineno(struct sh_fcall **fff)
   return ff->pl ? ff->pl->lineno : ff->lineno;
 }
 
+// are we interactive?
+static int dashi(void)
+{
+  return TT.options&FLAG_i;
+}
+
 // TODO: should this set toys.exitval...?
 static void sherror_msg(char *msg, ...)
 {
@@ -536,15 +550,10 @@ static void sherror_msg(char *msg, ...)
   va_start(va, msg);
 // TODO $ sh -c 'x() { ${x:?blah}; }; x'
 // environment: line 1: x: blah
-  if (!FLAG(i) || !TT.ff->prev->source)
+  if (!dashi() || !TT.ff->prev->source)
     fprintf(stderr, "%s: line %ld: ", ff->name, ll);
   verror_msg(msg, 0, va);
   va_end(va);
-}
-
-static int dashi(void)
-{
-  return TT.options&FLAG_i;
 }
 
 static void syntax_err(char *s)
@@ -1065,7 +1074,8 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
     (vv = addvar(s, ff = ff ? : TT.ff->prev))->flags = VAR_NOFREE;
   else ff = new;
   if (!setvar_found(s, freeable, vv)) {
-    if (!was) memmove(vv, vv+1, sizeof(struct sh_vars)*(ff->varslen-- -(vv-ff->vars)));
+    if (!was)
+      memmove(vv, vv+1, sizeof(struct sh_vars)*(ff->varslen-- -(vv-ff->vars)));
 
     return 0;
   }
@@ -1115,7 +1125,7 @@ static struct sh_vars *setvarval(char *name, char *val)
 // TODO: keep variable arrays sorted for binary search
 
 // create array of variables visible in current function.
-static struct sh_vars **visible_vars(void)
+static struct sh_vars **visible_vars(int exports)
 {
   struct sh_arg arg;
   struct sh_fcall *ff;
@@ -1129,6 +1139,11 @@ static struct sh_vars **visible_vars(void)
   for (ff = TT.ff; ; ff = ff->next) {
     if (ff->vars) for (ii = ff->varslen; ii--;) {
       vv = ff->vars+ii;
+
+      // This will "look through" local vars to find overmounted exports
+      if (exports && (vv->flags&(VAR_WHITEOUT|VAR_EXPORT))!=VAR_EXPORT)
+        continue;
+
       len = 1+(varend(vv->str)-vv->str);
       for (jj = 0; ;jj++) {
         if (jj == arg.c) arg_add(&arg, (void *)vv);
@@ -1533,7 +1548,8 @@ if (DEBUG) { dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_sho
     dprintf(pipes[1], "%lld %u %ld %u %u\n", TT.SECONDS,
       TT.options, get_lineno(0), TT.pid, TT.bangpid);
 
-    for (i = 0, vv = visible_vars(); vv[i]; i++)
+    // TODO: export lookthrough of visible_vars(1) is not preserved here
+    for (i = 0, vv = visible_vars(0); vv[i]; i++)
       dprintf(pipes[1], "%u %lu\n%.*s", (unsigned)strlen(vv[i]->str),
               vv[i]->flags, (int)strlen(vv[i]->str), vv[i]->str);
     free(vv);
@@ -2009,15 +2025,15 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
       s = str+ii-1;
       kk = parse_word(s, 1)-s;
       if (str[ii] == '[' || *toybuf == 255) { // (( parsed together, not (( ) )
-        struct sh_arg aa = {0};
+        struct sh_arg ab = {0};
         long long ll;
 
         // Expand $VARS in math string
         ss = str+ii+1+(str[ii]=='(');
         push_arg(delete, ss = xstrndup(ss, kk - (3+2*(str[ii]!='['))));
-        expand_arg_nobrace(&aa, ss, NO_PATH|NO_SPLIT, delete, 0, 0);
-        s = ss = (aa.v && *aa.v) ? *aa.v : "";
-        free(aa.v);
+        expand_arg_nobrace(&ab, ss, NO_PATH|NO_SPLIT, delete, 0, 0);
+        s = ss = (ab.v && *ab.v) ? *ab.v : "";
+        free(ab.v);
 
         // Recursively calculate result
         if (!recalculate(&ll, &s, 0) || *s) {
@@ -2061,11 +2077,9 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
     else if (cc=='\\') {
       if (str[ii]=='\n') ii++;
       else new[oo++] = (!(qq&1) || strchr("\"\\$`", str[ii])) ? str[ii++] : cc;
-    }
 
     // $VARIABLE expansions
-
-    else if (cc == '$') {
+    } else if (cc == '$') {
       cc = *(ss = str+ii++);
       if (cc=='\'') {
         for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
@@ -2106,7 +2120,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
 
           // special case: normal varname followed by @} or *} = prefix list
           if (ss[jj] == '*' || (ss[jj] == '@' && !isalpha(ss[jj+1]))) {
-            struct sh_vars **vv = visible_vars();
+            struct sh_vars **vv = visible_vars(0);
 
             for (slice++, kk = 0; vv[kk]; kk++) {
               if (vv[kk]->flags&VAR_WHITEOUT) continue;
@@ -2879,14 +2893,24 @@ static void signify(int sig, char *throw)
   }
 }
 
+static struct toy_list *toy_shfind(char *s)
+{
+  if (CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec) return 0;
 
+  return toy_find(s);
+}
+
+static struct string_list *find_in_shpath(char *filename)
+{
+  char *path = getvar("PATH") ? : _PATH_DEFPATH;
+
+  return find_in_path(path, filename);
+}
 
 // Call binary, or run script via xexec("sh --")
 static void sh_exec(char **argv)
 {
-  char *pp = getvar("PATH") ? : _PATH_DEFPATH, *ss = TT.isexec ? : *argv,
-    **sss = 0, **oldenv = environ, **argv2;
-  int norecurse = CFG_TOYBOX_NORECURSE || !toys.stacktop || TT.isexec;
+  char *ss = TT.isexec ? : *argv, **sss = 0, **oldenv = environ, **argv2, *pp;
   struct string_list *sl = 0;
   struct toy_list *tl = 0;
 
@@ -2894,27 +2918,23 @@ static void sh_exec(char **argv)
   errno = ENOENT;
   if (strchr(ss, '/')) {
     if (access(ss, X_OK)) ss = 0;
-  } else if (norecurse || !(tl = toy_find(ss)))
-    for (sl = find_in_path(pp, ss); sl || (ss = 0); free(llist_pop(&sl)))
+  } else if (!(tl = toy_shfind(ss)))
+    for (sl = find_in_shpath(ss); sl || (ss = 0); free(llist_pop(&sl)))
       if (!access(ss = sl->str, X_OK)) break;
 
   if (ss) {
-    struct sh_vars **vv = visible_vars();
+    struct sh_vars **vv = visible_vars(1);
     struct sh_arg aa;
-    unsigned uu, argc;
+    unsigned argc;
 
     // convert vars in-place and use original sh_arg alloc to add one more
     aa.v = environ = (void *)vv;
-    for (aa.c = uu = 0; vv[uu]; uu++) {
-      if ((vv[uu]->flags&(VAR_WHITEOUT|VAR_EXPORT))==VAR_EXPORT) {
-        if (*(pp = vv[uu]->str)=='_' && pp[1]=='=') sss = aa.v+aa.c;
-        aa.v[aa.c++] = pp;
-      }
+    for (aa.c = 0; vv[aa.c]; aa.c++) {
+      if (*(pp = vv[aa.c]->str)=='_' && pp[1]=='=') sss = aa.v+aa.c;
+      vv[aa.c] = (void *)pp;
     }
-    aa.v[aa.c] = 0;
     if (!sss) {
-      if (aa.c<uu) aa.v[++aa.c] = 0;
-      else arg_add(&aa, 0);
+      arg_add(&aa, 0);
       sss = aa.v+aa.c-1;
     }
     *sss = xmprintf("_=%s", ss);
@@ -3151,7 +3171,7 @@ static char *strglue(char **str, char *cut, char *add)
 static int parse_line(char *line, struct double_list **expect)
 {
   char *start = line, *end, *s, *ss, *ex, done = 0,
-    *tails[] = {"fi", "done", "esac", "}", "]]", ")", 0};
+    *tails = "fi\0done\0esac\0}\0]]\0)\0";
   struct sh_pipeline *pl = TT.ff->pl ? TT.ff->pl->prev : 0, *pl2, *pl3;
   struct sh_arg *arg = 0;
   struct arg_list *aliseen = 0, *al;
@@ -3569,7 +3589,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
 
       // consume word, record block end in earlier !0 type (non-nested) blocks
       free(dlist_lpop(expect));
-      if (3 == (pl->type = anystr(s, tails) ? 3 : 2)) {
+      if (3 == (pl->type = anyfullz(s, tails) ? 3 : 2)) {
         for (i = 0, pl2 = pl3 = pl; (pl2 = pl2->prev);) {
           if (pl2->type == 3) i++;
           else if (pl2->type) {
@@ -3609,13 +3629,12 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
       if (!pl->type) pl->type = 2;
 
       dlist_add(expect, end);
-      if (!anystr(end, tails)) dlist_add(expect, 0);
+      if (!anyfullz(end, tails)) dlist_add(expect, 0);
       pl->count = -1;
     }
 
     // syntax error check: these can't be the first word in an unexpected place
-    if (!pl->type && anystr(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
-        "done", "fi", "elif", "else", 0})) goto flush;
+    if (!pl->type && anyfullz(s, keywords)) goto flush;
   }
   free(line);
 
@@ -4021,8 +4040,7 @@ if (DEBUG) dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (T
           free(sss);
 
           // TODO resolve variables
-          sss = pl2str(TT.ff->pl, 1);
-          dprintf(2, "%s\n", sss);
+          dprintf(2, "%s\n", sss = pl2str(TT.ff->pl, 1));
           free(sss);
         }
       }
@@ -4364,14 +4382,13 @@ static void set_varflags(char *str, unsigned set)
   set_varflags_long(str, set, 0, 0);
 }
 
-FILE *fpathopen(char *name)
+static FILE *fpathopen(char *name)
 {
   int fd = open(name, O_RDONLY|O_CLOEXEC), ii;
   struct string_list *sl = 0;
-  char *pp = getvar("PATH") ? : _PATH_DEFPATH;
 
   if (fd==-1) {
-    for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
+    for (sl = find_in_shpath(name); sl; free(llist_pop(&sl)))
       if (-1!=(fd = open(sl->str, O_RDONLY|O_CLOEXEC))) break;
     if (sl) llist_traverse(sl, free);
   }
@@ -4574,7 +4591,7 @@ if (DEBUG) { dprintf(2, "%d main", getpid()); for (unsigned uu = 0; toys.argv[uu
     TT.ff->arg.c--;
   }
   TT.ff->ifs = " \t\n";
-  TT.ff->name = FLAG(i) ? toys.which->name : "main";
+  TT.ff->name = dashi() ? toys.which->name : "main";
 
   // Set up environment variables and queue up initial command input source
   if (CFG_TOYBOX_FORK || toys.stacktop) subshell_setup();
@@ -4752,7 +4769,7 @@ void set_main(void)
 
   // display visible variables
   if (!*toys.optargs) {
-    struct sh_vars **vv = visible_vars();
+    struct sh_vars **vv = visible_vars(0);
 
 // TODO escape properly
     for (ii = 0; vv[ii]; ii++)
@@ -4899,7 +4916,7 @@ void export_main(void)
 
   // list existing variables?
   if (!toys.optc) {
-    struct sh_vars **vv = visible_vars();
+    struct sh_vars **vv = visible_vars(0);
     unsigned uu;
 
     for (uu = 0; vv[uu]; uu++) {
@@ -4938,7 +4955,7 @@ void declare_main(void)
 // TODO: dump everything key=value and functions too
 // TODO: declare +r should error out: can't remove readonly
   if (!toys.optc) {
-    struct sh_vars **vv = visible_vars();
+    struct sh_vars **vv = visible_vars(0);
 
     for (uu = 0; vv[uu]; uu++) {
       if ((vv[uu]->flags&VAR_WHITEOUT) || (fl && !(vv[uu]->flags&fl))) continue;
