@@ -1051,7 +1051,8 @@ static int vi_dollar(int count0, int count1, char *unused)
   size_t new = text_strchr(TT.cursor, '\n');
 
   if (new != TT.cursor) {
-    TT.cursor = new - 1;
+    TT.cursor = new;
+    if (TT.vi_mode != 2) TT.cursor--;
     TT.vi_mov_flag |= 2;
     check_cursor_bounds();
   }
