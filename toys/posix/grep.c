@@ -79,9 +79,8 @@ struct reg {
 };
 
 struct dlb {
-  struct dlb *next, *prev;
+  struct double_list dl;
   unsigned bcount, trim;
-  char data[];
 };
 
 static void numdash(long num, char dash)
@@ -281,7 +280,8 @@ got:
           while (dlb) {
             struct dlb *b = dlist_pop(&dlb);
 
-            outline(b->data, '-', name, lcount-before, b->bcount, b->trim);
+            outline(b->dl.data, '-', name, lcount-before, b->bcount, b->trim);
+            free(b->dl.data);
             free(b);
             before--;
           }
@@ -319,13 +319,15 @@ got:
         discard = 0;
       }
       if (discard && TT.B) {
-        struct dlb *b = xmalloc(sizeof(struct dlb)+ulen);
+        struct dlb *b = xmalloc(sizeof(struct dlb));
 
         b->bcount = offset-len+1;
-        memcpy(b->data, line, b->trim = ulen);
+        b->trim = ulen;
+        b->dl.data = line;
+        line = 0;
         dlist_add_nomalloc((void *)&dlb, (void *)b);
         if (++before>TT.B) {
-          free(dlist_pop(&dlb));
+          llist_free_double(dlist_pop(&dlb));
           before--;
         } else discard = 0;
       }
@@ -346,7 +348,7 @@ got:
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
   fclose(file);
-  llist_traverse(dlb, free);
+  llist_traverse(dlb, llist_free_double);
 }
 
 static int lensort(struct arg_list **a, struct arg_list **b)
