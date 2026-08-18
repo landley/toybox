@@ -149,9 +149,9 @@ The three important URLs for communicating with the toybox project are:
 
   web page: http://landley.net/toybox
 
-  mailing list: http://lists.landley.net/listinfo.cgi/toybox-landley.net
+  mailing list: https://lists.landley.net/mailman/listinfo/toybox
 
-  git repo: http://codeberg.org/landley/toybox
+  git repo: https://codeberg.org/landley/toybox
 
 The maintainer prefers patches be sent to the mailing list. If you use git,
 the easy thing to do is:
