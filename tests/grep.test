@@ -157,9 +157,10 @@ testcmd "-l overrides -C" "-l -C1 two test input" "test\ninput\n" \
   "three\ntwo\none\n" ""
 rm test
 
-# match after NUL byte
 testcmd "match after NUL byte" "-a two" "one\0and two three\n" \
   "" 'one\0and two three'
+testcmd "NUL in -B" "-B2 X" "A\0BBBBBB\xff\xff\xff\x7f\nX\n" \
+  "" 'A\0BBBBBB\xff\xff\xff\x7f\nX\n'
 
 # BREs versus EREs
 testcmd "implicit BRE |" "'uno|dos'" "uno|dos\n" "" "uno\ndos\nuno|dos\n"
