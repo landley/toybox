@@ -5,28 +5,41 @@
 
 [ -f testing.sh ] && . testing.sh
 
-#testing "name" "command" "result" "infile" "stdin"
-echo "hello" > file
-tar -cJf file.xz file
-# Get system xzcat
-xzcatExe=`which xzcat`
-$xzcatExe file.xz > xzcatOut
-testcmd "- decompresses a single file" "file.xz > Tempfile && echo "yes"; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile" "yes\nyes\n" "" ""
+testcmd 'canned data basic smoketest' "< $FILES/tar/tar.txz | sha1sum" \
+  'a059548362f0f980febbed50783b6e1359ed4411  -\n' '' ''
+
+roundtrip() {
+  skipnot [ -n $(which xz) ]
+  if [ $SKIP -eq 0 ]; then
+    local RES="" ONE="$1" LIST="" X=0
+    while [ $# -gt 1 ]; do
+      shift
+      printf "$1" > file-$((++X))
+      xz file-$X
+      RES+="$1"
+      LIST+=" file-$X.xz"
+    done
+  fi
+  testcmd "$1" "$LIST && echo yes" "${RES}yes\n" '' ''
+  rm -f file-*
+}
 
 #testing "name" "command" "result" "infile" "stdin"
-echo "hello" > file1
-echo "hi" > file2
-echo "Hi, Good morning !! I am a xzcat tester" > file3
-tar -cJf file1.xz file1
-tar -cJf file2.xz file2
-tar -cJf file3.xz file3
-# Get system xzcat
-xzcatExe=`which xzcat`
-$xzcatExe file1.xz file2.xz file3.xz > xzcatOut
-testcmd "- decompresses multiple files" "file1.xz file2.xz file3.xz > Tempfile && echo "yes" ; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile " "yes\nyes\n" "" ""
-echo "This is NOT a XZ file!!!" > file
-testcmd "bad file" "file 2>/dev/null || echo yes" "yes\n" "" ""
-echo "Surely nothing bad will happen to this compressed data!" > file
-tar -cJf file.xz file
-truncate -s 16 file.xz
-testcmd "corrupted file" "file.xz 2>/dev/null || echo yes" "yes\n" "" ""
+
+# need a compressor for non-canned data tests
+[ -z "$(which xz)" ] && SKIP=999
+roundtrip 'hello' 'hello\n'
+roundtrip 'multiple files' 'hello\n' 'hi\n' 'This is an xzcat test'
+testing 'bad file' \
+  'head -c 32 $FILES/tar/tar.txz | { xzcat 2>/dev/null || echo no;}'\
+  'no\n' '' ''
+
+# Let's feed it a reasonable sized input
+skipnot [ -n "$(which xz)" ]
+[ $SKIP -eq 0 ] && {
+  tar cCf $TOPDIR out.tar toys lib tests
+  xz > out.txz < out.tar
+  tar tJf out.txz >/dev/null || ((++SKIP))
+}
+testcmd "extract tarball" "out.txz | sha1sum" "$(sha1sum < out.tar)\n" "" ""
+rm -f out.tar out.txz
