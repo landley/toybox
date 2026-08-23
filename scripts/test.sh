@@ -9,17 +9,20 @@ trap 'kill $(jobs -p) 2>/dev/null; exit 1' INT
 # Create working directory
 TOPDIR="$PWD"
 export FILES="$PWD"/tests/files PREFIX=generated/testdir
-rm -rf "$PREFIX"
-mkdir -p "$PREFIX"/testdir
-
-# Populate working directory
-if [ -z "$TEST_HOST" ]
+if [ -z "$NOREBUILD" ]
 then
-  if [ $# -ne 0 ]
+  rm -rf "$PREFIX"
+  mkdir -p "$PREFIX"/testdir
+
+  # Populate working directory
+  if [ -z "$TEST_HOST" ]
   then
-    scripts/single.sh "$@" || exit 1
-  else
-    scripts/install.sh --symlink --force || exit 1
+    if [ $# -ne 0 ]
+    then
+      scripts/single.sh "$@" || exit 1
+    else
+      scripts/install.sh --symlink --force || exit 1
+    fi
   fi
 fi
 
