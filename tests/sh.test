@@ -703,9 +703,13 @@ testing 'function nested parentheses' \
 shxpect 'local creates a whiteout' \
   I$'func() { local potato; echo ${potato?bang}; }; potato=123; func\n' \
   E E"$P" I$'echo $?\n' O$'1\n'
+toyonly testing 'local can append' \
+  'func() { local PP+=abc; echo $PP; }; PP=123; func; echo $PP' \
+  '123abc\n123\n' '' ''
 testing 'local replaces/preserves magic type' \
   'x() { local RANDOM=potato; echo $RANDOM;};x;echo -e "$RANDOM\n$RANDOM"|wc -l'\
   'potato\n2\n' '' ''
+testing 'unassign cheats' 'abc=def; unset abc=def; echo $? $abc' '0 def\n' '' ''
 
 $BROKEN testing '$$ is parent shell' \
   '{ echo $$; (echo $$) } | sort -u | wc -l' "1\n" "" ""

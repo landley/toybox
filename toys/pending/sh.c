@@ -624,6 +624,24 @@ static char *varend(char *s)
   return s;
 }
 
+// Return offset of [+]= in variable assignment
+static unsigned peoff(char *s)
+{
+  char *ss = varend(s);
+
+  if (*ss && ss[*ss=='+']!='=') return 0;
+
+  return ss-s;
+}
+
+// Is this a variable assignment ending in [+]=
+static int isassign(char *s)
+{
+  unsigned len = peoff(s);
+
+  return (len && s[len]);
+}
+
 // TODO: this has to handle VAR_NAMEREF, but return dangling symlink
 // Also, unset -n, also "local ISLINK" to parent var.
 // Return sh_vars * or 0 if not found.
@@ -1058,11 +1076,9 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 {
   struct sh_vars *vv = 0, *was;
   struct sh_fcall *new;
-  char *ss;
 
   if (!s) return 0;
-  ss = varend(s);
-  if (ss[*ss=='+']!='=') {
+  if (!isassign(s)) {
     sherror_msg("bad setvar %s\n", s);
     if (freeable) free(s);
 
@@ -1095,10 +1111,11 @@ static struct sh_vars *setvar(char *str)
 static int unsetvar(char *name)
 {
   struct sh_fcall *ff;
-  struct sh_vars *var = findvar(name, &ff);
-  int len = varend(name)-name;
+  struct sh_vars *var;
+  unsigned len = varend(name)-name;
 
-  if (check_rovar(var)) return 1;
+  if (!len || name[len]) return 0;
+  if (check_rovar(var = findvar(name, &ff))) return 1;
   if (!var || (var->flags&VAR_WHITEOUT)) return 0;
 
   // turn local into whiteout
@@ -3005,7 +3022,7 @@ static struct sh_process *run_command(int local)
       expand_redir(pp, arg, skiplen);
       arg->c = jj;
       skiplen = 0;
-    } else if ((ss = varend(s))!=s && ss[*ss=='+']=='=') arg_add(&prefix, s);
+    } else if (isassign(s)) arg_add(&prefix, s);
     else break;
   }
   if (pp->exit || expand_redir(pp, arg, ii+skiplen)) goto done;
@@ -3379,7 +3396,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
     if (TT.alias.c && !pl->noalias) {
       // ! x=y and x<y can all go before command name
       if (!strcmp(s, "!")) start = 0;
-      else if ((start = varend(s))!=s && start[*start=='+']=='=') start = 0;
+      else if (isassign(s)) start = 0;
       else if (anystrz(skip_redir_prefix(s), redirectors)) {
         pl->noalias = -2;
         start = 0;
@@ -4882,19 +4899,13 @@ void trap_main(void)
 #define FOR_unset
 #include "generated/flags.h"
 
+// TODO -n and name reference support
 void unset_main(void)
 {
-  char **arg, *s;
+  char **arg;
   int ii;
 
   for (arg = toys.optargs; *arg; arg++) {
-    s = varend(*arg);
-    if (s == *arg || *s) {
-      error_msg("bad '%s'", *arg);
-      continue;
-    }
-
-    // TODO -n and name reference support
     // unset variable
     if (!FLAG(f) && unsetvar(*arg)) continue;
     // unset function TODO binary search
@@ -5061,7 +5072,8 @@ void local_main(void)
 {
   struct sh_fcall *ff, *ff2;
   struct sh_vars *var;
-  char **arg, *eq;
+  char **arg, *ss;
+  unsigned len;
 
   // find local variable context
   for (ff = TT.ff;; ff = ff->next) {
@@ -5076,21 +5088,23 @@ void local_main(void)
   }
 
   // set/move variables
-  for (arg = toys.optargs; *arg; arg++) {
-    if ((eq = varend(*arg))==*arg || (*eq && *eq!='=')) {
-      error_msg("bad %s", *arg);
+  for (arg = toys.optargs; (ss = *arg); arg++) {
+    if (!(len = peoff(*arg))) {
+      error_msg("bad %s", ss);
       continue;
     }
 
-    if ((var = findvar(*arg, &ff2)) && ff==ff2 && !*eq) continue;
+    if ((var = findvar(ss, &ff2)) && ff==ff2 && !ss[len]) continue;
     if (check_rovar(var)) continue;
 
     // Add local inheriting global status and setting whiteout if blank.
     if (!var || ff!=ff2) {
       int flags = var ? var->flags&VAR_EXPORT : 0;
 
-      var = addvar(xmprintf("%s%s", *arg, *eq ? "" : "="), ff);
-      var->flags = flags|(VAR_WHITEOUT*!*eq);
+      var = addvar(xmprintf("%.*s=%s%s", len, ss,
+        (var && ss[len]=='+') ? strchr(var->str, '=')+1 : "",
+        ss+len+stridx("=+", ss[len])+1), ff);
+      var->flags = flags|(VAR_WHITEOUT*!ss[len]);
     }
 
     // TODO accept declare options to set more flags
