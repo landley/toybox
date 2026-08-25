@@ -59,9 +59,10 @@ config FIND
     -printf FORMAT characters are \ escapes and:
     %b  512 byte blocks used
     %f  basename            %g  textual gid          %G  numeric gid
-    %i  decimal inode       %l  target of symlink    %m  octal mode
-    %M  ls format type/mode %p  path to file         %P  path to file minus DIR
-    %s  size in bytes       %T@ mod time as unixtime
+    %h  leading directories %i  decimal inode        %l  target of symlink
+    %m  octal mode          %M  ls format type/mode  %p  path to file
+    %P  path to file minus DIR                       %s  size in bytes
+    %T@ mod time as unixtime
     %u  username            %U  numeric uid          %Z  security context
 */
 
@@ -634,7 +635,10 @@ static int do_find(struct dirtree *new)
               else if (ch == 'f') ll = (long)new->name;
               else if (ch == 'g') ll = (long)getgroupname(new->st.st_gid);
               else if (ch == 'u') ll = (long)getusername(new->st.st_uid);
-              else if (ch == 'l') {
+              else if (ch == 'h') {
+                ff = dirtree_path(new, 0);
+                ll = (long)dirname(ff);
+              } else if (ch == 'l') {
                 ll = (long)(ff = xreadlinkat(dirtree_parentfd(new), new->name));
                 if (!ll) ll = (long)"";
               } else if (ch == 'M') {

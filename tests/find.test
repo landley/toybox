@@ -103,8 +103,8 @@ testing "-path glob" "find dir -path 'dir*e'" "dir/file\n" "" ""
 testing "-wholename glob" "find dir -wholename 'dir*e'" "dir/file\n" "" ""
 testing "-ipath glob" "find dir -ipath 'dIr*E'" "dir/file\n" "" ""
 testing "-iwholename glob" "find dir -iwholename 'dIr*E'" "dir/file\n" "" ""
-testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
-  "file dir/file file 0" "" ""
+testing "-printf" "find dir -name file -printf '%f %h %p %P %s'" \
+  "file dir dir/file file 0" "" ""
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
 # findutils find supports C letter escapes and \0 octal, but not \x or \u.
 testing "-printf escapes" \
