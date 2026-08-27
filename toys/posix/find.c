@@ -60,9 +60,8 @@ config FIND
     %b  512 byte blocks used
     %f  basename            %g  textual gid          %G  numeric gid
     %h  leading directories %i  decimal inode        %l  target of symlink
-    %m  octal mode          %M  ls format type/mode  %p  path to file
-    %P  path to file minus DIR                       %s  size in bytes
-    %T@ mod time as unixtime
+    %m  octal mode          %M  ls format type/mode  %P  path to file minus DIR
+    %p  path to file        %s  size in bytes        %T@ mod time as unixtime
     %u  username            %U  numeric uid          %Z  security context
 */
 
