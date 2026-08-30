@@ -5,16 +5,18 @@
  * Talks directly to the kernel UCSI debugfs interface exposed under
  * /sys/kernel/debug/usb/ucsi/.../{command,response}.
 
-USE_UCSICONTROL(NEWTOY(ucsicontrol, 0, TOYFLAG_USR|TOYFLAG_SBIN|TOYFLAG_NEEDROOT))
+USE_UCSICONTROL(NEWTOY(ucsicontrol, "<1&", TOYFLAG_USR|TOYFLAG_SBIN|TOYFLAG_NEEDROOT))
 
 config UCSICONTROL
   bool "ucsicontrol"
   default n
   help
     Usage: ucsicontrol [OPTIONS]
-    Note: ucsicontrol must be run as root.
+
+    Query and control USB Type-C / USB Power Delivery (PD) state from the
+    UCSI (USB Type-C Connector System Software Interface) driver.
+
     Options:
-      --help, -h                            Show this help message
       --conn_rst <conn_num> <soft/hard>     Reset the Connector
       --get_cap                             Get Capabilities
       --get_conn_cap <conn_num>             Get Connector Capability
@@ -503,11 +505,6 @@ void ucsicontrol_main(void)
   char **args = toys.optargs, *op = args[0], buf[256] = {0};
   int conn, n;
 
-  // Accept both "--option" and "-h" style; show help when asked or no command.
-  if (!op || !strcmp(op, "-h") || !strcmp(op, "--help")) {
-    show_help(HELP_HEADER);
-    xexit();
-  }
   if (*op == '-') op += (op[1] == '-') ? 2 : 1;
 
   ucsi_open();
