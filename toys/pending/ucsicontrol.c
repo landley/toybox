@@ -108,7 +108,7 @@ GLOBALS(
 #define UCSI_PLUG_OTHER 3
 
 // Extract UCSI bitfields from little-endian response bytes.
-static unsigned get_bits(unsigned char *p, int first, int len)
+static unsigned get_bits(char *p, int first, int len)
 {
   unsigned val = 0;
   int i;
@@ -189,17 +189,15 @@ static void ucsi_close(void)
 
 // Read a UCSI response, decode ASCII hex (skipping leading "0x"), and store
 // bytes in little-endian protocol order. Returns decoded byte count or -1.
-static int read_resp(unsigned char *data)
+static int read_resp(char *data)
 {
-  char *c = toybuf;
-  unsigned char *tmp = (void *)libbuf;
+  char *c = toybuf, *tmp = libbuf;
   int i, n, di = 0, total = 0;
 
   if (TT.fp_response <= 0) return -1;
 
   // Read the whole response; a single read() may not return all of it.
-  while (total < 1024 &&
-         (n = read(TT.fp_response, c+total, 1024-total)) > 0)
+  while (total < 1024 && (n = read(TT.fp_response, c+total, 1024-total)) > 0)
     total += n;
   lseek(TT.fp_response, 0, SEEK_SET);
   if (total <= 2) return -1;
@@ -218,7 +216,7 @@ static int read_resp(unsigned char *data)
 }
 
 // Write a preformatted command string and read back the response.
-static int ucsi_xfer(char *cmd, unsigned char *resp)
+static int ucsi_xfer(char *cmd, char *resp)
 {
   char buf[64] = {0};
 
@@ -230,24 +228,24 @@ static int ucsi_xfer(char *cmd, unsigned char *resp)
 }
 
 // Format a numeric UCSI command for debugfs.
-static int ucsi_cmd(unsigned long long cmd, unsigned char *resp)
+static int ucsi_cmd(unsigned long long cmd, char *resp)
 {
   sprintf(toybuf, "0x%llx", cmd);
 
   return ucsi_xfer(toybuf, resp);
 }
 
-static int xucsi_cmd(unsigned long long cmd, unsigned char *resp,
-  char *name)
+static int xucsi_cmd(unsigned long long cmd, char *resp, char *name)
 {
   int n;
 
-  if ((n = ucsi_cmd(cmd, resp)) < UCSI_MIN_MESSAGE_IN_LEN) error_exit("%s failed", name);
+  if ((n = ucsi_cmd(cmd, resp)) < UCSI_MIN_MESSAGE_IN_LEN)
+    error_exit("%s failed", name);
 
   return n;
 }
 
-static void print_message_in(unsigned char *p, int len)
+static void print_message_in(char *p, int len)
 {
   int i;
 
@@ -273,9 +271,9 @@ static int get_conn(char *s)
   return conn;
 }
 
-static void print_capability(unsigned char *c)
+static void print_capability(char *c)
 {
-  unsigned attrs = (unsigned)peek_le(c, 4);
+  unsigned attrs = peek_le(c, 4);
   unsigned opt = c[5] | (c[6]<<8) | (c[7]<<16);
 
   printf("\nUCSI_GET_CAPABILITY_IN:\n-------------------------\n");
@@ -306,14 +304,14 @@ static void print_capability(unsigned char *c)
   printf("  chunkingsupportsupported: %u\n", UCSI_BIT(opt, 14));
   printf("bNumAltModes: %x\n", c[8]);
   printf("bcdBCVersion: ");
-  hex_to_decimal((unsigned)peek_le(c+10, 2));
+  hex_to_decimal(peek_le(c+10, 2));
   printf("bcdPDVersion: ");
-  hex_to_decimal((unsigned)peek_le(c+12, 2));
+  hex_to_decimal(peek_le(c+12, 2));
   printf("bcdTypeCVersion: ");
-  hex_to_decimal((unsigned)peek_le(c+14, 2));
+  hex_to_decimal(peek_le(c+14, 2));
 }
 
-static void print_connector_capability(unsigned char *c)
+static void print_connector_capability(char *c)
 {
   unsigned op = c[0], ext = get_bits(c, 14, 8);
   unsigned misc = get_bits(c, 22, 4);
@@ -347,15 +345,14 @@ static void print_connector_capability(unsigned char *c)
   printf("PartnerPDRevision: %d\n", get_bits(c, 27, 2));
 }
 
-static void print_connector_status(unsigned char *c)
+static void print_connector_status(char *c)
 {
-  unsigned change = (unsigned)peek_le(c, 2), flags = get_bits(c, 21, 8);
-  unsigned pom = get_bits(c, 16, 3), pdir = get_bits(c, 20, 1);
-  unsigned bc = get_bits(c, 64, 2), limit = get_bits(c, 66, 4);
-  unsigned cptype = get_bits(c, 29, 3), rdo = get_bits(c, 32, 32);
-  unsigned orient = get_bits(c, 86, 1), scale = get_bits(c, 90, 3);
-  unsigned voltage_scale = get_bits(c, 125, 4);
-  unsigned voltage = get_bits(c, 129, 16);
+  unsigned change = peek_le(c, 2), flags = get_bits(c, 21, 8),
+           pom = get_bits(c, 16, 3), pdir = get_bits(c, 20, 1),
+           bc = get_bits(c, 64, 2), limit = get_bits(c, 66, 4),
+           cptype = get_bits(c, 29, 3), rdo = get_bits(c, 32, 32),
+           orient = get_bits(c, 86, 1), scale = get_bits(c, 90, 3),
+           voltage_scale = get_bits(c, 125, 4), voltage = get_bits(c, 129, 16);
 
   printf("\nUCSI_GET_CONNECTOR_STATUS:\n-------------------------\n");
   printf("ConnectorStatusChange: 0x%x\n", change);
@@ -421,11 +418,11 @@ static void print_connector_status(unsigned char *c)
   printf("Voltage: %d\n", voltage * voltage_scale * 5);
 }
 
-static void print_cable_property(unsigned char *c)
+static void print_cable_property(char *c)
 {
-  unsigned speed = (unsigned)peek_le(c, 2), speed_unit = get_bits(c, 0, 2);
-  unsigned current = get_bits(c, 16, 8);
-  unsigned cable_type = get_bits(c, 25, 1), plug = get_bits(c, 27, 2);
+  unsigned speed = peek_le(c, 2), speed_unit = get_bits(c, 0, 2),
+           current = get_bits(c, 16, 8), cable_type = get_bits(c, 25, 1),
+           plug = get_bits(c, 27, 2);
 
   printf("\nGET_CABLE_PROPERTY:\n-------------------------\n");
   printf("bmSpeedSupported: 0x%x\n", speed);
@@ -449,7 +446,7 @@ static void print_cable_property(unsigned char *c)
   printf("Latency: %d\n", get_bits(c, 32, 4));
 }
 
-static void print_lpm_ppm_info(unsigned char *c)
+static void print_lpm_ppm_info(char *c)
 {
   unsigned fw_upper = peek_le(c+8, 4), fw_lower = peek_le(c+12, 4);
 
@@ -461,9 +458,9 @@ static void print_lpm_ppm_info(unsigned char *c)
   printf("HW Ver: %u\n", (unsigned)peek_le(c+16, 4));
 }
 
-static void print_error_status(unsigned char *c)
+static void print_error_status(char *c)
 {
-  unsigned e = (unsigned)peek_le(c, 2);
+  unsigned e = peek_le(c, 2);
 
   printf("\nGET_ERROR_STATUS :\n-------------------------\n");
   printf("ErrorInformation:\n");
@@ -503,8 +500,7 @@ static int required_conn(char **args, char *op)
 
 void ucsicontrol_main(void)
 {
-  char **args = toys.optargs, *op = args[0];
-  unsigned char buf[256] = {0};
+  char **args = toys.optargs, *op = args[0], buf[256] = {0};
   int conn, n;
 
   // Accept both "--option" and "-h" style; show help when asked or no command.
