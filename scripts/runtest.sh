@@ -54,8 +54,9 @@ wrong_args()
 {
   if [ $# -ne 5 ]
   then
-    printf "%s\n" "Test $NAME has the wrong number of arguments ($# $*)" >&2
-    exit
+    printf "%s\n" "Test '$1' has $# arguments" >&2
+    for ((i=1;i<=$#;i++)); do echo "$i:'${@:$i:1}'" >&2; done
+    exit 1
   fi
 }
 
