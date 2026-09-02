@@ -156,12 +156,17 @@ shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
 shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
 testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
 shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
-$BROKEN testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
+testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
   '123\n' '' ''
-$BROKEN testing 'prefix localizes magic vars' \
+testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
 testing 'prefix assignment does not persist in pipelines' \
   'export A=bc; A=de echo | env | grep ^A=' 'A=bc\n' '' ''
+testing 'prefix append' 'PATH+=:walrus env | grep ^PATH=' "PATH=$PATH:walrus\n"\
+  '' ''
+$BROKEN testing 'prefix readonly' \
+  'export poing; readonly poing=abc; { poing=123 env; echo poing=$?;} 2>/dev/null | grep ^poing='\
+  'poing=abc\npoing=0\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
 testing 'prefix assignment decision made after variable expansion' \

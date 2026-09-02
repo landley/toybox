@@ -1085,7 +1085,7 @@ bad:
 // returns 0 on error, else sh_vars of new entry. Adds at ff if not found.
 static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
 {
-  struct sh_vars *vv = 0, *was;
+  struct sh_vars *vv = 0;
   struct sh_fcall *new;
 
   if (!s) return 0;
@@ -1097,14 +1097,21 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   }
 
   // Add if necessary, set value, and remove again if we added but set failed
-  if (!(was = vv = findvar(s, &new)) || (ff && new!=ff))
-    (vv = addvar(s, ff = ff ? : TT.ff->prev))->flags = VAR_NOFREE;
-  else ff = new;
-  if (!setvar_found(s, freeable, vv)) {
-    if (!was)
-      memmove(vv, vv+1, sizeof(struct sh_vars)*(ff->varslen-- -(vv-ff->vars)));
+  if (!(vv = findvar(s, &new)) || (ff && new!=ff)) {
+    long flags = vv ? vv->flags&VAR_EXPORT : 0;
+    int vl = varend(s)-s;
 
-    return 0;
+    if (check_rovar(vv)) return 0;
+    if (s[vl]=='+') {
+      char *ss = xmprintf("%.*s=%s%s", vl, s, vv ? vv->str+vl+1 : "", s+vl+2);
+
+      if (freeable) free(s);
+      s = ss;
+    } else flags |= VAR_NOFREE*!freeable;
+    (vv = addvar(s, ff = ff ? : TT.ff->prev))->flags = flags;
+  } else {
+    ff = new;
+    if (!setvar_found(s, freeable, vv)) return 0;
   }
   cache_ifs(vv->str, ff);
 
@@ -1155,17 +1162,14 @@ static struct sh_vars *setvarval(char *name, char *val)
 // create array of variables visible in current function.
 static struct sh_vars **visible_vars(int exports)
 {
-  struct sh_arg arg;
+  struct sh_arg arg = {0};
   struct sh_fcall *ff;
   struct sh_vars *vv;
   unsigned ii, jj, len;
 
-  arg.c = 0;
-  arg.v = 0;
-
   // Find non-duplicate entries: TODO, sort and binary search
   for (ff = TT.ff; ; ff = ff->next) {
-    if (ff->vars) for (ii = ff->varslen; ii--;) {
+    if (ff->varslen) for (ii = ff->varslen; ii--;) {
       vv = ff->vars+ii;
 
       // This will "look through" local vars to find overmounted exports
@@ -1173,9 +1177,11 @@ static struct sh_vars **visible_vars(int exports)
         continue;
 
       len = 1+(varend(vv->str)-vv->str);
+
       for (jj = 0; ;jj++) {
-        if (jj == arg.c) arg_add(&arg, (void *)vv);
-        else if (strncmp(arg.v[jj], vv->str, len)) continue;
+        if (jj==arg.c) arg_add(&arg, (void *)vv);
+        else if (strncmp(((struct sh_vars *)arg.v[jj])->str, vv->str, len))
+          continue;
 
         break;
       }
@@ -3078,10 +3084,10 @@ static struct sh_process *run_command(int local)
   else if (!pp->arg.c) TT.ff->_ = "";
   // ((math))
   else if (skiplen && *s=='(') {
-    char *ss = s+2;
     long long ll;
 
     ii = strlen(s)-2;
+    ss = s+2;
     if (!recalculate(&ll, &ss, 0) || ss!=s+ii)
       sherror_msg("bad math: %.*s @ %ld", ii-2, s+2, (long)(ss-s)-2);
     else toys.exitval = !ll;
@@ -4386,7 +4392,7 @@ static struct sh_vars *set_varflags_long(char *str, unsigned set,
   // Make sure variable exists and is updated
   if (strchr(str, '=')) shv = setvar(xstrdup(str));
   else if (!(shv = findvar(str, &ff))) { // pass ff to find existing whiteout
-    if (!set) return 0;
+    if (unset && !set) return 0;
     shv = addvar(str = xmprintf("%s=", str), ff ? : TT.ff->prev);
     shv->flags = VAR_WHITEOUT;
   }
@@ -4553,7 +4559,7 @@ static void subshell_setup(void)
   free(ss);
 
   // TODO: this is in pipe, not environment
-  if (!(ss = getvar("SHLVL"))) set_varflags("SHLVL=1", VAR_EXPORT);
+  if (!(ss = getvar("SHLVL"))) set_varflags("SHLVL=1", VAR_EXPORT); // Bash 5.0
   else {
     char buf[16];
 
@@ -4938,7 +4944,7 @@ void export_main(void)
 
   // list existing variables?
   if (!toys.optc) {
-    struct sh_vars **vv = visible_vars(0);
+    struct sh_vars **vv = visible_vars(0); // This does NOT lookthrough.
     unsigned uu;
 
     for (uu = 0; vv[uu]; uu++) {
@@ -5100,7 +5106,7 @@ void local_main(void)
 
   // set/move variables
   for (arg = toys.optargs; (ss = *arg); arg++) {
-    if (!(len = peoff(*arg))) {
+    if (!(len = peoff(ss))) {
       error_msg("bad %s", ss);
       continue;
     }
