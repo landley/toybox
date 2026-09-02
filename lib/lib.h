@@ -103,15 +103,15 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 #define ABS_LAST 8 // don't resolve symlink in last path component
 
 // xwrap.c
-void xstrncpy(char *dest, char *src, size_t size);
-void xstrncat(char *dest, char *src, size_t size);
+void xstrncpy(char *dest, char *src, long size);
+void xstrncat(char *dest, char *src, long size);
 _Noreturn void _xexit(void);
 _Noreturn void xexit(void);
 void *xmmap(void *addr, size_t length, int prot, int flags, int fd, off_t off);
-void *xmalloc(size_t size);
-void *xzalloc(size_t size);
-void *xrealloc(void *ptr, size_t size);
-char *xstrndup(char *s, size_t n);
+void *xmalloc(long size);
+void *xzalloc(long size);
+void *xrealloc(void *ptr, long size);
+char *xstrndup(char *s, long n);
 char *xstrdup(char *s);
 void *xmemdup(void *s, long len);
 char *xmprintf(char *format, ...) printf_format;

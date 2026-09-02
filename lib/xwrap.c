@@ -13,18 +13,18 @@
 // including null terminator. Exit if there's not enough space for the string
 // (including space for the null terminator), because silently truncating is
 // still broken behavior. (And leaving the string unterminated is INSANE.)
-void xstrncpy(char *dest, char *src, size_t size)
+void xstrncpy(char *dest, char *src, long size)
 {
-  if (strlen(src)+1 > size) error_exit("'%s' > %ld bytes", src, (long)size);
+  if (strlen(src)+1 > size) error_exit("'%s' > %ld bytes", src, size);
   strcpy(dest, src);
 }
 
-void xstrncat(char *dest, char *src, size_t size)
+void xstrncat(char *dest, char *src, long size)
 {
   long len = strlen(dest);
 
   if (len+strlen(src)+1 > size)
-    error_exit("'%s%s' > %ld bytes", dest, src, (long)size);
+    error_exit("'%s%s' > %ld bytes", dest, src, size);
   strcpy(dest+len, src);
 }
 
@@ -66,37 +66,35 @@ void *xmmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 }
 
 // Die unless we can allocate memory.
-void *xmalloc(size_t size)
+void *xmalloc(long size)
 {
-  void *ret = malloc(size);
-  if (!ret) error_exit("xmalloc(%ld)", (long)size);
+  void *ret;
+  if (size<0 || !(ret = malloc(size))) error_exit("xmalloc(%ld)", (long)size);
 
   return ret;
 }
 
 // Die unless we can allocate prezeroed memory.
-void *xzalloc(size_t size)
+void *xzalloc(long size)
 {
-  void *ret = xmalloc(size);
-  memset(ret, 0, size);
-  return ret;
+  return memset(xmalloc(size), 0, size);
 }
 
 // Die unless we can change the size of an existing allocation, possibly
 // moving it.  (Notice different arguments from libc function.)
-void *xrealloc(void *ptr, size_t size)
+void *xrealloc(void *ptr, long size)
 {
-  ptr = realloc(ptr, size);
-  if (!ptr) error_exit("xrealloc");
+  if (size<0 || !(ptr = realloc(ptr, size))) error_exit("xrealloc %ld", size);
 
   return ptr;
 }
 
 // Die unless we can allocate a copy of this many bytes of string.
-char *xstrndup(char *s, size_t n)
+char *xstrndup(char *s, long size)
 {
-  char *ret = strndup(s, n);
-  if (!ret) error_exit("xstrndup");
+  char *ret;
+
+  if (size<0 ||!(ret = strndup(s, size))) error_exit("xstrndup");
 
   return ret;
 }
