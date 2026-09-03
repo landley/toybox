@@ -11,7 +11,7 @@ USE_UCSICONTROL(NEWTOY(ucsicontrol, "<1&", TOYFLAG_USR|TOYFLAG_SBIN|TOYFLAG_NEED
 
 config UCSICONTROL
   bool "ucsicontrol"
-  default n
+  default y
   help
     Usage: ucsicontrol COMMAND [OPTIONS]
 
@@ -49,8 +49,7 @@ config UCSICONTROL
 #include "toys.h"
 
 GLOBALS(
-  int fp_command;
-  int fp_response;
+  int fp_command, fp_response;
 )
 
 #define UCSI_MIN_MESSAGE_IN_LEN 16
