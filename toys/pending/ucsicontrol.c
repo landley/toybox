@@ -2,6 +2,8 @@
  *
  * Copyright 2026 Madhu M <madhu.m@intel.com>
  *
+ * See https://www.intel.com/content/dam/www/public/us/en/documents/technical-specs/usb-type-c-connector-system-software-interface-spec.pdf
+ *
  * Talks directly to the kernel UCSI debugfs interface exposed under
  * /sys/kernel/debug/usb/ucsi/.../{command,response}.
 
@@ -11,29 +13,36 @@ config UCSICONTROL
   bool "ucsicontrol"
   default n
   help
-    Usage: ucsicontrol [OPTIONS]
+    Usage: ucsicontrol COMMAND [OPTIONS]
 
     Query and control USB Type-C / USB Power Delivery (PD) state from the
-    UCSI (USB Type-C Connector System Software Interface) driver.
+    UCSI (USB Type-C Connector System Software Interface) kernel driver.
+    Communicates with the kernel's OPM (Operating System Policy Manager)
+    through debugfs interfaces.
 
-    Options:
-      --conn_rst <conn_num> <soft/hard>     Reset the Connector
-      --get_cap                             Get Capabilities
-      --get_conn_cap <conn_num>             Get Connector Capability
-      --get_conn_sts <conn_num>             Get Connector Status
-      --get_cable_prop <conn_num>           Get Cable Properties
-      --get_cur_cam <conn_num>              Get Current Alternate mode
-      --get_alt_modes <conn_num> <conn|sop|sopprime|sopprimeprime>
-                                            Get Alternate Modes
-      --get_pdos <conn_num> <partner> <offset>
-                 <src_snk> <type>           Get PDOS
-      --set_uor <conn_num> <DFP/UFP/Accept> Set USB(Data) Operation Role
-      --set_pdr <conn_num> <SRC/SNK/Accept> Set Power Direction Role
-      --get_lpm_ppm_info <conn_num>         Get lpm and ppm info
-      --get_error_sts <conn_num>            Get Error Status
-      --set_ccom <conn_num> <Rd/Rp/DRP>     Set CC Operation Mode
-      --set_new_cam <conn_num> <new_cam>
-                 <am_specific> <enter|exit> Set New Current Alternate Mode
+    Commands (use without leading -- or single -):
+      get_capability                  Get PPM capabilities and supported features
+      get_connector_capability <N>    Get per-connector Type-C capabilities
+      get_connector_status <N>        Get live connector status (attach, roles,
+                                      orientation, partner type, PD state)
+      get_cable_property <N>          Get e-marked cable capabilities (speed,
+                                      current rating, plug type)
+      get_current_cam <N>             Get current active alternate mode
+      get_alternate_modes <N> <R>     Get supported alternate modes (DisplayPort,
+                                      Thunderbolt) where R=conn|sop|sopprime|...
+      get_pdos <N> <P> <O> <S> <T>    Get advertised power profiles (voltage/
+                                      current) where P=partner, O=offset,
+                                      S=src/sink, T=type
+      get_lpm_ppm_info <N>            Get PPM vendor/product/firmware info
+      get_error_status <N>            Get connector error status
+      set_uor <N> <Role>              Trigger USB data role swap (DFP|UFP|Accept)
+      set_pdr <N> <Role>              Trigger power role swap (SRC|SNK|Accept)
+      set_ccom <N> <Mode>             Set CC termination mode (Rp/Rd/DRP)
+      set_new_cam <N> <CAM> <S> <E>   Set alternate mode; S=am_specific, E=enter|exit
+      connector_reset <N> <soft|hard> Reset stuck Type-C connector
+
+    <N> is the connector number (0-based). Use get_capability to list available
+    connectors on your system.
 */
 
 #define FOR_ucsicontrol
@@ -70,44 +79,6 @@ GLOBALS(
 #define UCSI_CMD_GET_CONNECTOR_STATUS 0x12
 #define UCSI_CMD_GET_ERROR_STATUS 0x13
 #define UCSI_CMD_GET_LPM_PPM_INFO 0x22
-
-#define UCSI_POM_USB_DEFAULT 1
-#define UCSI_POM_BC 2
-#define UCSI_POM_PD 3
-#define UCSI_POM_TYPEC_1_5A 4
-#define UCSI_POM_TYPEC_3A 5
-#define UCSI_POM_TYPEC_5A 6
-
-#define UCSI_POWER_CONSUMER 0
-#define UCSI_POWER_PROVIDER 1
-
-#define UCSI_PARTNER_DFP 1
-#define UCSI_PARTNER_UFP 2
-#define UCSI_PARTNER_POWERED_CABLE_NO_UFP 3
-#define UCSI_PARTNER_POWERED_CABLE_UFP 4
-#define UCSI_PARTNER_DEBUG_ACCESSORY 5
-#define UCSI_PARTNER_AUDIO_ACCESSORY 6
-
-#define UCSI_BC_NOT_CHARGING 0
-#define UCSI_BC_NOMINAL 1
-#define UCSI_BC_SLOW 2
-#define UCSI_BC_VERY_SLOW 3
-
-#define UCSI_ORIENTATION_DIRECT 0
-#define UCSI_ORIENTATION_FLIPPED 1
-
-#define UCSI_CABLE_SPEED_BITS 0
-#define UCSI_CABLE_SPEED_KBPS 1
-#define UCSI_CABLE_SPEED_MBPS 2
-#define UCSI_CABLE_SPEED_GBPS 3
-
-#define UCSI_CABLE_PASSIVE 0
-#define UCSI_CABLE_ACTIVE 1
-
-#define UCSI_PLUG_TYPE_A 0
-#define UCSI_PLUG_TYPE_B 1
-#define UCSI_PLUG_TYPE_C 2
-#define UCSI_PLUG_OTHER 3
 
 // Extract UCSI bitfields from little-endian response bytes.
 static unsigned get_bits(char *p, int first, int len)
@@ -170,15 +141,14 @@ static int find_ucsi_files(char *base, char *cmd_path, char *resp_path)
 
 static void ucsi_open(void)
 {
+  char cmd_path[PATH_MAX], resp_path[PATH_MAX];
   char *base = "/sys/kernel/debug/usb/ucsi";
-  char cmd_path[PATH_MAX] = {0}, resp_path[PATH_MAX] = {0};
 
-  // The UCSI debugfs "command" and "response" files must both be present.
-  if (find_ucsi_files(base, cmd_path, resp_path) ||
-      access(cmd_path, F_OK) || access(resp_path, F_OK))
-    error_exit("UCSI debugfs not present: no command/response file under %s",
-      base);
+  // Find the UCSI debugfs command and response files
+  if (find_ucsi_files(base, cmd_path, resp_path))
+    error_exit("%s: no UCSI debugfs found", base);
 
+  // xopen() will error with path if files don't exist or can't be opened
   TT.fp_command = xopen(cmd_path, O_WRONLY);
   TT.fp_response = xopen(resp_path, O_RDONLY);
 }
@@ -371,44 +341,40 @@ static void print_connector_status(char *c)
   printf("  ConnectChange: %d\n", UCSI_BIT(change, 14));
   printf("  Error: %d\n", UCSI_BIT(change, 15));
   printf("PowerOperationMode: %d\n", pom);
-  printf("  UsbDefaultOperation: %d\n", pom == UCSI_POM_USB_DEFAULT);
-  printf("  BC: %d\n", pom == UCSI_POM_BC);
-  printf("  PD: %d\n", pom == UCSI_POM_PD);
-  printf("  UsbTypecCurrent1.5A: %d\n", pom == UCSI_POM_TYPEC_1_5A);
-  printf("  UsbTypecCurrent3A: %d\n", pom == UCSI_POM_TYPEC_3A);
-  printf("  UsbTypecCurrent5A: %d\n", pom == UCSI_POM_TYPEC_5A);
+  printf("  UsbDefaultOperation: %d\n", pom == 1);
+  printf("  BC: %d\n", pom == 2);
+  printf("  PD: %d\n", pom == 3);
+  printf("  UsbTypecCurrent1.5A: %d\n", pom == 4);
+  printf("  UsbTypecCurrent3A: %d\n", pom == 5);
+  printf("  UsbTypecCurrent5A: %d\n", pom == 6);
   printf("ConnectStatus: %d\n", get_bits(c, 19, 1));
   printf("PowerDirection: %d\n", pdir);
-  printf("  Consumer: %d\n", pdir == UCSI_POWER_CONSUMER);
-  printf("  Provider: %d\n", pdir == UCSI_POWER_PROVIDER);
+  printf("  Consumer: %d\n", pdir == 0);
+  printf("  Provider: %d\n", pdir == 1);
   printf("ConnectorPartnerFlags: 0x%x\n", flags);
   printf("  Usb: %d\n", UCSI_BIT(flags, 0));
   printf("  Dp: %d\n", UCSI_BIT(flags, 1));
   printf("  Tbt: %d\n", UCSI_BIT(flags, 2));
   printf("  Usb4: %d\n", UCSI_BIT(flags, 3));
   printf("ConnectorPartnerType: %d\n", cptype);
-  printf("  DFPattached: %d\n", cptype == UCSI_PARTNER_DFP);
-  printf("  UFPattached: %d\n", cptype == UCSI_PARTNER_UFP);
-  printf("  PoweredCableNoUFPattached: %d\n",
-    cptype == UCSI_PARTNER_POWERED_CABLE_NO_UFP);
-  printf("  PoweredCableUFPattached: %d\n",
-    cptype == UCSI_PARTNER_POWERED_CABLE_UFP);
-  printf("  DebugAccessoryattched: %d\n",
-    cptype == UCSI_PARTNER_DEBUG_ACCESSORY);
-  printf("  AudioAccessoryAttached: %d\n",
-    cptype == UCSI_PARTNER_AUDIO_ACCESSORY);
+  printf("  DFPattached: %d\n", cptype == 1);
+  printf("  UFPattached: %d\n", cptype == 2);
+  printf("  PoweredCableNoUFPattached: %d\n", cptype == 3);
+  printf("  PoweredCableUFPattached: %d\n", cptype == 4);
+  printf("  DebugAccessoryattched: %d\n", cptype == 5);
+  printf("  AudioAccessoryAttached: %d\n", cptype == 6);
   printf("RequestDataObject: 0x%x\n", rdo);
   printf("BatteryChargingCapabilityStatus: %d\n", bc);
-  printf("  NotCharging: %d\n", bc == UCSI_BC_NOT_CHARGING);
-  printf("  NominalChargingRate: %d\n", bc == UCSI_BC_NOMINAL);
-  printf("  SlowChargingRate: %d\n", bc == UCSI_BC_SLOW);
-  printf("  VerySlowCharingRate: %d\n", bc == UCSI_BC_VERY_SLOW);
+  printf("  NotCharging: %d\n", bc == 0);
+  printf("  NominalChargingRate: %d\n", bc == 1);
+  printf("  SlowChargingRate: %d\n", bc == 2);
+  printf("  VerySlowCharingRate: %d\n", bc == 3);
   printf("ProviderCapabilitiesLimitedReason: %d\n", limit);
   printf("bcdPDVersionOperationMode: ");
   hex_to_decimal(get_bits(c, 70, 16));
   printf("Orientation: %d\n", orient);
-  printf("  DirectOrientation : %d\n", orient == UCSI_ORIENTATION_DIRECT);
-  printf("  FlippedOrientation : %d\n", orient == UCSI_ORIENTATION_FLIPPED);
+  printf("  DirectOrientation : %d\n", orient == 0);
+  printf("  FlippedOrientation : %d\n", orient == 1);
   printf("SinkPathStatus: %d\n", get_bits(c, 87, 1));
   printf("ReverseCurrentProtectionStatus: %d\n", get_bits(c, 88, 1));
   printf("PowerReadingReady: %d\n", get_bits(c, 89, 1));
@@ -425,24 +391,21 @@ static void print_cable_property(char *c)
   unsigned speed = peek_le(c, 2), speed_unit = get_bits(c, 0, 2),
            current = get_bits(c, 16, 8), cable_type = get_bits(c, 25, 1),
            plug = get_bits(c, 27, 2);
+  char *speed_str[] = {"Bits/s", "Kb/s", "Mb/s", "Gb/s"};
+  char *cable_type_str[] = {"Passive", "Active"};
 
   printf("\nGET_CABLE_PROPERTY:\n-------------------------\n");
-  printf("bmSpeedSupported: 0x%x\n", speed);
-  printf("  Bits/s: %d\n", speed_unit == UCSI_CABLE_SPEED_BITS);
-  printf("  Kb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_KBPS);
-  printf("  Mb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_MBPS);
-  printf("  Gb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_GBPS);
+  printf("bmSpeedSupported: 0x%x %s\n", speed,
+    speed_str[speed_unit & 3]);
   printf("bCurrentCapability: %d mA\n", current * 50);
   printf("VBUSInCable: %d\n", get_bits(c, 24, 1));
-  printf("CableType: %d\n", cable_type);
-  printf("  PassiveCable: %d\n", cable_type == UCSI_CABLE_PASSIVE);
-  printf("  ActiveCable: %d\n", cable_type == UCSI_CABLE_ACTIVE);
+  printf("CableType: %s\n", cable_type_str[cable_type & 1]);
   printf("Directionality: %d\n", get_bits(c, 26, 1));
   printf("PlugEndType: %d\n", plug);
-  printf("  USBtypeA: %d\n", plug == UCSI_PLUG_TYPE_A);
-  printf("  USBtypeB: %d\n", plug == UCSI_PLUG_TYPE_B);
-  printf("  USBtypeC: %d\n", plug == UCSI_PLUG_TYPE_C);
-  printf("  Other: %d\n", plug == UCSI_PLUG_OTHER);
+  printf("  USBtypeA: %d\n", plug == 0);
+  printf("  USBtypeB: %d\n", plug == 1);
+  printf("  USBtypeC: %d\n", plug == 2);
+  printf("  Other: %d\n", plug == 3);
   printf("ModeSupport: %d\n", get_bits(c, 29, 1));
   printf("CablePDRevision: %d\n", get_bits(c, 30, 2));
   printf("Latency: %d\n", get_bits(c, 32, 4));
@@ -495,7 +458,7 @@ static int role_code(char *s, char *a, char *b, char *c, int va, int vb, int vc)
 // Common <conn_num> parser for single-connector commands.
 static int required_conn(char **args, char *op)
 {
-  if (!args[1]) error_exit("%s needs <conn_num>", op);
+  if (!args[1]) error_exit("%s requires a connector number (0-based)", op);
 
   return get_conn(args[1]);
 }
@@ -509,49 +472,49 @@ void ucsicontrol_main(void)
 
   ucsi_open();
 
-  if (!strcmp(op, "get_cap")) {
+  if (!strcmp(op, "get_capability")) {
     n = xucsi_cmd(UCSI_CMD_GET_CAPABILITY, buf, "get_capability");
     print_message_in(buf, n);
     print_capability(buf);
-  } else if (!strcmp(op, "get_conn_cap")) {
-    conn = required_conn(args, "get_conn_cap");
+  } else if (!strcmp(op, "get_connector_capability")) {
+    conn = required_conn(args, "get_connector_capability");
     n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
-      | UCSI_CMD_GET_CONNECTOR_CAPABILITY, buf, "get_conn_cap");
+      | UCSI_CMD_GET_CONNECTOR_CAPABILITY, buf, "get_connector_capability");
     print_message_in(buf, n);
     print_connector_capability(buf);
-  } else if (!strcmp(op, "get_conn_sts")) {
-    conn = required_conn(args, "get_conn_sts");
+  } else if (!strcmp(op, "get_connector_status")) {
+    conn = required_conn(args, "get_connector_status");
     n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
-      | UCSI_CMD_GET_CONNECTOR_STATUS, buf, "get_conn_sts");
+      | UCSI_CMD_GET_CONNECTOR_STATUS, buf, "get_connector_status");
     print_message_in(buf, UCSI_CONNECTOR_STATUS_LEN);
     print_connector_status(buf);
-  } else if (!strcmp(op, "get_cable_prop")) {
-    conn = required_conn(args, "get_cable_prop");
+  } else if (!strcmp(op, "get_cable_property")) {
+    conn = required_conn(args, "get_cable_property");
     n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
-      | UCSI_CMD_GET_CABLE_PROPERTY, buf, "get_cable_prop");
+      | UCSI_CMD_GET_CABLE_PROPERTY, buf, "get_cable_property");
     print_message_in(buf, UCSI_CABLE_PROPERTY_LEN);
     print_cable_property(buf);
-  } else if (!strcmp(op, "get_cur_cam")) {
-    conn = required_conn(args, "get_cur_cam");
+  } else if (!strcmp(op, "get_current_cam")) {
+    conn = required_conn(args, "get_current_cam");
     n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
-      | UCSI_CMD_GET_CURRENT_CAM, buf, "get_cur_cam");
+      | UCSI_CMD_GET_CURRENT_CAM, buf, "get_current_cam");
     print_message_in(buf, n);
     printf("\nGET_CURRENT_CAM :\n-------------------------\n");
     printf("CurrentAlternateMode: 0x%x\n", buf[0]);
-  } else if (!strcmp(op, "get_alt_modes")) {
+  } else if (!strcmp(op, "get_alternate_modes")) {
     int recipient, i = 0, prevn = 0;
     unsigned short first_svid = 0;
     unsigned char prev[256];
 
     if (!args[1] || !args[2])
-      error_exit("Usage: get_alt_modes <conn_num> "
+      error_exit("Usage: get_alternate_modes <conn_num> "
         "[conn|sop|sopprime|sopprimeprime]");
     conn = get_conn(args[1]);
     if (!strcmp(args[2], "conn")) recipient = 0;
     else if (!strcmp(args[2], "sop")) recipient = 1;
     else if (!strcmp(args[2], "sopprime")) recipient = 2;
     else if (!strcmp(args[2], "sopprimeprime")) recipient = 3;
-    else error_exit("Usage: get_alt_modes <conn_num> "
+    else error_exit("Usage: get_alternate_modes <conn_num> "
       "<conn|sop|sopprime|sopprimeprime>");
     for (;;) {
       // GET_ALTERNATE_MODES (0x0C): Recipient[16], ConnNum[24],
@@ -631,17 +594,17 @@ void ucsicontrol_main(void)
       | UCSI_CMD_GET_LPM_PPM_INFO, buf, "get_lpm_ppm_info");
     print_message_in(buf, n);
     print_lpm_ppm_info(buf);
-  } else if (!strcmp(op, "get_error_sts")) {
-    conn = required_conn(args, "get_error_sts");
+  } else if (!strcmp(op, "get_error_status")) {
+    conn = required_conn(args, "get_error_status");
     n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
-      | UCSI_CMD_GET_ERROR_STATUS, buf, "get_error_sts");
+      | UCSI_CMD_GET_ERROR_STATUS, buf, "get_error_status");
     print_message_in(buf, n);
     print_error_status(buf);
-  } else if (!strcmp(op, "conn_rst")) {
+  } else if (!strcmp(op, "connector_reset")) {
     int rst;
 
     if (!args[1] || !args[2])
-      error_exit("conn_rst needs <conn_num> <soft|hard>");
+      error_exit("connector_reset needs <conn_num> <soft|hard>");
     conn = get_conn(args[1]);
     rst = role_code(args[2], "soft", "hard", "", 0, 1, -1);
     n = ucsi_cmd(UCSI_CMD_CONNECTOR_RESET | UCSI_CMD_CONNECTOR(conn)
