@@ -2,7 +2,7 @@
  *
  * Copyright 2026 Madhu M <madhu.m@intel.com>
  *
- * See https://www.intel.com/content/dam/www/public/us/en/documents/technical-specs/usb-type-c-connector-system-software-interface-spec.pdf
+ * See https://www.usb.org/document-library/usb-type-cr-connector-system-software-interface-ucsi-specification
  *
  * Talks directly to the kernel UCSI debugfs interface exposed under
  * /sys/kernel/debug/usb/ucsi/.../{command,response}.
@@ -33,7 +33,7 @@ config UCSICONTROL
       get_pdos <N> <P> <O> <S> <T>    Get advertised power profiles (voltage/
                                       current) where P=partner, O=offset,
                                       S=src/sink, T=type
-      get_lpm_ppm_info <N>            Get PPM vendor/product/firmware info
+      get_lpm_ppm_info <N>            Get LPM/PPM vendor/product/firmware info
       get_error_status <N>            Get connector error status
       set_uor <N> <Role>              Trigger USB data role swap (DFP|UFP|Accept)
       set_pdr <N> <Role>              Trigger power role swap (SRC|SNK|Accept)
@@ -41,8 +41,19 @@ config UCSICONTROL
       set_new_cam <N> <CAM> <S> <E>   Set alternate mode; S=am_specific, E=enter|exit
       connector_reset <N> <soft|hard> Reset stuck Type-C connector
 
-    <N> is the connector number (0-based). Use get_capability to list available
-    connectors on your system.
+    Arguments:
+      N       Connector number (0-based)
+      R       Alternate-mode recipient: conn, sop, sopprime, or sopprimeprime
+      P       PDO partner: 0=partner, 1=cable plug
+      O       PDO offset
+      S       PDO source/sink selector, or CAM-specific data for set_new_cam
+      T       PDO type
+      Role    Data role: DFP, UFP, or Accept; power role: SRC, SNK, or Accept
+      Mode    CC mode: Rd, Rp, or DRP
+      CAM     Alternate-mode number
+      E       CAM action: enter or exit
+
+    Use get_capability to list available connectors on your system.
 */
 
 #define FOR_ucsicontrol
@@ -454,10 +465,10 @@ static int role_code(char *s, char *a, char *b, char *c, int va, int vb, int vc)
   error_exit("Invalid type: %s", s);
 }
 
-// Common <conn_num> parser for single-connector commands.
+// Common <N> parser for single-connector commands.
 static int required_conn(char **args, char *op)
 {
-  if (!args[1]) error_exit("%s requires a connector number (0-based)", op);
+  if (!args[1]) error_exit("%s requires <N> (connector number, 0-based)", op);
 
   return get_conn(args[1]);
 }
@@ -506,15 +517,15 @@ void ucsicontrol_main(void)
     unsigned char prev[256];
 
     if (!args[1] || !args[2])
-      error_exit("Usage: get_alternate_modes <conn_num> "
-        "[conn|sop|sopprime|sopprimeprime]");
+      error_exit("get_alternate_modes requires <N> <R> "
+        "(N=connector number, R=conn|sop|sopprime|sopprimeprime)");
     conn = get_conn(args[1]);
     if (!strcmp(args[2], "conn")) recipient = 0;
     else if (!strcmp(args[2], "sop")) recipient = 1;
     else if (!strcmp(args[2], "sopprime")) recipient = 2;
     else if (!strcmp(args[2], "sopprimeprime")) recipient = 3;
-    else error_exit("Usage: get_alternate_modes <conn_num> "
-      "<conn|sop|sopprime|sopprimeprime>");
+    else error_exit("get_alternate_modes requires <N> <R> "
+      "(N=connector number, R=conn|sop|sopprime|sopprimeprime)");
     for (;;) {
       // GET_ALTERNATE_MODES (0x0C): Recipient[16], ConnNum[24],
       // AltModeOffset[32], NumAltModes[40]=1 -> up to 2 modes per call.
@@ -563,8 +574,8 @@ void ucsicontrol_main(void)
     unsigned ppdo = 0, pdo;
 
     if (!args[1] || !args[2] || !args[3] || !args[4] || !args[5])
-      error_exit("get_pdos needs <conn_num> <partner> <offset> <src_snk> "
-        "<type>");
+      error_exit("get_pdos requires <N> <P> <O> <S> <T> "
+        "(N=connector, P=partner, O=offset, S=source/sink, T=type)");
     conn = get_conn(args[1]);
     partner = atolx(args[2]);
     offset = atolx(args[3]);
@@ -603,7 +614,8 @@ void ucsicontrol_main(void)
     int rst;
 
     if (!args[1] || !args[2])
-      error_exit("connector_reset needs <conn_num> <soft|hard>");
+      error_exit("connector_reset requires <N> <soft|hard> "
+        "(N=connector number)");
     conn = get_conn(args[1]);
     rst = role_code(args[2], "soft", "hard", "", 0, 1, -1);
     n = ucsi_cmd(UCSI_CMD_CONNECTOR_RESET | UCSI_CMD_CONNECTOR(conn)
@@ -614,7 +626,8 @@ void ucsicontrol_main(void)
     int uor;
 
     if (!args[1] || !args[2])
-      error_exit("set_uor needs <conn_num> <DFP|UFP|Accept>");
+      error_exit("set_uor requires <N> <Role> "
+        "(N=connector, Role=DFP|UFP|Accept)");
     conn = get_conn(args[1]);
     uor = role_code(args[2], "DFP", "UFP", "Accept", 1, 2, 4);
     n = ucsi_cmd(UCSI_CMD_SET_UOR | UCSI_CMD_CONNECTOR(conn)
@@ -625,7 +638,8 @@ void ucsicontrol_main(void)
     int pdr;
 
     if (!args[1] || !args[2])
-      error_exit("set_pdr needs <conn_num> <SRC|SNK|Accept>");
+      error_exit("set_pdr requires <N> <Role> "
+        "(N=connector, Role=SRC|SNK|Accept)");
     conn = get_conn(args[1]);
     pdr = role_code(args[2], "SRC", "SNK", "Accept", 1, 2, 4);
     n = ucsi_cmd(UCSI_CMD_SET_PDR | UCSI_CMD_CONNECTOR(conn) | (pdr<<23),
@@ -636,7 +650,8 @@ void ucsicontrol_main(void)
     int ccom;
 
     if (!args[1] || !args[2])
-      error_exit("set_ccom needs <conn_num> <Rd|Rp|DRP>");
+      error_exit("set_ccom requires <N> <Mode> "
+        "(N=connector, Mode=Rd|Rp|DRP)");
     conn = get_conn(args[1]);
     ccom = role_code(args[2], "Rd", "Rp", "DRP", 1, 2, 4);
     n = ucsi_cmd(UCSI_CMD_SET_CCOM | UCSI_CMD_CONNECTOR(conn) | (ccom<<23),
@@ -648,8 +663,8 @@ void ucsicontrol_main(void)
     unsigned amspec;
 
     if (!args[1] || !args[2] || !args[3] || !args[4])
-      error_exit("set_new_cam needs <conn_num> <new_cam> <am_specific> "
-        "<enter|exit>");
+      error_exit("set_new_cam requires <N> <CAM> <S> <E> "
+        "(N=connector, CAM=alternate mode, S=am_specific, E=enter|exit)");
     conn = get_conn(args[1]);
     newcam = atolx(args[2]);
     amspec = atolx(args[3]);
