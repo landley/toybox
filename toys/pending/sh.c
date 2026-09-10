@@ -47,6 +47,7 @@
 USE_SH(NEWTOY(alias, "p", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(break, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(command, "^pVv", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(continue, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(declare, "pAailunxr", TOYFLAG_NOFORK))
  // TODO tpgfF
@@ -62,6 +63,7 @@ USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(trap, "lp", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(type, "afPpt[-tp][-tP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(umask, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unalias, "<1a", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
@@ -175,6 +177,19 @@ config CD
 
     -P	Physical path: resolve symlinks in path
     -L	Local path: .. trims directories off $PWD (default)
+
+config COMMAND
+  bool
+  default n
+  depends on SH
+  help
+    usage: command [-pVv] [COMMAND...]
+
+    Run an executable from $PATH, not alias, function, or builtin.
+
+    -p	Use default path (_PATH_DEFPATH from libc) instead of $PATH
+    -v	Show location of $COMMAND (abspath to exe, alias=, or function name)
+    -V	Same output as "type"
 
 config CONTINUE
   bool
@@ -345,6 +360,21 @@ config TRAP
 
     The special signal EXIT gets called before the shell exits, RETURN when
     a function or source returns, and DEBUG is called before each command.
+
+config TYPE
+  bool
+  default n
+  depends on SH
+  help
+    usage: type [-afpt] [NAME...]
+
+    Show what would be run for each name.
+
+    -a	Show all
+    -f	No functions
+    -P	Show executable in $PATH
+    -p	Show executable that would be run from $PATH
+    -t	Show type as "alias", "keyword", "function", "builtin", or "file".
 
 config UMASK
 bool
@@ -983,6 +1013,7 @@ static void cache_ifs(char *s, struct sh_fcall *ff)
 // Error and return 1 for readonly variable
 static int check_rovar(struct sh_vars *var)
 {
+  // TODO follow symlink
   if (var && (var->flags&VAR_READONLY)) {
     sherror_msg("%.*s: read only", varend(var->str)-var->str, var->str);
     return 1;
@@ -1089,7 +1120,7 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   struct sh_fcall *new;
 
   if (!s) return 0;
-  if (!isassign(s)) {
+  if (!ff && !isassign(s)) {
     sherror_msg("bad setvar %s\n", s);
     if (freeable) free(s);
 
@@ -1102,12 +1133,15 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
     int vl = varend(s)-s;
 
     if (check_rovar(vv)) return 0;
-    if (s[vl]=='+') {
-      char *ss = xmprintf("%.*s=%s%s", vl, s, vv ? vv->str+vl+1 : "", s+vl+2);
+    if (s[vl]!='=') {
+      char *ss = xmprintf("%.*s=%s%s", vl, s, vv ? vv->str+vl+1 : "",
+        s[vl] ? s+vl+2 : "");
 
-      if (freeable) free(s);
+      if (!s[vl]) flags |= VAR_WHITEOUT;
+      if (freeable++) free(s);
       s = ss;
-    } else flags |= VAR_NOFREE*!freeable;
+    }
+    flags |= VAR_NOFREE*!freeable;
     (vv = addvar(s, ff = ff ? : TT.ff->prev))->flags = flags;
   } else {
     ff = new;
@@ -1394,22 +1428,24 @@ static void subshell_callback(char **argv)
 static char *pl2str(struct sh_pipeline *pl, int one)
 {
   struct sh_pipeline *end = 0, *pp;
-  int len QUIET, i;
+  int len, i, indent;
   char *ss;
 
   // Find end of block (or one argument)
   if (one) end = pl->next;
-  else for (end = pl, len = 0; end; end = end->next)
-    if (end->type == 1) len++;
-    else if (end->type == 3 && --len<0) break;
+  else for (end = pl, indent = 0; end; end = end->next)
+    if (end->type == 1) indent++;
+    else if (end->type == 3 && --indent<0) break;
 
   // measure, then allocate
   for (ss = 0;; ss = xmalloc(len+1)) {
-    for (pp = pl; pp != end; pp = pp->next) {
+    for (len = indent = 0, pp = pl; pp != end; pp = pp->next) {
       if (pp->type == 'F') continue; // TODO fix this
-      for (i = len = 0; i<=pp->arg->c; i++)
-        len += snprintf(ss+len, ss ? INT_MAX : 0, " %s"+!i,
-           pp->arg->v[i] ? : ";"+(pp->next==end));
+      if (pp->type==3) indent--;
+      if (pp->arg->c) for (i = 0; i<=pp->arg->c; i++)
+        len += snprintf(ss+len, ss ? INT_MAX : 0, "%*s%s", 4*indent+!!i, "",
+           pp->arg->v[i] ? : "\n"+(pp->next==end));
+      if (pp->type==1) indent++;
     }
     if (ss) return ss;
   }
@@ -2936,9 +2972,17 @@ static struct toy_list *toy_shfind(char *s)
 
 static struct string_list *find_in_shpath(char *filename)
 {
-  char *path = getvar("PATH") ? : _PATH_DEFPATH;
+  struct string_list *sl = 0;
 
-  return find_in_path(path, filename);
+  if (strchr(filename, '/')) {
+    if (access(filename, F_OK)) sl = 0;
+    else {
+      sl = (void *)xmprintf("%*s%s", (int)sizeof(long), "", filename);
+      sl->next = 0;
+    }
+  } else sl = find_in_path(getvar("PATH") ? : _PATH_DEFPATH, filename);
+
+  return sl;
 }
 
 // Call binary, or run script via xexec("sh --")
@@ -3101,9 +3145,10 @@ static struct sh_process *run_command(int local)
     TT.ff->_ = pp->arg.v[pp->arg.c-1];
   // call command from $PATH or toybox builtin
   } else {
-    struct toy_list *tl = toy_find(*pp->arg.v);
+    struct toy_list *tl;
 
-    jj = tl ? tl->flags : 0;
+command: // for "command cd" and similar
+    jj = (tl = toy_find(*pp->arg.v)) ? tl->flags : 0;
     TT.ff->_ = pp->arg.v[pp->arg.c-1];
 if (DEBUG) { dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds("run_command"); }
 // TODO: figure out when can exec instead of forking, ala sh -c blah
@@ -3122,7 +3167,7 @@ if (DEBUG) { dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); 
       // name the union in TT, it only works WITHOUT a name. So we can't
       // sizeof(union) instead offsetof() first thing after union to get size.
       memset(&TT, 0, offsetof(struct sh_data, SECONDS));
-      if (!sigsetjmp(rebound, 1)) {
+      if (!(ii = sigsetjmp(rebound, 1))) {
         toys.rebound = &rebound;
 if (DEBUG) { dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c; xx++) dprintf(2, " \"%s\"", pp->arg.v[xx]); dprintf(2, "\n"); }
         toy_singleinit(tl, pp->arg.v);
@@ -3135,6 +3180,8 @@ if (DEBUG) { dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c;
       if (toys.optargs != toys.argv+1) push_arg(&pp->delete, toys.optargs);
       if (toys.old_umask) umask(toys.old_umask);
       memcpy(&toys, &temp, jj);
+      if (ii==2) goto command;
+
     // Run command in new child process
     } else if (-1==(pp->pid = xpopen_setup(pp->arg.v, 0, sh_exec)))
         perror_msg("%s: vfork", *pp->arg.v);
@@ -3142,7 +3189,7 @@ if (DEBUG) { dprintf(2, "%d builtin", getpid()); for (int xx = 0; xx<=pp->arg.c;
 
 done:
   // pop the new function context if nothing left for it to do
-  if (!TT.ff->source && !TT.ff->pl) end_fcall();
+  while (!TT.ff->source && !TT.ff->pl) end_fcall();
 
   return pp;
 }
@@ -4038,6 +4085,7 @@ static void run_lines(void)
       end_fcall();
 // TODO can we move advance logic to start of loop to avoid straddle?
       if (!TT.ff || !TT.ff->pl) break;
+// TODO returning from signal handler should NOT retry intrerrupted comand!
       // if returning from signal handler, retry interrupted command
       if (!i) goto advance;
     }
@@ -4782,6 +4830,141 @@ void cd_main(void)
   }
 }
 
+
+// show_command() runs in type's flags context, but is also called by command
+#define FOR_type
+#include "generated/flags.h"
+// cmd 1=command -V, 2=command -v
+static void show_command(char *name, int cmd)
+{
+  struct toy_list *tl;
+  char *ss;
+  unsigned ii, got = 0;
+
+  if (cmd) toys.optflags = FLAG(f);
+
+  // order: alias, keyword, function, builtin, path
+  // type -a all, -f no function, -P show any path, -p show run path, -t type
+  // command -v -f but shorter -V = same as type -f
+  if (!FLAG(P)) {
+    // alias
+    if (dashi()) for (ii = 0; ii<TT.alias.c; ii++) {
+      ss = TT.alias.v[ii];
+      if (!strstart(&ss, name) || *ss++!='=') continue;
+      got++;
+      // display -v, -V, or -t
+      if (!FLAG(p)) {
+        if (FLAG(t) || cmd==2) {
+          xputsn("alias");
+          if (cmd==2) xprintf(" %s=", name);
+        } else xprintf("%s is aliased to ", name);
+        if (!FLAG(t)) xprintf("%c%s'", "`\'"[cmd==2], ss); // TODO $'escape'
+        xputc('\n');
+      }
+      break;
+    }
+
+    // keyword
+    if (!got || FLAG(a)) if (anystrz(name, keywords)) {
+      got++;
+      if (!FLAG(p)) {
+        if (FLAG(t)) xputs("keyword");
+        else xprintf("%s is a shell keyword\n", name);
+      }
+    }
+
+    // function
+    if ((!got || FLAG(a)) && !FLAG(f)) for (ii = 0; ii<TT.funcslen; ii++) {
+      if (strcmp(name, TT.functions[ii]->name)) continue;
+      got++;
+      // TODO: bash says "function if ()" for keywords. Why?
+      if (!FLAG(p)) {
+        if (FLAG(t)) xputsn("function");
+        else {
+          xputsn(name);
+          if (cmd!=2) {
+            ss = pl2str(TT.functions[ii]->pipeline, 0);
+            xprintf(" is a function\n%s ()\n%s", name, ss);
+            free(ss);
+          }
+        }
+        xputc('\n');
+      }
+      break;
+    }
+
+    // builtin
+    if ((!got || FLAG(a)) && (tl = toy_find(name))) {
+      if (tl->flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK)) {
+        got++;
+        if (!FLAG(p)) {
+          if (FLAG(t)) xputsn("builtin");
+          else {
+            xputsn(name);
+            if (cmd!=2) xputsn(" is a shell builtin");
+          }
+          xputc('\n');
+        }
+      }
+    }
+  }
+
+  // file in path
+  if (!got || FLAG(a)) {
+    struct string_list *sl, *slpath = find_in_shpath(name);
+    int again = 0;
+
+    // Bash finds non-executable files in $PATH only when no executable files
+    // later in path, execept -a never shows non-executable files.
+    for (sl = slpath;; llist_pop(&sl)) {
+      if (!sl && (FLAG(a) || !(sl = slpath) || again++)) break;
+      if (!again || strchr(name, '/')) if (access(sl->str, X_OK)) continue;
+      got++;
+      if (FLAG(t)) xputs("file");
+      else {
+        if (!(toys.optflags&(FLAG_p|FLAG_P)) && cmd!=2) xprintf("%s is ", name);
+        if (strchr(name, '/')) xputs(name);
+        else {
+          if (cmd==1 && *sl->str!='/') xprintf("%s/", getvar("PWD") ? : ".");
+          xputs(sl->str);
+        }
+      }
+      if (!FLAG(a)) break;
+    }
+    llist_traverse(slpath, free);
+  }
+
+  if (!got) {
+    if (!FLAG(t) && !FLAG(p) && !FLAG(a) && cmd!=2) error_msg("%s: not found", name);
+    else toys.exitval = 1;
+  }
+}
+
+#define FOR_command
+#include "generated/flags.h"
+void command_main(void)
+{
+  struct sh_fcall *ff = TT.ff;
+  int ii, jj = 1+FLAG(v);
+
+  // Need another layer for "PATH=walrus command -p env | grep ^PATH="
+  if (FLAG(p)) {
+    add_fcall()->pp = ff->pp;
+    ff->pp = 0;
+    addvar(xmprintf("PATH=%s", _PATH_DEFPATH), TT.ff);
+  }
+
+  // call command out of $PATH (or builtins)
+  if (!(toys.optflags&(FLAG_v|FLAG_V))) {
+    TT.ff->pp->arg.v = toys.optargs;
+    TT.ff->pp->arg.c = toys.optc;
+    siglongjmp(*toys.rebound, 2);
+  }
+
+  // Describe command(s) listed on command line
+  for (ii = 0; ii<toys.optc; ii++) show_command(toys.optargs[ii], jj);
+}
+
 void continue_main(void)
 {
   break_main();
@@ -5087,10 +5270,9 @@ void jobs_main(void)
 
 void local_main(void)
 {
-  struct sh_fcall *ff, *ff2;
+  struct sh_fcall *ff;
   struct sh_vars *var;
-  char **arg, *ss;
-  unsigned len;
+  char **arg;
 
   // find local variable context
   for (ff = TT.ff;; ff = ff->next) {
@@ -5105,23 +5287,11 @@ void local_main(void)
   }
 
   // set/move variables
-  for (arg = toys.optargs; (ss = *arg); arg++) {
-    if (!(len = peoff(ss))) {
-      error_msg("bad %s", ss);
-      continue;
-    }
-
-    if ((var = findvar(ss, &ff2)) && ff==ff2 && !ss[len]) continue;
-    if (check_rovar(var)) continue;
-
-    // Add local inheriting global status and setting whiteout if blank.
-    if (!var || ff!=ff2) {
-      int flags = var ? var->flags&VAR_EXPORT : 0;
-
-      var = addvar(xmprintf("%.*s=%s%s", len, ss,
-        (var && ss[len]=='+') ? strchr(var->str, '=')+1 : "",
-        ss+len+stridx("=+", ss[len])+1), ff);
-      var->flags = flags|(VAR_WHITEOUT*!ss[len]);
+  for (arg = toys.optargs; *arg; arg++) {
+    if (!(var = setvar_long(*arg, 0, ff))) continue;
+    if (var->flags&VAR_NOFREE) {
+      var->str = xstrdup(var->str);
+      var->flags &= ~VAR_NOFREE;
     }
 
     // TODO accept declare options to set more flags
@@ -5178,13 +5348,19 @@ void source_main(void)
   TT.ff->arg.c = ii;
 }
 
+#define FOR_type
+#include "generated/flags.h"
+void type_main(void)
+{
+  int ii;
+
+  for (ii = 0; ii<toys.optc; ii++) show_command(toys.optargs[ii], 0);
+}
+
 void umask_main(void)
 {
-  if (toys.optc) {
-    toys.old_umask = string_to_mode(*toys.optargs, 0);
-  } else {
-    printf("%04o\n", umask(0));
-  }
+  if (toys.optc) toys.old_umask = string_to_mode(*toys.optargs, 0);
+  else printf("%04o\n", umask(0));
 }
 
 #define FOR_unalias

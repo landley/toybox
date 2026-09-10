@@ -818,7 +818,130 @@ testing 'unalias' \
   'abc=\ndef\n' '' ''
 $BROKEN shxpect 'alias/unalias on same line' \
   I$'alias abc=def;type abc;unalias abc;echo boing;type abc\n' \
-  O$'abc is aliased to `def\'\n' R$': type: abc: not found\n' X1
+  O$'abc is aliased to `def\'\n' RE$': type: abc: not found\n' X1
+
+# test "command" and "type" together
+
+PSH="$(which "$SH")"
+testing 'command $0' "command '$PSH' -c 'echo \"\$0\"'" "$PSH\n" "" ""
+unset PSH
+# which finds env in $PATH so we're not calling builtin env
+testing 'PATH=prefix command -p' \
+  'PATH=potato command -p $(which env) | grep ^PATH=' 'PATH=potato\n' '' ''
+
+echo -e '#/not/found\necho 0=$0 1=$1 2=$2 3=$3 4=$4' > test.sh
+chmod +x test.sh
+testing 'command test.sh' 'command ./test.sh one two three' \
+  '0=./test.sh 1=one 2=two 3=three 4=\n' '' ''
+rm test.sh
+
+testing 'command run builtin' 'command cd; echo $PWD' "$HOME\n" "" ""
+testing 'command recurse' 'command command command echo hello' 'hello\n' '' ''
+testing 'command not found' 'command nothing 2>/dev/null; echo $?' '127\n' '' ''
+testing 'type -t not found' 'type -t nothing || echo no' 'no\n' '' ''
+testing 'type $PATH file' 'type cat' "cat is $(which cat)\n" "" ""
+testing 'command -v cmd' 'command -v cat' "$(which cat)\n" "" ""
+testing 'command -v not found' 'command -v nothing || echo no' 'no\n' '' ''
+testing 'type fail success' 'type nothing cat 2>/dev/null || echo no' \
+  "cat is $(which cat)\nno\n" '' ''
+# In bash 'command -v nothing cat" returns success. I don't know why.
+
+# Provide multiple fallbacks for -a
+mkdir -p sub{1,2}; touch sub{1,2}/{one,:,if,xx,noexec}; chmod +x sub{1,2}/{one,:,if,xx}
+
+PP='PATH=sub1:"$PATH";'
+testing 'type dir/noexec' 'type sub1/noexec 2>/dev/null || echo no' 'no\n' '' ''
+testing 'type dir/noexec 2' \
+  'type sub1/noexec |& grep -o sub1/noexec:' 'sub1/noexec:\n' '' ''
+testing 'command -V dir/noexec' 'command -V sub1/noexec 2>/dev/null || echo no'\
+  'no\n' '' ''
+testing 'command -V dir/noexec 2' \
+  'command -V sub1/noexec |& grep -o sub1/noexec:' 'sub1/noexec:\n' '' ''
+testing 'type $PATH noexec' "$PP"'type noexec' 'noexec is sub1/noexec\n' '' ''
+testing 'type dir/exec' 'type sub1/xx' 'sub1/xx is sub1/xx\n' '' ''
+testing 'type $PATH exec' "$PP"'type xx' 'xx is sub1/xx\n' '' ''
+ln -s sub1 sub3
+testing 'command -V full path is not abspath' \
+  'PATH=sub3:"$PATH";command -V xx' "xx is $PWD/sub3/xx\n" '' ''
+rm sub3
+testing 'command -v dir/exec' "$PP"'command -v sub1/xx' 'sub1/xx\n' '' ''
+testing 'command -v $PATH' "$PP"'command -v xx' 'sub1/xx\n' '' ''
+unset PP
+
+# alias is only ever interactive, needs shxpect
+A='alias one=two;'
+shxpect "command -V alias" I"$A"$'command -V one\n' \
+  O$'one is aliased to `two\'\n' E"$P"
+shxpect "type alias" I"$A"$'command -V one\n' \
+  O$'one is aliased to `two\'\n' E"$P"
+shxpect "command -v alias" I"$A"$'command -v one\n' \
+  O$'alias one=\'two\'\n' E"$P"
+A="$A"'PATH=sub1:sub2:"$PATH";'
+shxpect "type -p alias" I"$A"$'type -p one;echo $?\n' O$'0\n' E"$P"
+shxpect "type -P alias" I"$A"$'type -P one\n' O$'sub1/one\n' E"$P"
+A="$A"'one(){ :;};'
+shxpect "type -f alias" I"$A"$'type -f one\n' \
+  O$'one is aliased to `two\'\n' E"$P"
+shxpect "type -t alias" I"$A"$'type -t one\n' O$'alias\n' E"$P"
+shxpect "type -at all but keyword" \
+  I"$A"$'function :(){ :;};alias ":=x";type -at :\n' \
+  O$'alias\nfunction\nbuiltin\nfile\nfile\n'
+shxpect "type -at all but builtin" \
+  I"$A"$'function if(){ :;};alias if=x;type -at if\n' \
+  O$'alias\nkeyword\nfunction\nfile\nfile\n'
+shxpect "type -atf" \
+  I"$A"$'function if(){ :;};alias if=x;type -atf if\n' \
+  O$'alias\nkeyword\nfile\nfile\n'
+
+testing "command no alias without interactive" 'alias if=x; command -V if' \
+  'if is a shell keyword\n' '' ''
+testing "type no non-interactive alias even -a" 'alias if=x; type -a if' \
+  'if is a shell keyword\n' '' ''
+testing "type function" 'function :(){ :;};type :|xargs' \
+  ': is a function : () { : }\n' '' ''
+testing "command -V function" 'function :(){ :;};command -V :|xargs' \
+  ': is a function : () { : }\n' '' ''
+testing "command -v builtin keyword function path" \
+  "$A"'command -v cd : one xx' 'cd\n:\none\nsub1/xx\n' '' ''
+
+testing "type -f" "$A"'xx(){ :;};type -f xx' 'xx is sub1/xx\n' '' ''
+testing "type -fa" "$A"'function if(){ :;};type -fa if' \
+  'if is a shell keyword\nif is sub1/if\nif is sub2/if\n' '' ''
+
+ENV="$(PATH=$(getconf PATH) which env)"
+[ -e "$ENV" ] || ((SKIP+=3)) # need a command in _PATH_DEFPATH
+testing 'command -p with -V' 'command -pV env' 'env is /usr/bin/env\n' '' ''
+testing 'command -p with -v' 'command -pv env' '/usr/bin/env\n' '' ''
+# the recursion checks that -p doesn't disable builtins
+testing 'PATH= prefix assignment survives command -p' \
+  'PATH=potato command -p command env | grep ^PATH=' 'PATH=potato\n' '' ''
+testing 'type -P if' "$A"'type -P if' 'sub1/if\n' '' ''
+testing 'type -p if' "$A"'type -p if && echo yes' 'yes\n' '' ''
+testing 'type -P noexec' "$A"'type -P noexec' 'sub1/noexec\n' '' ''
+testing 'type -p noexec' "$A"'type -p noexec' 'sub1/noexec\n' '' ''
+testing 'type -Pa noexec' "$A"'type -Pa noexec; echo $?' '1\n' '' ''
+testing 'type -pa noexec' "$A"'type -pa noexec; echo $?' '1\n' '' ''
+testing 'type -pf' "$A"'type -pf one' 'sub1/one\n' '' ''
+chmod +x sub2/noexec
+testing 'type -P shows +x if not first' "$A"'type -P noexec' 'sub2/noexec\n' '' ''
+testing 'type -p shows +x if not first' "$A"'type -p noexec' 'sub2/noexec\n' '' ''
+testing 'type -Pa shows +x if not first' "$A"'type -P noexec' 'sub2/noexec\n' '' ''
+testing 'type -pa shows +x if not first' "$A"'type -p noexec' 'sub2/noexec\n' '' ''
+unset A
+
+# well ah do declare
+
+$BROKEN shxpect 'declare -r' I$'declare -r abc=123\n' E"$P" I$'declare +r abc\n' \
+  RE$'abc.*readonly' I$'echo $?\n' O$'1\n'
+
+$BROKEN shxpect 'declare -n' I$'readonly WALRUS=abc\n' E"$P" \
+  I$'declare -n BLUBBER=WALRUS\n' E"$P" I$'echo $BLUBBER\n' O$'abc\n' E"$P" \
+  I$'BLUBBER=potato\n' RE$'WALRUS.*readonly' I$'echo $?\n' O$'1\n'
+
+$BROKEN shxpect 'readonly' I$'readonly abc=123\n' E"$P" I$'echo $abc\n' O$'123\n' \
+  E"$P" I$'abc=def\n' RE$'WALRUS.*readonly' I$'echo $?\n' O$'1\n'
+$BROKEN shxpect 'readonly prefix' I$'readonly abc; abc=def echo hello; echo $?\n' \
+  O$'hello\n0\n' RE$'abc.*readonly'
 
 testing 'unset is a honey badger' 'a=1; b=2; unset a=b; echo $? a=$a b=$b' \
   '0 a=1 b=2\n' '' ''
