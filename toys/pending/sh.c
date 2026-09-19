@@ -2010,6 +2010,93 @@ static char *slashcopy(char *s, char *c, struct sh_arg *deck)
   return ss;
 }
 
+// parse $PS1 style escapes into a buffer
+static int get_prompt(char *buf, int blen, char *prompt)
+{
+  char *s, *ss, *sss, c, cc, *pp = buf;
+  int len, ll;
+
+  if (!prompt) return 0;
+  while ((len = blen-(pp-buf))>0 && *prompt) {
+    c = *(prompt++);
+
+    if (c=='!') {
+      if (*prompt=='!') prompt++;
+      else {
+        pp += snprintf(pp, len, "%ld", TT.ff->lineno);
+        continue;
+      }
+    } else if (c=='\\') {
+      cc = *(prompt++);
+      if (!cc) {
+        *pp++ = c;
+        break;
+      }
+
+      // \nnn \dD{}hHjlstT@AuvVwW!#$
+      // Ignore bash's "nonprintable" hack; query our cursor position instead.
+      if (cc=='[' || cc==']') continue;
+      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
+      else if (strchr("DdtT@A", cc)) {
+        char *end, *fmt = (char *[]){0, "%a %b %d", "%H:%M:%S", "%I:%M:%S",
+          "%I:%M %p", "%R"}[stridx("dtT@A", cc)];
+        time_t tt = time(0);
+
+        if (!fmt) {
+          // todo: slashcopy? Would allow escaped \} but can't handle missing }
+          if (*prompt!='{' || !(end = strchr(prompt+1, '}'))) *pp++ = cc;
+          else {
+            if (end==prompt+1) fmt = "%X";
+            else fmt = xstrndup(prompt, end-prompt);
+            prompt = end+1;
+          }
+        }
+        pp += strftime(pp, len, fmt, localtime(&tt));
+        if (cc=='D') free(fmt);
+      } else if (cc=='h' || cc=='H') {
+        if ((len = gethostname(pp, len)) && cc=='h' && (s = strchr(pp, '.')))
+          len = s-pp;
+      } else if (cc=='s')
+        for (s = getbasename(TT.argv0); *s && len--; *pp++ = *s++);
+      else if (cc=='u') {
+        struct passwd *pw = bufgetpwuid(ll = getuid());
+        char buf[16];
+
+        sprintf(buf, "%d", ll);
+        s = pw ? pw->pw_name : buf;
+        if (pw) pp += sprintf(pp, "%.*s", len-1, s);
+      } else if (cc=='v'||cc=='V')
+        pp += sprintf(pp, "%.*s", len-1, TOYBOX_VERSION);
+      else if (cc=='w'||cc=='W') {
+        if ((s = sss = getvar("PWD"))) {
+          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
+            if (*s && *s!='/') s = sss;
+            else if (cc!='W' || !*s) {
+              *pp++ = '~';
+              if (--len && *s && *s!='/') *pp++ = '/', len--;
+            }
+          }
+          if (len>0) pp += sprintf(pp, "%.*s", len-1, s);
+        }
+      } else if (!(c = unescape(cc))) {
+        *pp++ = '\\';
+        if (--len) *pp++ = c;
+      } else *pp++ = c;
+    } else *pp++ = c;
+  }
+
+  return pp-buf;
+}
+
+// write prompt to stderr, processing $PS1 style escapes
+// Truncated to 4k at the moment, waiting for somebody to complain.
+static void do_prompt(char *buf)
+{
+  int len = get_prompt(toybuf, sizeof(toybuf), buf);
+
+  writeall(2, toybuf, len>sizeof(toybuf) ? sizeof(toybuf) : len);
+}
+
 #define NO_QUOTE (1<<0)    // quote removal
 #define NO_PATH  (1<<1)    // path expansion (wildcards)
 #define NO_SPLIT (1<<2)    // word splitting
@@ -2019,12 +2106,12 @@ static char *slashcopy(char *s, char *c, struct sh_arg *deck)
 #define NO_IFS   (1<<6)    // Use ' ' instead of $IFS to combine $*
 // expand str appending to arg using above flag defines, add mallocs to delete
 // if ant not null, save wildcard deck there instead of expanding vs filesystem
-// returns 0 for success, 1 for error.
 // If measure stop at *measure and return input bytes consumed in *measure
+// returns 0 for success, 1 for error.
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete, struct sh_arg *ant, long *measure)
 {
-  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss = ss, *ifs, *slice;
+  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
   struct sh_arg deck = {0};
 
@@ -2257,7 +2344,7 @@ barf:
     // insert ifs (active for wildcards+splitting)
     // keep str+ii after (still to parse)
 
-    // Fetch separator to glue string back together with
+    // Fetch separator to glue array back together with
     *sep = 0;
     if (((qq&1) && cc=='*') || (flags&NO_SPLIT)) {
       unsigned wc;
@@ -2437,7 +2524,6 @@ barf:
 
       // loop within current ifs checking region to split words
       do {
-
         // find end of (split) word
         if ((qq&1) || nosplit) ss = ifs+strlen(ifs);
         else for (ss = ifs; *ss; ss += kk)
@@ -3044,7 +3130,7 @@ static void sh_exec(char **argv)
     free(aa.v);
   }
 
-  perror_msg("%s", *argv);
+  sherror_msg("%s", *argv);
   if (!TT.isexec) _exit(127);
   llist_traverse(sl, free);
 }
@@ -3902,86 +3988,6 @@ static int wait_pipeline(struct sh_process *pp)
   }
 
   return rc;
-}
-
-// Print prompt to stderr, parsing escapes
-// Truncated to 4k at the moment, waiting for somebody to complain.
-static void do_prompt(char *prompt)
-{
-  char *s, *ss, *sss, c, cc, *pp = toybuf;
-  int len, ll;
-
-  if (!prompt) return;
-  while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
-    c = *(prompt++);
-
-    if (c=='!') {
-      if (*prompt=='!') prompt++;
-      else {
-        pp += snprintf(pp, len, "%ld", TT.ff->lineno);
-        continue;
-      }
-    } else if (c=='\\') {
-      cc = *(prompt++);
-      if (!cc) {
-        *pp++ = c;
-        break;
-      }
-
-      // \nnn \dD{}hHjlstT@AuvVwW!#$
-      // Ignore bash's "nonprintable" hack; query our cursor position instead.
-      if (cc=='[' || cc==']') continue;
-      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
-      else if (strchr("DdtT@A", cc)) {
-        char *end, *fmt = (char *[]){0, "%a %b %d", "%H:%M:%S", "%I:%M:%S",
-          "%I:%M %p", "%R"}[stridx("dtT@A", cc)];
-        time_t tt = time(0);
-
-        if (!fmt) {
-          // todo: slashcopy? Would allow escaped \} but can't handle missing }
-          if (*prompt!='{' || !(end = strchr(prompt+1, '}'))) *pp++ = cc;
-          else {
-            if (end==prompt+1) fmt = "%X";
-            else fmt = xstrndup(prompt, end-prompt);
-            prompt = end+1;
-          }
-        }
-        pp += strftime(pp, len, fmt, localtime(&tt));
-        if (cc=='D') free(fmt);
-      } else if (cc=='h' || cc=='H') {
-        if ((len = gethostname(pp, len)) && cc=='h' && (s = strchr(pp, '.')))
-          len = s-pp;
-      } else if (cc=='s')
-        for (s = getbasename(TT.argv0); *s && len--; *pp++ = *s++);
-      else if (cc=='u') {
-        struct passwd *pw = bufgetpwuid(ll = getuid());
-        char buf[16];
-
-        sprintf(buf, "%d", ll);
-        s = pw ? pw->pw_name : buf;
-        if (pw) pp += sprintf(pp, "%.*s", len-1, s);
-      } else if (cc=='v'||cc=='V')
-        pp += sprintf(pp, "%.*s", len-1, TOYBOX_VERSION);
-      else if (cc=='w'||cc=='W') {
-        if ((s = sss = getvar("PWD"))) {
-          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
-            if (*s && *s!='/') s = sss;
-            else if (cc!='W' || !*s) {
-              *pp++ = '~';
-              if (--len && *s && *s!='/') *pp++ = '/', len--;
-            }
-          }
-          if (len>0) pp += sprintf(pp, "%.*s", len-1, s);
-        }
-      } else if (!(c = unescape(cc))) {
-        *pp++ = '\\';
-        if (--len) *pp++ = c;
-      } else *pp++ = c;
-    } else *pp++ = c;
-  }
-  len = pp-toybuf;
-  if (len>=sizeof(toybuf)) len = sizeof(toybuf);
-  writeall(2, toybuf, len);
 }
 
 // returns NULL for EOF or error, else null terminated string.
