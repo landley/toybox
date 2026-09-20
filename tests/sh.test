@@ -7,94 +7,107 @@
 # testing "name" "command" "result" "infile" "stdin"
 # txpect "name" "command" [R]I/O/E"string" X[ERR]
 
-# Use "bash" name for host, "sh" for toybox. (/bin/sh is often defective.)
-[ -z "$SH" ] && { [ -z "$TEST_HOST" ] && export SH="sh" || export SH="bash" ; }
-# The expected prompt is different for root vs normal user
-[ $UID -eq 0 ] && P='# ' || P='$ '
-# insulate shell child process to get predictable results
-SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
+# We are specifically testing against _bash_, not whatever
+# https://wiki.ubuntu.com/DashAsBinSh nonsense the host has /bin/sh point to.
+if [ -n "$TEST_HOST" ] && [ -z "$($C --version 2>/dev/null | grep -o bash)" ]
+then
+  C="$(which bash)"
+  [ -z "$C" ] && { echo "no bash found"; exit 1; }
+fi
 
+# insulate shell child process to get predictable results
+SS="env -i PATH=${PATH@Q} PS1='\\$ ' ${C@Q} --noediting --noprofile --norc -is"
+# $BROKEN tests only work on the host
 [ -z "$TEST_HOST" ] && : ${BROKEN=true}
-# Wrap txpect for shell testing
+
+# Wrap txpect for shell testing (Expected prompt different for root/normal user)
+[ $UID -eq 0 ] && P='# ' || P='$ '
 shxpect() {
   X="$1"
   shift
   txpect "$X" "$SS" E"$P" "$@" X0
 }
 
+# shxpect basic smoketests
 shxpect "prompt and exit" I$'exit\n'
-shxpect "prompt and echo" I$'echo hello\n' O$'hello\n' E"$P"
+shxpect "exit2" I$'exit 42\n' X42
+shxpect "prompt/echo/prompt" I$'echo hello\n' O$'hello\n' E"$P"
+
+# test command line arguments before setting $EVAL to call -c for us
+testcmd '-c "" exit status 0' '-c "" && echo $?' '0\n' '' ''
+testcmd '-c args' "-c 'echo \$0,\$1,\$2,\$3' one two three four five" \
+  "one,two,three,four\n" "" ""
+testcmd '-c args2' "-c 'echo \${10}' a b c d e f g h i j k l" "k\n" "" ""
+testcmd '-c arg split' \
+  "-c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
+  "=a456=\n=789b=\n123\n" "" ""
+testcmd '-c arg split2' \
+  "-c 'for i in a\"\$* \$@\"b; do echo =\$i=;done' one two three four five"\
+  "=atwo three four five two=\n=three=\n=four=\n=fiveb=\n" "" ""
+testcmd '-c arg count' "-c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
+testcmd '-c arg shift' \
+  "-c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
+  "0 two\n0 three\n0 five\n0\n1\n" "" ""
+testcmd '-c exec exitval' "-c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
+testcmd '-c eval $*' "-c 'eval echo \$*' one two three" "two three\n" "" ""
+testcmd 'IFS $*' "-c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" "" ""
+
+# The bash man page is lying when it says $_ starts with an absolute path.
+ln -s "$C" bash
+testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
+rm bash
+
+# running scripts
+testcmd 'simple script' 'input' 'input\n' 'echo $0' ''
+testcmd 'simple script2' './input two;echo $?' './input+two\n42\n' \
+  '\necho $0+$1\n\nexit 42' ''
+testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
+testcmd 'script $LINENO' 'input' '1\n' 'echo $LINENO' ''
+testcmd 'script lineno2' 'input' '5 one\n6 one\n5 two\n6 two\n' \
+  '#!/bin/bash\n\nfor i in one two\ndo\necho $LINENO $i\necho $LINENO $i\ndone\n' ""
+toyonly testcmd 'recursion guard (bash segfaults)' \
+  'input 2>/dev/null; [ $? -lt 128 ] && echo pass' 'pass\n' 'source input' ''
+
+mkdir sub
+echo echo hello > sub/script
+testing 'simple script in $PATH' "PATH='$PWD/sub:$PATH' $C script" \
+  'hello\n' '' ''
+rm -rf sub
+
+# Without the \n\n bash 5 emits SHLVL=0
+testing 'default exports' "env -i $C --noprofile --norc -c \$'env\n\n' | sort" \
+  "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
+# toysh order of operations not matching bash
+$BROKEN testing "leading assignment fail" \
+  "{ $C -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
+
+# these tests can go after EVAL switch
+
+# backslash line continuation
+testcmd 'trailing \' "-c 'echo \'" '\\\n' '' ''
+testcmd "trailing \\ in ''" "-c \$'echo \\'one\\\\\\ntwo\\''" 'one\\\ntwo\n' \
+  '' ''
+testcmd 'trailing \ in ""' "-c \$'echo \"one\\\\\\ntwo\"'" 'onetwo\n' '' ''
+testcmd 'vanishing \' "-c \$'echo \\\\\\n a'" 'a\n' '' ''
+testcmd 'command\ arg' "-c \$'echo\\\\\\n  abc'" 'abc\n' '' ''
+
+testcmd 'syntax' '-c "if true; then echo hello | fi" 2>/dev/null || echo x'\
+  'x\n' '' ''
+testcmd 'syntax2' '-c "for;i 0" 2>&1 | { grep -qi syntax && echo yes; }' \
+  'yes\n' '' ''
+
 shxpect "redir" I$'cat<<<hello\n' O$'hello\n' E"$P"
 shxpect "redirect err" I$'echo > /dev/full\n' E E"$P" X1
 shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
 
-# Test shell command line (-c and how scripts run) before changing EVAL
-testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
-testing '-c args' "\$SH -c 'echo \$0,\$1,\$2,\$3' one two three four five" \
-  "one,two,three,four\n" "" ""
-testing '-c args2' "\$SH -c 'echo \${10}' a b c d e f g h i j k l" "k\n" "" ""
-testing '-c arg split' \
-  "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
-  "=a456=\n=789b=\n123\n" "" ""
-testing '-c arg split2' \
-  "$SH -c 'for i in a\"\$* \$@\"b; do echo =\$i=;done' one two three four five"\
-  "=atwo three four five two=\n=three=\n=four=\n=fiveb=\n" "" ""
-testing '-c arg count' "$SH -c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
-testing 'trailing \' "$SH -c 'echo \'" '\\\n' '' ''
-testing "trailing \\ in ''" "$SH -c \$'echo \\'one\\\\\\ntwo\\''" \
-  'one\\\ntwo\n' '' ''
-testing 'trailing \ in ""' "$SH -c \$'echo \"one\\\\\\ntwo\"'" 'onetwo\n' \
-  '' ''
-testing 'vanishing \' "$SH -c \$'echo \\\\\\n a'" 'a\n' '' ''
-testing 'command\ arg' "$SH -c \$'echo\\\\\\n  abc'" 'abc\n' '' ''
-testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
-  "$(readlink -f $C)\n" "" ""
-testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
-  "0 two\n0 three\n0 five\n0\n1\n" "" ""
-testing '(subshell)' '$SH -c "(echo hello)"' 'hello\n' '' ''
-testing 'syntax' '$SH -c "if true; then echo hello | fi" 2>/dev/null || echo x'\
-  'x\n' '' ''
-testing 'syntax2' '$SH -c "for;i 0" 2>&1 | { grep -qi syntax && echo yes; }' \
-  'yes\n' '' ''
-
-# The bash man page is lying when it says $_ starts with an absolute path.
-ln -s "$(which $SH)" bash
-testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
-rm bash
-
-testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
-testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
-testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
-  '\necho $0+$1\n\nexit 42' ''
-# this segfaults bash
-toyonly testing 'recursion guard' \
-  '$SH input 2>/dev/null; [ $? -lt 128 ] && echo pass' 'pass\n' \
-  'source input' ''
-testing '$LINENO 1' "$SH input" "1\n" 'echo $LINENO' ''
-
-mkdir sub
-echo echo hello > sub/script
-testing 'simple script in $PATH' "PATH='$PWD/sub:$PATH' $SH script" \
-  'hello\n' '' ''
-rm -rf sub
-
-testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
-testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
-  "" ""
-# Without the \n\n bash 5 emits SHLVL=0
-testing 'default exports' \
-  "env -i \"$(which $SH)\" --noprofile --norc -c \$'env\n\n' | sort" \
-  "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
-# toysh order of operations not matching bash
-#testing "leading assignment fail" \
-#  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
-testing "lineno" "$SH input" "5 one\n6 one\n5 two\n6 two\n" \
-  '#!/bin/bash\n\nfor i in one two\ndo\n  echo $LINENO $i\n  echo $LINENO $i\ndone\n' ""
-testing "eval0" "$SH -c 'eval echo \$*' one two three" "two three\n" "" ""
-
 #########################################################################
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
-export EVAL="timeout 10 $SH -c"
+export EVAL="timeout 10 $C -c"
+
+testing '(subshell)' '(echo hello)' 'hello\n' '' ''
+# What is this actually testing?
+#testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
+#  "$(readlink -f $C)\n" "" ""
 
 # From here on, tests run within the new shell by default.
 
@@ -822,9 +835,7 @@ $BROKEN shxpect 'alias/unalias on same line' \
 
 # test "command" and "type" together
 
-PSH="$(which "$SH")"
-testing 'command $0' "command '$PSH' -c 'echo \"\$0\"'" "$PSH\n" "" ""
-unset PSH
+testing 'command $0' "command '$C' -c 'echo \"\$0\"'" "$C\n" "" ""
 # which finds env in $PATH so we're not calling builtin env
 testing 'PATH=prefix command -p' \
   'PATH=potato command -p $(which env) | grep ^PATH=' 'PATH=potato\n' '' ''
