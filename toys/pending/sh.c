@@ -2054,8 +2054,8 @@ static int get_prompt(char *buf, int blen, char *prompt)
         pp += strftime(pp, len, fmt, localtime(&tt));
         if (cc=='D') free(fmt);
       } else if (cc=='h' || cc=='H') {
-        if ((len = gethostname(pp, len)) && cc=='h' && (s = strchr(pp, '.')))
-          len = s-pp;
+        if (!gethostname(s = pp, len))
+          for (; (pp-s)<len; pp++) if (!*pp || (cc=='h' && *pp=='.')) break;
       } else if (cc=='s')
         for (s = getbasename(TT.argv0); *s && len--; *pp++ = *s++);
       else if (cc=='u') {
@@ -2094,7 +2094,7 @@ static void do_prompt(char *buf)
 {
   int len = get_prompt(toybuf, sizeof(toybuf), buf);
 
-  writeall(2, toybuf, len>sizeof(toybuf) ? sizeof(toybuf) : len);
+  writeall(2, toybuf, minof(len,sizeof(toybuf)));
 }
 
 #define NO_QUOTE (1<<0)    // quote removal
@@ -2435,8 +2435,8 @@ barf:
                     push_arg(delete, ifs = xstrdup(ifs));
                   if (dd != (ll = wctoutf8(buf, ll))) {
                     if (dd<ll)
-                      ifs = (*delete)->arg = xrealloc(ifs, strlen(ifs)+1+dd-ll);
-                    memmove(ifs+yy+dd-ll, ifs+yy+ll, strlen(ifs+yy+ll)+1);
+                      (*delete)->arg = ifs = xrealloc(ifs, strlen(ifs)+1+ll-dd);
+                    memmove(ifs+yy+ll, ifs+yy+dd, strlen(ifs+yy+dd)+1);
                   }
                   memcpy(ss = ifs+yy, buf, dd = ll);
                 }
@@ -2504,7 +2504,34 @@ barf:
 // TODO ${x@QEPAa} Q=$'blah' E=blah without the $'' wrap, P=expand as $PS1
 //   A=declare that recreates var a=attribute flags
 //   x can be @*
-//      } else if (*slice=='@') {
+        // UuLQEPAa
+        } else if (*slice=='@') {
+          if ((cc = *++slice)=='P') {
+            for (ss = 0, xx = strlen(ifs)+1; (ss = xrealloc(ss, xx += 64));)
+              if (xx>(yy = get_prompt(ss, xx, ifs))) break;
+            ss[yy] = 0;
+            push_arg(delete, ifs = ss);
+          } else if (cc && strchr("UuL", cc)) for (ss = ifs; *ss; ss += dd) {
+            // TODO can this be merged with ^, logic above? No pattern match...
+            dd = getutf8(ss, 4, &jj);
+            if (jj != (ll = (cc=='L' ? towlower : towupper)(jj))) {
+              yy = ss-ifs;
+              if (!*delete || (*delete)->arg!=ifs)
+                push_arg(delete, ifs = xstrdup(ifs));
+              if (dd != (ll = wctoutf8(toybuf, ll))) {
+                if (dd<ll)
+                  (*delete)->arg = ifs = xrealloc(ifs, strlen(ifs)+1+ll-dd);
+                memmove(ifs+yy+ll, ifs+yy+dd, strlen(ifs+yy+dd)+1);
+              }
+              memcpy(ss = ifs+yy, toybuf, dd = ll);
+            }
+            if (cc=='u') break;
+//          } else if (cc=='Q') {
+//            for (jj = xx = 0; ifs[jj]; jj++) 
+//for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
+//ii = s-str+1;
+
+          } else goto fail;
 
 // TODO test x can be @ or *
         } else {
