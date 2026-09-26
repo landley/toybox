@@ -30,7 +30,7 @@ config UNICODE
 
     Convert between Unicode code points and UTF-8, in both directions.
     CODE can be one or more characters (show U+XXXX), hex numbers
-    (show character), or dash separated range.
+    (show character), dash separated range, or U+XXXX.
 */
 
 #define FOR_unicode
@@ -60,7 +60,8 @@ void unicode_main(void)
 
   // Loop through args, handling range, hex code, or character(s)
   for (args = toys.optargs; *args; args++) {
-    if (sscanf(*args, "%x-%x%c", &from, &to, &next) == 2)
+    if (sscanf(*args, "U+%x", &from)) codepoint(from);
+    else if (sscanf(*args, "%x-%x%c", &from, &to, &next) == 2)
       while (from <= to) codepoint(from++);
     else if (sscanf(*args, "%x%c", &from, &next) == 1) codepoint(from);
     else for (s = *args; (n = utf8towc(&wc, s, 4)) > 0; s += n) codepoint(wc);
