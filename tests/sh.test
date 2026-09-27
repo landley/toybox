@@ -250,50 +250,48 @@ tst "semicolon" "echo one;echo two" "one\ntwo\n"
 tst "simple pipe" "echo hello | cat" "hello\n"
 shxpect "interactive simple pipe" I$'echo hello | cat\n' O$'hello\n' E"$P" \
   I$'echo second | cat\n' O$'second\n' E"$P" I$'exit 3' X3
-testing "&&" "true && echo hello" "hello\n" "" ""
-testing "&&2" "false && echo hello" "" "" ""
-testing "||" "true || echo hello" "" "" ""
-testing "||2" "false || echo hello" "hello\n" "" ""
-testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
-testing "&& after function" "x(){ false;};x && echo yes" "" "" ""
-testing "|| after function" "x(){ false;};x || echo no" "no\n" "" ""
+tst "&&" "true && echo hello" "hello\n"
+tst "&&2" "false && echo hello" ""
+tst "||" "true || echo hello" ""
+tst "||2" "false || echo hello" "hello\n"
+tst "&& ||" "true && false && potato || echo hello" "hello\n"
+tst "&& after function" "x(){ false;};x && echo yes" ""
+tst "|| after function" "x(){ false;};x || echo no" "no\n"
 
 # tilde and bracket expansion
 
-testing "tilde expansion" "echo ~" "$HOME\n" "" ""
-testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
+tst "tilde expansion" "echo ~" "$HOME\n"
+tst "tilde2" "echo ~/dir" "$HOME/dir\n"
 
-testing "bracket expansion" \
-  "echo {A{a,b}B{c,d}C}" "{AaBcC} {AaBdC} {AbBcC} {AbBdC}\n" "" ""
-testing "brackets2" "echo {A{a,b}B{c,d}C,D}" "AaBcC AaBdC AbBcC AbBdC D\n" "" ""
-testing "brackets3" 'echo {A"b,c"D}' "{Ab,cD}\n" "" ""
-testing "brackets4" 'echo {A"bc",D}' "Abc D\n" "" ""
-testing "brackets5" 'echo {A,B,C' "{A,B,C\n" "" ""
-testing "brackets6" 'echo {{{{A,B},C}D},E}' "{AD} {BD} {CD} E\n" "" ""
-testing "brackets7" 'echo {{{a,b},c,{d,e}},f}' "a b c d e f\n" "" ""
-testing "brackets8" 'echo A{a{b,c{B,C}D}d{e,f},g{h,i}j}E' \
-  "AabdeE AabdfE AacBDdeE AacBDdfE AacCDdeE AacCDdfE AghjE AgijE\n" "" ""
-testing "brackets9" 'echo A{B{C,D}E{N,O},F{G,H}I}J{K,L}M' \
-  "ABCENJKM ABCENJLM ABCEOJKM ABCEOJLM ABDENJKM ABDENJLM ABDEOJKM ABDEOJLM AFGIJKM AFGIJLM AFHIJKM AFHIJLM\n" "" ""
+tst "bracket expansion" "echo {A{a,b}B{c,d}C}" "{AaBcC} {AaBdC} {AbBcC} {AbBdC}\n"
+tst "brackets2" "echo {A{a,b}B{c,d}C,D}" "AaBcC AaBdC AbBcC AbBdC D\n"
+tst "brackets3" 'echo {A"b,c"D}' "{Ab,cD}\n"
+tst "brackets4" 'echo {A"bc",D}' "Abc D\n"
+tst "brackets5" 'echo {A,B,C' "{A,B,C\n"
+tst "brackets6" 'echo {{{{A,B},C}D},E}' "{AD} {BD} {CD} E\n"
+tst "brackets7" 'echo {{{a,b},c,{d,e}},f}' "a b c d e f\n"
+tst "brackets8" 'echo A{a{b,c{B,C}D}d{e,f},g{h,i}j}E' \
+  "AabdeE AabdfE AacBDdeE AacBDdfE AacCDdeE AacCDdfE AghjE AgijE\n"
+tst "brackets9" 'echo A{B{C,D}E{N,O},F{G,H}I}J{K,L}M' \
+  "ABCENJKM ABCENJLM ABCEOJKM ABCEOJLM ABDENJKM ABDENJLM ABDEOJKM ABDEOJLM AFGIJKM AFGIJLM AFHIJKM AFHIJLM\n"
 for i in /root /var/root /; do [ -e $i ] && EXPECT=$i && break; done
-testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
+tst "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n"
 
 # Slices
 
-testing '${x#prefix}' 'x=abcde; echo ${x#abc}' 'de\n' '' ''
-testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
-  'ana a\n' '' ''
-toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
-testing '${x%y}' 'x=potato; echo ${x%t*o} ${x%%t*o}' 'pota po\n' '' ''
-testing 'x=${x%y}' 'x=potato; x=${x%t*o}; echo $x' 'pota\n' '' ''
-testing '${x%glob}' 'x=abc-def; echo ${x%-*f} ${x-*c}' 'abc abc-def\n' '' ''
-testing 'x=${x//y}' 'x=potato; x=${x//ta}; echo $x' 'poto\n' '' ''
-testing '${x^y}' 'x=aaaaa; echo ${x^a}' 'Aaaaa\n' '' ''
-testing '${x^^y}' 'x=abccdec; echo ${x^^c}; x=abcdec; echo ${x^^c}' \
-  'abCCdeC\nabCdeC\n' '' ''
-testing '${x,y}' 'x=BBB; echo ${x,B}' 'bBB\n' '' ''
-testing '${x,,y}' 'x=POTATO; echo ${x,,} ${x,,?} ${x,,*} ${x,,T}' \
-  'potato potato potato POtAtO\n' '' ''
+tst '${x#prefix}' 'x=abcde; echo ${x#abc}' 'de\n'
+tst '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' 'ana a\n'
+toyonly tst '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n'
+tst '${x%y}' 'x=potato; echo ${x%t*o} ${x%%t*o}' 'pota po\n'
+tst 'x=${x%y}' 'x=potato; x=${x%t*o}; echo $x' 'pota\n'
+tst '${x%glob}' 'x=abc-def; echo ${x%-*f} ${x-*c}' 'abc abc-def\n'
+tst 'x=${x//y}' 'x=potato; x=${x//ta}; echo $x' 'poto\n'
+tst '${x^y}' 'x=aaaaa; echo ${x^a}' 'Aaaaa\n'
+tst '${x^^y}' 'x=abccdec; echo ${x^^c}; x=abcdec; echo ${x^^c}' \
+  'abCCdeC\nabCdeC\n'
+tst '${x,y}' 'x=BBB; echo ${x,B}' 'bBB\n'
+tst '${x,,y}' 'x=POTATO; echo ${x,,} ${x,,?} ${x,,*} ${x,,T}' \
+  'potato potato potato POtAtO\n'
 
 # UuLQEPAKak *@
 #              // Of COURSE unicode case switch can change utf8 encoding length
