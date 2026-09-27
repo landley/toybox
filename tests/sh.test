@@ -84,7 +84,7 @@ skipnot [ $UID -eq 0 ]
 shxpect I$'echo $LOGNAME\n' O$'root\n' E'# '
 # bash caches hostname at startup, so providing known hostname awkward
 skipnot [ $UID -eq 0 -a -n "$(type -t unshare)" ]
-toyonly testing "${x@P} hostname" \
+toyonly testing '${x@P} hostname' \
   $'unshare -u $C -c \'hostname drift.wood; abc="\h \H \h"; echo ${abc@P}\'' \
   'drift drift.wood drift\n' '' ''
 
@@ -101,33 +101,32 @@ $BROKEN testing "leading assignment fail" \
 # From here on, tests run within the new shell by default.
 # TODO: what if $C/PATH/HOME/FILES has spaces in them
 export EVAL="timeout 10 env -i PATH=$PATH HOME=$HOME FILES=$FILES $C -c"
-testy() { testing "$1" "$2" "$3" '' ''; }
+tst() { testing "$1" "$2" "$3" '' ''; }
 
-testy "smoketest" "echo hello" "hello\n"
+tst "smoketest" "echo hello" "hello\n"
 
 # backslash line continuation
-testy 'trailing \ is literal' 'echo \' '\\\n'
-testy "trailing \ in ''" $'echo \'one\\\ntwo\'' 'one\\\ntwo\n'
-testy 'trailing \ in ""' $'echo "one\\\ntwo"' 'onetwo\n'
-testy 'trailing \ between args' $'echo \\\n a' 'a\n'
-testy 'command\ arg' $'echo\\\n  abc' 'abc\n'
+tst 'trailing \ is literal' 'echo \' '\\\n'
+tst "trailing \ in ''" $'echo \'one\\\ntwo\'' 'one\\\ntwo\n'
+tst 'trailing \ in ""' $'echo "one\\\ntwo"' 'onetwo\n'
+tst 'trailing \ between args' $'echo \\\n a' 'a\n'
+tst 'command\ arg' $'echo\\\n  abc' 'abc\n'
 
 # return values
 
-testy 'return code' 'if false; then echo true; fi; echo $?' '0\n'
-testy 'return code 2' 'if true; then false; fi; echo $?' '1\n'
-testing 'return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $?' '1\n2\n0\n' '' ''
-testing 'return code 4' 'false; A=B; echo $?' '0\n' '' ''
+tst 'return code' 'if false; then echo true; fi; echo $?' '0\n'
+tst 'return code 2' 'if true; then false; fi; echo $?' '1\n'
+tst 'return code 3' 'x=0; while [ $((x++)) -lt 2 ]; do echo $x; done; echo $?' '1\n2\n0\n'
+tst 'return code 4' 'false; A=B; echo $?' '0\n'
 
 # misc
-testing '(subshell)' '(echo hello)' 'hello\n' '' ''
+tst '(subshell)' '(echo hello)' 'hello\n'
 shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
-testing 'local var +whiteout' \
-  'l=X;x(){ local l=47; echo $l;unset l; echo l=$l;};x;echo $l' '47\nl=\nX\n' \
-  '' ''
-testing 'escape passthrough' 'echo -e "a\nb\nc\td"' 'a\nb\nc\td\n' '' ''
+tst 'local var +whiteout' \
+  'l=X;x(){ local l=47; echo $l;unset l; echo l=$l;};x;echo $l' '47\nl=\nX\n'
+tst 'escape passthrough' 'echo -e "a\nb\nc\td"' 'a\nb\nc\td\n'
 
-testing 'trailing $ is literal' 'echo $' '$\n' '' ''
+tst 'trailing $ is literal' 'echo $' '$\n'
 
 # redirection
 
@@ -135,60 +134,53 @@ shxpect "redir" I$'cat<<<hello\n' O$'hello\n' E"$P"
 shxpect "redirect err" I$'echo > /dev/full\n' E E"$P" X1
 
 testing "redir1" "cat < input" "hello\n" "hello\n" ""
-testing "redir2" "echo blah >out; cat out" "blah\n" "" ""
-testing "redir3" "echo more >>out; cat out" "blah\nmore\n" "" ""
-testing "redir4" "touch /not/exist 2>out||grep -o /not/exist out" \
-  "/not/exist\n" "" ""
-testing "redir5" "ls out /not/exist &> out2 || wc -l < out2" "2\n" "" ""
-testing "redir6" "ls out /not/exist &>>-abc || wc -l < ./-abc" "2\n" "" ""
-testing "redir7" "ls out /not/exist |& wc -l" "2\n" "" ""
+tst "redir2" "echo blah >out; cat out" "blah\n"
+tst "redir3" "echo more >>out; cat out" "blah\nmore\n"
+tst "redir4" "touch /not/exist 2>out||grep -o /not/exist out" "/not/exist\n"
+tst "redir5" "ls out /not/exist &> out2 || wc -l < out2" "2\n"
+tst "redir6" "ls out /not/exist &>>-abc || wc -l < ./-abc" "2\n"
+tst "redir7" "ls out /not/exist |& wc -l" "2\n"
 testing "redir8" 'echo -n $(<input)' "boing" "boing\n" ""
 shxpect "redir9" I$'echo hello > out 2>/does/not/exist\n' E E"$P" \
   I$'wc -l < out\n' O$'0\n'
-testing "redir10" 'echo hello 3<&3' "hello\n" "" ""
+tst "redir10" 'echo hello 3<&3' "hello\n"
 testing "redir11" 'if :;then echo one;fi {abc}<input; cat <&$abc' \
   "one\npotato\n" "potato\n" ""
 rm -f out out2 ./-abc
 
 shxpect 'queued work after HERE' I$'<<0;echo hello\n' E"> " I$'0\n' O$'hello\n'
-testing 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n' '' ''
-testing '<<\EOF' $'(cat<<EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' \
-  '1\n' '' ''
-testing "<<EOF''" $'(cat<<EOF\'\'\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l'\
-  '2\n' '' ''
-testing '<<\EOF' $'(cat<<\\EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' \
-  '2\n' '' ''
-testing '<< \' $'cat<<EOF\nabc\\\ndef\nEOF\n' 'abcdef\n' '' ''
-testing '<< "\"' $'cat<<\\EOF\nabc\\\ndef\nEOF\n' 'abc\\\ndef\n' '' ''
-testing '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'\
-  '' ''
-testing '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
-  'abcde\nnextEOF\n' '' ''
-testing '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' \
-  'abcde\nhello\n' '' ''
-testing '<< ${} across lines' $'cat<<}\n${PATH\\\n}\necho\n}' "$PATH\necho\n" '' ''
+tst 'work after HERE' $'cat<<0;echo hello\npotato\n0' 'potato\nhello\n'
+tst '<<\EOF' $'(cat<<EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' '1\n'
+tst "<<EOF''" $'(cat<<EOF\'\'\n$PATH\nEOF\necho "$PATH")|sort -u | wc -l' '2\n'
+tst '<<\EOF' $'(cat<<\\EOF\n$PATH\nEOF\necho "$PATH") | sort -u | wc -l' '2\n'
+tst '<< \' $'cat<<EOF\nabc\\\ndef\nEOF\n' 'abcdef\n'
+tst '<< "\"' $'cat<<\\EOF\nabc\\\ndef\nEOF\n' 'abc\\\ndef\n'
+tst '<<""' $'cat<<"";echo hello\npotato\n\necho huh' 'potato\nhello\nhuh\n'
+tst '<< trailing \' $'cat<<EOF 2>/dev/null\nabcde\nnext\\\nEOF\nEOF' \
+  'abcde\nnextEOF\n'
+tst '<< trailing \ 2' $'cat<<EOF\nabcde\nEO\\\nF\necho hello' 'abcde\nhello\n'
+tst '<< ${} across lines' $'cat<<}\n${PATH\\\n}\necho\n}' "$PATH\necho\n"
 
-testing '<< $(a)' $'cat<<$(a)\nx\n$(a)' 'x\n' '' ''
-testing 'HERE straddle' $'cat<<EOF;if true\nhello\nEOF\nthen echo also; fi' \
-  'hello\nalso\n' '' ''
-$BROKEN testing '\\n in <<EOF' $'cat<<EO\\\nF\n$PATH\nEOF\n' "$PATH\n" "" ""
-testing '\\n in <<EOF with ""' $'cat<<EO\\\nF""\n$PATH\nEOF\n' '$PATH\n' '' ''
-testing '\\n in HERE terminator' $'cat<<EOF\nabc\nE\\\nOF\necho hello\n' \
-  'abc\nhello\n' '' ''
+tst '<< $(a)' $'cat<<$(a)\nx\n$(a)' 'x\n'
+tst 'HERE straddle' $'cat<<EOF;if true\nhello\nEOF\nthen echo also; fi' \
+  'hello\nalso\n'
+$BROKEN tst '\\n in <<EOF' $'cat<<EO\\\nF\n$PATH\nEOF\n' "$PATH\n"
+tst '\\n in <<EOF with ""' $'cat<<EO\\\nF""\n$PATH\nEOF\n' '$PATH\n'
+tst '\\n in HERE terminator' $'cat<<EOF\nabc\nE\\\nOF\necho hello\n' \
+  'abc\nhello\n'
 ln -s "$(which echo)" echo2
-testing "undelimited redirect doesn't eat prefix" './echo2</dev/null hello' \
-  'hello\n' '' ''
+tst "undelimited redirect won't eat prefix" './echo2</dev/null hello' 'hello\n'
 rm -f echo2
-testing 'redirect prefix assignment is local' '{ echo $ABC; } {ABC}</dev/null; echo $3'\
-  '10\n\n' '' ''
+tst 'redirect prefix assignment is local' \
+  '{ echo $ABC; } {ABC}</dev/null; echo $3' '10\n\n'
 testing 'redirect before command' '< input cat' 'hello' 'hello' ''
 
 # quoting
 
-testing 'double quotes' 'echo \x "\x" "\\" "\$" "\`"' 'x \x \ $ `\n' '' ''
-testing 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n' '' ''
-testing 'escape makes argument' 'echo \  | wc -c' '2\n' '' ''
-testing 'single quote in double' "echo \"'\"" "'\n" "" ""
+tst 'double quotes' 'echo \x "\x" "\\" "\$" "\`"' 'x \x \ $ `\n'
+tst 'quoted line escapes' $'echo "\\\none" \'\\\ntwo\'' 'one \\\ntwo\n'
+tst 'escape makes argument' 'echo \  | wc -c' '2\n'
+tst 'single quote in double' "echo \"'\"" "'\n"
 
 # TODO needs shopt -s extglob progcomp
 $BROKEN shxpect 'empty +() is literal' I$'shopt -s extglob progcomp\n' E$P \
@@ -201,65 +193,61 @@ shxpect '$_ preserved on prefix error' I$'true hello; a=1 b=2 c=${} true\n' \
 shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
   E E"$P" I$'echo $_\n' O$'hello\n'
 shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
-testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
+tst '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n'
 shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
-testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
-testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
-  'true\nabc\n' '' ''
+tst '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n'
+tst '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' 'true\nabc\n'
 
-testing "assignment" 'x=y; echo $x' 'y\n' '' ''
-testing "+= assignment" 'x+=abc; y=def; y+=$x; echo $y' 'defabc\n' '' ''
-testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
-  '123\n' '' ''
-testing 'prefix localizes magic vars' \
-  'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
-testing 'prefix assignment does not persist in pipelines' \
-  'export A=bc; A=de echo | env | grep ^A=' 'A=bc\n' '' ''
-testing 'prefix append' 'PATH+=:walrus env | grep ^PATH=' "PATH=$PATH:walrus\n"\
-  '' ''
-$BROKEN testing 'prefix readonly' \
+tst "assignment" 'x=y; echo $x' 'y\n'
+tst "+= assignment" 'x+=abc; y=def; y+=$x; echo $y' 'defabc\n'
+tst 'prefix is local for builtins' 'abc=123;abc=def unset abc;echo $abc' '123\n'
+tst 'prefix localizes magic var' 'SECONDS=123; SECONDS=345 true; echo $SECONDS'\
+  '123\n'
+tst 'prefix assignment does not persist in pipelines' \
+  'export A=bc; A=de echo | env | grep ^A=' 'A=bc\n'
+tst 'prefix append' 'PATH+=:walrus env | grep ^PATH=' "PATH=$PATH:walrus\n"
+$BROKEN tst 'prefix readonly' \
   'export poing; readonly poing=abc; { poing=123 env; echo poing=$?;} 2>/dev/null | grep ^poing='\
-  'poing=abc\npoing=0\n' '' ''
+  'poing=abc\npoing=0\n'
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
-testing 'prefix assignment decision made after variable expansion' \
-  'abc=def $NOTHING; echo $abc' 'def\n' '' ''
-testing 'assignment with redirect is persistent, not prefix' \
-  'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
-testing 'assignment with not is persistent' '! a=b; echo $a $?' 'b 1\n' '' ''
-testing '! ! redirect prefix assignment exported not persistent' \
+tst 'prefix assignment decision made after variable expansion' \
+  'abc=def $NOTHING; echo $abc' 'def\n'
+tst 'assignment with redirect is persistent, not prefix' \
+  'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n'
+tst 'assignment with not is persistent' '! a=b; echo $a $?' 'b 1\n'
+tst '! ! redirect prefix assignment exported not persistent' \
   '! ! > file.txt A=B env; echo $?; grep ^A= file.txt; echo $A' \
-  '0\nA=B\n\n' '' ''
-testing 'prefix assignment pipe-local' 'ABC=abc; ABC=def true | echo $ABC' \
-  'abc\n' '' ''
-testing 'prefix assignment exports' \
-  'ABC=abc; ABC=def env | grep ^ABC=; echo $ABC' 'ABC=def\nabc\n' '' ''
-testing 'redundant prefix assignment' \
-  'ABC=abc; ABC=def ABC=ghi env | grep ^ABC=; echo $ABC' 'ABC=ghi\nabc\n' '' ''
+  '0\nA=B\n\n'
+tst 'prefix assignment pipe-local' 'ABC=abc; ABC=def true | echo $ABC' 'abc\n'
+tst 'prefix assignment exports' 'ABC=abc; ABC=def env | grep ^ABC=; echo $ABC'\
+  'ABC=def\nabc\n'
+tst 'redundant prefix assignment' \
+  'ABC=abc; ABC=def ABC=ghi env | grep ^ABC=; echo $ABC' 'ABC=ghi\nabc\n'
 
 
 mkdir -p one/two/three
-testing 'cd in renamed dir' \
+tst 'cd in renamed dir' \
   'cd one/two/three && mv ../../../{one,four} && cd .. && echo ${PWD: -9:9}' \
-  '/four/two\n' '' ''
+  '/four/two\n'
 rm -rf one
 
-testing "eval" "eval echo hello" "hello\n" "" ""
-testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
-testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
-testing "eval4" 'eval printf '=%s=' \" hello \"' "= hello =" "" ""
-NOSPACE=1 testing "eval5" 'eval echo \" hello \" | wc' ' 1 1 8' "" ""
-$BROKEN testing 'eval6' $'false; eval \'echo $?\'' '1\n' '' ''
-testing 'eval7' $'eval \'false\'; echo $?' '1\n' '' ''
-testing 'eval8' $'false; eval ''; echo $?' '0\n' '' ''
-$BROKEN testing 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n' '' ''
+tst "eval" "eval echo hello" "hello\n"
+tst "eval2" "eval 'echo hello'; echo $?" "hello\n0\n"
+tst "eval3" 'X="echo hello"; eval "$X"' "hello\n"
+tst "eval4" 'eval printf '=%s=' \" hello \"' "= hello ="
+NOSPACE=1 tst "eval5" 'eval echo \" hello \" | wc' ' 1 1 8'
+$BROKEN tst 'eval6' $'false; eval \'echo $?\'' '1\n'
+tst 'eval7' $'eval \'false\'; echo $?' '1\n'
+tst 'eval8' $'false; eval ''; echo $?' '0\n'
+$BROKEN tst 'eval9' $'A=echo; false; eval \'$A $?\'' '1\n'
 
-testing "exec" "exec echo hello" "hello\n" "" ""
-testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
-$BROKEN testing "exec redirect persists" 'exec {VAR}< <(echo hello); cat <&$VAR' 'hello\n' '' ''
+tst "exec" "exec echo hello" "hello\n"
+tst "exec2" "exec echo hello; echo $?" "hello\n"
+$BROKEN tst "exec redirect persists" 'exec {VAR}< <(echo hello); cat <&$VAR' 'hello\n'
 
 # ; | && ||
-testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
-testing "simple pipe" "echo hello | cat" "hello\n" "" ""
+tst "semicolon" "echo one;echo two" "one\ntwo\n"
+tst "simple pipe" "echo hello | cat" "hello\n"
 shxpect "interactive simple pipe" I$'echo hello | cat\n' O$'hello\n' E"$P" \
   I$'echo second | cat\n' O$'second\n' E"$P" I$'exit 3' X3
 testing "&&" "true && echo hello" "hello\n" "" ""
