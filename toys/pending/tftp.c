@@ -15,18 +15,17 @@ config TFTP
 
     Transfer file from/to tftp server.
 
-    -l FILE Local FILE
-    -r FILE Remote FILE
-    -g    Get file
-    -p    Put file
-    -b SIZE Transfer blocks of SIZE octets(8 <= SIZE <= 65464)
+    -l	FILE Local FILE
+    -r	FILE Remote FILE
+    -g	Get file
+    -p	Put file
+    -b	SIZE Transfer blocks of SIZE octets(8 <= SIZE <= 65464)
 */
 #define FOR_tftp
 #include "toys.h"
 
 GLOBALS(
-  char *local_file;
-  char *remote_file;
+  char *l, *r;
   long block_size;
 
   struct sockaddr_storage inaddr;
@@ -274,12 +273,12 @@ static int file_get(void)
   sd = init_tftp(&server);
 
   packet = (uint8_t*) xzalloc(TFTP_IOBUFSIZE);
-  fd = xcreate(TT.local_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  fd = xcreate(TT.l, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
-  len = mkpkt_request(packet, TFTP_OP_RRQ, TT.remote_file, 1);
+  len = mkpkt_request(packet, TFTP_OP_RRQ, TT.r, 1);
   ret = write_server(sd, packet, len, &server);
   if (ret != len){
-    unlink(TT.local_file);
+    unlink(TT.l);
     goto errout_with_sd;
   }
   if (TT.af == AF_INET6) ((struct sockaddr_in6 *)&server)->sin6_port = 0;
@@ -334,7 +333,7 @@ static int file_get(void)
           len = mkpkt_ack(packet, 0);
           ret = write_server(sd, packet, len, &from);
           if (ret != len){
-            unlink(TT.local_file);
+            unlink(TT.l);
             goto errout_with_sd;
           }
         }
@@ -355,18 +354,18 @@ static int file_get(void)
     }
     if (retry == TFTP_RETRIES) {
       error_msg("Retry limit exceeded.");
-      unlink(TT.local_file);
+      unlink(TT.l);
       goto errout_with_sd;
     }
     ndatabytes = nbytesrecvd - TFTP_DATAHEADERSIZE;
     if (writeall(fd, packet + TFTP_DATAHEADERSIZE, ndatabytes) < 0){
-      unlink(TT.local_file);
+      unlink(TT.l);
       goto errout_with_sd;
     }
     len = mkpkt_ack(packet, blockno);
     ret = write_server(sd, packet, len, &server);
     if (ret != len){
-      unlink(TT.local_file);
+      unlink(TT.l);
       goto errout_with_sd;
     }
   } while (ndatabytes >= TFTP_DATASIZE);
@@ -389,10 +388,10 @@ int file_put(void)
 
   sd = init_tftp(&server);
   packet = (uint8_t*)xzalloc(TFTP_IOBUFSIZE);
-  fd = xopenro(TT.local_file);
+  fd = xopenro(TT.l);
 
   for (;;) {  //first loop for request send and confirmation from server.
-    packetlen = mkpkt_request(packet, TFTP_OP_WRQ, TT.remote_file, 1);
+    packetlen = mkpkt_request(packet, TFTP_OP_WRQ, TT.r, 1);
     ret = write_server(sd, packet, packetlen, &server);
     if (ret != packetlen) goto errout_with_sd;
     if (read_ack(sd, packet, &server, &port, NULL) == 0) break;
@@ -436,10 +435,10 @@ void tftp_main(void)
 
   if (FLAG(r)) {
     if (!FLAG(l)) {
-      char *slash = strrchr(TT.remote_file, '/');
-      TT.local_file = (slash) ? slash + 1 : TT.remote_file;
+      char *slash = strrchr(TT.r, '/');
+      TT.l = (slash) ? slash + 1 : TT.r;
     }
-  } else if (FLAG(l)) TT.remote_file = TT.local_file;
+  } else if (FLAG(l)) TT.r = TT.l;
   else error_exit("Please provide some files.");
 
   memset(&rp, 0, sizeof(rp));
