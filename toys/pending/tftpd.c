@@ -25,10 +25,11 @@ config TFTPD
 #include "toys.h"
 
 GLOBALS(
-  char *user;
+  char *u;
 
   long sfd;
   struct passwd *pw;
+  char *errpkt;
 )
 
 #define TFTPD_BLKSIZE 512  // as per RFC 1350.
@@ -71,16 +72,14 @@ GLOBALS(
  *         ----------------------------------------
  */
 
-static char *g_errpkt = toybuf + TFTPD_BLKSIZE;
-
 // Create and send error packet.
 static void send_errpkt(struct sockaddr *dstaddr,
     socklen_t socklen, char *errmsg)
 {
   error_msg_raw(errmsg);
-  g_errpkt[1] = TFTPD_OP_ERR;
-  strcpy(g_errpkt + 4, errmsg);
-  if (sendto(TT.sfd, g_errpkt, strlen(errmsg)+5, 0, dstaddr, socklen) < 0)
+  TT.errpkt[1] = TFTPD_OP_ERR;
+  strcpy(TT.errpkt + 4, errmsg);
+  if (sendto(TT.sfd, TT.errpkt, strlen(errmsg)+5, 0, dstaddr, socklen) < 0)
     perror_exit("sendto failed");
 }
 
@@ -120,7 +119,7 @@ static void do_action(struct sockaddr *srcaddr, struct sockaddr *dstaddr,
   else fd = open(file,
     FLAG(c) ? (O_WRONLY|O_TRUNC|O_CREAT) : (O_WRONLY|O_TRUNC), 0666);
   if (fd < 0) {
-    g_errpkt[3] = TFTPD_ER_NOSUCHFILE;
+    TT.errpkt[3] = TFTPD_ER_NOSUCHFILE;
     send_errpkt(dstaddr, socklen, "can't open file");
     goto CLEAN_APP;
   }
@@ -229,7 +228,7 @@ POLL_INPUT:
       if (rblockno == blockno) {
         int nw = writeall(fd, &rpkt[4], len-4);
         if (nw != len-4) {
-          g_errpkt[3] = TFTPD_ER_FULL;
+          TT.errpkt[3] = TFTPD_ER_FULL;
           send_errpkt(dstaddr, socklen, "write error");
           break;
         }
@@ -257,10 +256,12 @@ void tftpd_main(void)
   char *buf = toybuf;
   char *end;
 
+  TT.errpkt = toybuf + TFTPD_BLKSIZE;
+
   memset(&srcaddr, 0, sizeof(srcaddr));
   if (getsockname(0, (struct sockaddr *)&srcaddr, &socklen)) help_exit(0);
 
-  if (TT.user) TT.pw = xgetpwnam(TT.user);
+  if (TT.u) TT.pw = xgetpwnam(TT.u);
   if (*toys.optargs) xchroot(*toys.optargs);
 
   recvmsg_len = recvfrom(fd, toybuf, blksize, 0, (void *)&dstaddr, &socklen);
