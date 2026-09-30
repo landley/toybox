@@ -13,8 +13,7 @@ source scripts/portability.sh
 export KCONFIG_CONFIG
 if [ ! -e ${KCONFIG_CONFIG:=.config} ]
 then
-  KCONFIG_CONFIG=.singleconfig
-  make defconfig
+  KCONFIG_CONFIG=.singleconfig make defconfig
 else
   # Force dependencies to rebuild headers if we build multiplexer after this.
   touch "$KCONFIG_CONFIG"
@@ -44,8 +43,8 @@ do
   else
     # Disable multiplexer and features not needed by this command to save space
     MPDEL='s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t'
-    [ "${NEWTOY/NOHELP/}" != "$NEWTOY" ] && GLOBDEP="${DEPENDS/TOYBOX_HELP/}"
-    [ "${NEWTOY/ROOT/}" != "$NEWTOY" ] && GLOBDEP="${DEPENDS/TOYBOX_SUID/}"
+    [ "${NEWTOY/NOHELP/}" != "$NEWTOY" ] && GLOBDEP="${GLOBDEP/TOYBOX_HELP/}"
+    [ "${NEWTOY/ROOT/}" != "$NEWTOY" ] && GLOBDEP="${GLOBDEP/TOYBOX_SUID/}"
   fi
 
   # Enable stuff this command depends on
