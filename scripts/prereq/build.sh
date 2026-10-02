@@ -12,4 +12,4 @@ toys/posix/sort.c toys/posix/tail.c toys/posix/uname.c toys/posix/wc.c
 toys/posix/xargs.c
 "
 
-$BUILD lib/*.c $FILES $LINK -o toybox-prereq
+$SKIP $BUILD lib/*.c $FILES $LINK -o toybox-prereq

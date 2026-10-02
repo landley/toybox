@@ -403,6 +403,9 @@
 #define CFG_CD 0
 #define USE_CD(...)
 #define SKIP_CD(...) __VA_ARGS__
+#define CFG_COMMAND 0
+#define USE_COMMAND(...)
+#define SKIP_COMMAND(...) __VA_ARGS__
 #define CFG_CONTINUE 0
 #define USE_CONTINUE(...)
 #define SKIP_CONTINUE(...) __VA_ARGS__
@@ -445,6 +448,12 @@
 #define CFG_TRAP 0
 #define USE_TRAP(...)
 #define SKIP_TRAP(...) __VA_ARGS__
+#define CFG_TYPE 0
+#define USE_TYPE(...)
+#define SKIP_TYPE(...) __VA_ARGS__
+#define CFG_UMASK 0
+#define USE_UMASK(...)
+#define SKIP_UMASK(...) __VA_ARGS__
 #define CFG_UNALIAS 0
 #define USE_UNALIAS(...)
 #define SKIP_UNALIAS(...) __VA_ARGS__
@@ -808,6 +817,9 @@
 #define CFG_UCLAMPSET 0
 #define USE_UCLAMPSET(...)
 #define SKIP_UCLAMPSET(...) __VA_ARGS__
+#define CFG_UCSICONTROL 0
+#define USE_UCSICONTROL(...)
+#define SKIP_UCSICONTROL(...) __VA_ARGS__
 #define CFG_UPTIME 0
 #define USE_UPTIME(...)
 #define SKIP_UPTIME(...) __VA_ARGS__
