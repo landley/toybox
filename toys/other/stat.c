@@ -105,7 +105,7 @@ static void print_stat(char type)
   else if (type == 'i') out('u', stat->st_ino);
   else if (type == 'm') {
     struct mtab_list *mt = xgetmountlist(0);
-    dev_t dev = stat->st_rdev ? stat->st_rdev : stat->st_dev;
+    dev_t dev = stat->st_rdev ? : stat->st_dev;
 
     // This mount point could exist multiple times, so show oldest.
     for (dlist_terminate(mt); mt; mt = mt->next) if (mt->stat.st_dev == dev) {
