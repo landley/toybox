@@ -2013,76 +2013,76 @@ static char *slashcopy(char *s, char *c, struct sh_arg *deck)
 // parse $PS1 style escapes into a buffer
 static int get_prompt(char *buf, int blen, char *prompt)
 {
-  char *s, *ss, *sss, c, cc, *pp = buf;
+  char *s, *ss, *sss, cc, *pp = buf;
   int len, ll;
 
   if (!prompt) return 0;
   while ((len = blen-(pp-buf))>0 && *prompt) {
-    c = *(prompt++);
+    if ('\\' != (cc = *(prompt++)) || !*prompt) {
+      *pp++ = cc;
 
-    if (c=='!') {
-      if (*prompt=='!') prompt++;
-      else {
-        pp += snprintf(pp, len, "%ld", TT.ff->lineno);
-        continue;
+      continue;
+    }
+
+    // \nnn \dD{}hHjlstT@AuvVwW!#$
+    if ((cc = *prompt++)=='!') pp += snprintf(pp, len, "%ld",TT.ff->lineno);
+    // Ignore bash's "nonprintable" hack; query our cursor position instead.
+    else if (cc=='[' || cc==']') continue;
+    else if (cc=='$') *pp++ = getuid() ? '$' : '#';
+    else if (strchr("DdtT@A", cc)) {
+      char *end, *fmt = (char *[]){0, "%a %b %d", "%H:%M:%S", "%I:%M:%S",
+        "%I:%M %p", "%R"}[stridx("dtT@A", cc)];
+      time_t tt = time(0);
+
+      if (!fmt) {
+        // todo: slashcopy? Would allow escaped \} but can't handle missing }
+        if (*prompt!='{' || !(end = strchr(prompt+1, '}'))) *pp++ = cc;
+        else {
+          if (end==prompt+1) fmt = "%X";
+          else fmt = xstrndup(prompt, end-prompt);
+          prompt = end+1;
+        }
       }
-    } else if (c=='\\') {
-      cc = *(prompt++);
-      if (!cc) {
-        *pp++ = c;
-        break;
+      pp += strftime(pp, len, fmt, localtime(&tt));
+      if (cc=='D') free(fmt);
+    } else if (cc=='h' || cc=='H') {
+      if (!gethostname(s = pp, len))
+        for (; (pp-s)<len; pp++) if (!*pp || (cc=='h' && *pp=='.')) break;
+    } else if (cc=='j') pp += snprintf(pp, len-1, "%d", TT.jobs.c);
+    else if (cc=='l') {
+      if (!(ss = ttyname(0))) {
+        if (!(ss = ttyname(ll = open("/dev/tty", O_RDONLY)))) ss = "";
+        close(ll);
       }
+      pp += sprintf(pp, "%.*s", len-1, getbasename(ss));
+    } else if (cc=='s')
+      for (s = getbasename(TT.argv0); *s && len--; *pp++ = *s++);
+    else if (cc=='u') {
+      struct passwd *pw = bufgetpwuid(ll = getuid());
+      char buf[16];
 
-      // \nnn \dD{}hHjlstT@AuvVwW!#$
-      // Ignore bash's "nonprintable" hack; query our cursor position instead.
-      if (cc=='[' || cc==']') continue;
-      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
-      else if (strchr("DdtT@A", cc)) {
-        char *end, *fmt = (char *[]){0, "%a %b %d", "%H:%M:%S", "%I:%M:%S",
-          "%I:%M %p", "%R"}[stridx("dtT@A", cc)];
-        time_t tt = time(0);
-
-        if (!fmt) {
-          // todo: slashcopy? Would allow escaped \} but can't handle missing }
-          if (*prompt!='{' || !(end = strchr(prompt+1, '}'))) *pp++ = cc;
-          else {
-            if (end==prompt+1) fmt = "%X";
-            else fmt = xstrndup(prompt, end-prompt);
-            prompt = end+1;
+      sprintf(buf, "%d", ll);
+      s = pw ? pw->pw_name : buf;
+      if (pw) pp += sprintf(pp, "%.*s", len-1, s);
+    } else if (cc=='v'||cc=='V')
+      pp += sprintf(pp, "%.*s", len-1, TOYBOX_VERSION);
+    else if (cc=='w'||cc=='W') {
+      if ((s = sss = getvar("PWD"))) {
+        if (cc=='W') {
+          if ((ss = strrchr(s, '/'))) s = ss+1;
+        } else if ((ss = getvar("HOME")) && strstart(&sss, ss)) {
+          if (!*sss || *sss=='/') {
+            *pp++ = '~';
+            s = sss;
           }
         }
-        pp += strftime(pp, len, fmt, localtime(&tt));
-        if (cc=='D') free(fmt);
-      } else if (cc=='h' || cc=='H') {
-        if (!gethostname(s = pp, len))
-          for (; (pp-s)<len; pp++) if (!*pp || (cc=='h' && *pp=='.')) break;
-      } else if (cc=='s')
-        for (s = getbasename(TT.argv0); *s && len--; *pp++ = *s++);
-      else if (cc=='u') {
-        struct passwd *pw = bufgetpwuid(ll = getuid());
-        char buf[16];
-
-        sprintf(buf, "%d", ll);
-        s = pw ? pw->pw_name : buf;
-        if (pw) pp += sprintf(pp, "%.*s", len-1, s);
-      } else if (cc=='v'||cc=='V')
-        pp += sprintf(pp, "%.*s", len-1, TOYBOX_VERSION);
-      else if (cc=='w'||cc=='W') {
-        if ((s = sss = getvar("PWD"))) {
-          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
-            if (*s && *s!='/') s = sss;
-            else if (cc!='W' || !*s) {
-              *pp++ = '~';
-              if (--len && *s && *s!='/') *pp++ = '/', len--;
-            }
-          }
-          if (len>0) pp += sprintf(pp, "%.*s", len-1, s);
-        }
-      } else if (!(c = unescape(cc))) {
-        *pp++ = '\\';
-        if (--len) *pp++ = c;
-      } else *pp++ = c;
-    } else *pp++ = c;
+        if (len>0) pp += sprintf(pp, "%.*s", len-1, s);
+      }
+    } else if ((cc = unescape(cc))) *pp++ = cc;
+    else {
+      *pp++ = '\\';
+      if (--len) *pp++ = prompt[-1];
+    }
   }
 
   return pp-buf;
@@ -2094,7 +2094,7 @@ static void do_prompt(char *buf)
 {
   int len = get_prompt(toybuf, sizeof(toybuf), buf);
 
-  writeall(2, toybuf, minof(len,sizeof(toybuf)));
+  writeall(2, toybuf, minof(len, sizeof(toybuf)));
 }
 
 #define NO_QUOTE (1<<0)    // quote removal
@@ -2512,7 +2512,7 @@ barf:
             ss[yy] = 0;
             push_arg(delete, ifs = ss);
           } else if (cc && strchr("UuL", cc)) for (ss = ifs; *ss; ss += dd) {
-            // TODO can this be merged with ^, logic above? No pattern match...
+            // TODO merge with ^, logic above (this has no pattern match)
             dd = getutf8(ss, 4, &jj);
             if (jj != (ll = (cc=='L' ? towlower : towupper)(jj))) {
               yy = ss-ifs;

@@ -80,13 +80,13 @@ testing 'default exports' "env -i $C --noprofile --norc -c \$'env\n\n' | sort" \
   "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
 
 # root and container tests
-skipnot [ $UID -eq 0 ]
+[ $UID -eq 0 -a -n "$(type -t unshare)" ] || SKIP=999
 shxpect I$'echo $LOGNAME\n' O$'root\n' E'# '
 # bash caches hostname at startup, so providing known hostname awkward
-skipnot [ $UID -eq 0 -a -n "$(type -t unshare)" ]
 toyonly testing '${x@P} hostname' \
-  $'unshare -u $C -c \'hostname drift.wood; abc="\h \H \h"; echo ${abc@P}\'' \
+  $'unshare -u "$C" -c \'hostname drift.wood; abc="\h \H \h"; echo ${abc@P}\'' \
   'drift drift.wood drift\n' '' ''
+SKIP=0
 
 # TODO toysh order of operations not matching bash
 $BROKEN testing "leading assignment fail" \
@@ -293,38 +293,52 @@ tst '${x,y}' 'x=BBB; echo ${x,B}' 'bBB\n'
 tst '${x,,y}' 'x=POTATO; echo ${x,,} ${x,,?} ${x,,*} ${x,,T}' \
   'potato potato potato POtAtO\n'
 
+# TODO: dDtT@A vV w !# []
+# Some of these tests are up top because root or container access needed
+tst '${x@P} \j jobs' 'x="-\\j-";echo ${x@P};sleep .5 & echo ${x@P}' '-0-\n-1-\n'
+tst '${x@P} \x\a\e\n\r\\' 'x="\\x\\a\\e\\n\\r\\\\"; echo -n "${x@P}"' \
+  '\\x\a\e\n\r\\'
+tst '${x@P} \l' 'x=\\l; echo "${x@P}" < /dev/tty' 'tty\n'
+tst '${x@P} \$' 'x="\$"; echo "${x@P} "' "$P\n"
+tst '${x@P} \s' 'x=\\s; echo "${x@P}"' "$(basename $C)\n"
+tst '${x@P} \u' 'x=\\u; echo "${x@P}"' "$(whoami)\n"
+tst '${x@P} \W' 'x=\\W; echo "${x@P}"' "$(basename $PWD)\n"
+tst '${x@P} \w' 'HOME=/one PWD=/one/two x=\\w; echo "${x@P}"' '~/two\n'
+tst '${x@P} \W is strrchr not basename' 'PWD=/one/two/ x=\\W;echo "${x@P}"' '\n'
+
 # UuLQEPAKak *@
 #              // Of COURSE unicode case switch can change utf8 encoding length
 #              // Lower case U+0069 becomes U+0130 in turkish.
 #              // Greek U+0390 becomes 3 characters TODO test this
 
-testing '${x@U} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x@U} expands"' \
-  'ȿɀɐɑɒ ⱾⱿⱯⱭⱰ expands\n' '' ''
-testing '${x@u} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x@u} expands"' \
-  'ȿɀɐɑɒ Ȿɀɐɑɒ expands\n' '' ''
-testing '${x@L} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x@L} expanded without OOB"' \
-  'ȺȾ ⱥⱦ expanded without OOB\n' '' ''
-testing '${x^^} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x^^} expands"' \
-  'ȿɀɐɑɒ ⱾⱿⱯⱭⱰ expands\n' '' ''
-testing '${x^} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x^} expands"' \
-  'ȿɀɐɑɒ Ȿɀɐɑɒ expands\n' '' ''
-testing '${x,,} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x,,} expanded without OOB"' \
-  'ȺȾ ⱥⱦ expanded without OOB\n' '' ''
-testing '${x,} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x,} expanded without OOB"' \
-  'ȺȾ ⱥȾ expanded without OOB\n' '' ''
+# TODO test contraction and staying same size as well. See:
+# https://gist.github.com/rendello/d37552507a389656e248f3255a618127
+
+tst '${x@U} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x@U} expands"' \
+  'ȿɀɐɑɒ ⱾⱿⱯⱭⱰ expands\n'
+tst '${x@u} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x@u} expands"' \
+  'ȿɀɐɑɒ Ȿɀɐɑɒ expands\n'
+tst '${x@L} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x@L} expanded without OOB"' \
+  'ȺȾ ⱥⱦ expanded without OOB\n'
+tst '${x^^} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x^^} expands"' \
+  'ȿɀɐɑɒ ⱾⱿⱯⱭⱰ expands\n'
+tst '${x^} uppercase' 'LC_ALL=C.UTF-8 x=ȿɀɐɑɒ; echo "$x ${x^} expands"' \
+  'ȿɀɐɑɒ Ȿɀɐɑɒ expands\n'
+tst '${x,,} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x,,} expanded without OOB"' \
+  'ȺȾ ⱥⱦ expanded without OOB\n'
+tst '${x,} lowercase' 'LC_ALL=C.UTF-8 x=ȺȾ; echo "$x ${x,} expanded without OOB"' \
+  'ȺȾ ⱥȾ expanded without OOB\n'
 
 mkdir -p abc/def/ghi
 touch www
-testing 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' \
-  'www w[x-v]w abc/def/ghi\n' '' ''
-testing 'hidden wildcards' \
-  'touch .abc abc && echo *bc && echo and && echo .*bc' \
-  'abc\nand\n.abc\n' '' ''
+tst 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' 'www w[x-v]w abc/def/ghi\n'
+tst 'hidden wildcards' 'touch .abc abc && echo *bc && echo and && echo .*bc' \
+  'abc\nand\n.abc\n'
 
-testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
-testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
-testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
-$BROKEN testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
+tst "backtick1" 'x=fred; echo `echo $x`' 'fred\n'
+tst "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n'
+tst '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n"
+$BROKEN tst '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n'
 
 # ((math))
 
