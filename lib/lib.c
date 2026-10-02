@@ -1284,7 +1284,15 @@ struct passwd *bufgetpwnamuid(char *name, uid_t uid)
   } *list = 0;
   struct passwd *temp;
   static struct pwuidbuf_list *pwuidbuf;
+  static time_t passtime;
+  struct stat *st = (void *)libbuf;
   unsigned size = 256;
+
+  // Free cache list if time changes. (stat() cheap due to dentry cache)
+  if (!stat("/etc/passwd", st) && passtime!=st->st_mtime) {
+    passtime = st->st_mtime;
+    while (pwuidbuf) free(llist_pop(&pwuidbuf));
+  }
 
   // If we already have this one, return it.
   for (list = pwuidbuf; list; list = list->next)
@@ -1325,7 +1333,15 @@ struct group *bufgetgrnamgid(char *name, gid_t gid)
   } *list = 0;
   struct group *temp;
   static struct grgidbuf_list *grgidbuf;
+  static time_t grptime;
+  struct stat *st = (void *)libbuf;
   unsigned size = 256;
+
+  // Free cache list if time changes. (stat() cheap due to dentry cache)
+  if (!stat("/etc/group", st) && grptime!=st->st_mtime) {
+    grptime = st->st_mtime;
+    while (grgidbuf) free(llist_pop(&grgidbuf));
+  }
 
   for (list = grgidbuf; list; list = list->next)
     if (name ? !strcmp(name, list->gr.gr_name) : list->gr.gr_gid==gid)
