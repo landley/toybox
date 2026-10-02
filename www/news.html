@@ -37,6 +37,108 @@ bootable under QEMU (built using a <a href=/bin/mkroot/0.0.1/linux-patches/>ligh
 <u>Build</u>:
 -->
 
+<a name="03-10-2026" /><a href="#03-10-2026"><hr><h2><b>October 3, 2026</b></h2></a>
+<blockquote>
+<p>"It's at times like this, when I'm trapped in a Vogon airlock with a man from
+Betelgeuse, and about to die of asphyxiation in deep space that I really wish
+I'd listened to what my mother told me when I was young."</p>
+<p>"Why, what did she tell you?"</p>
+<p>"I don't know, I didn't listen.”
+</p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.15.tar.gz>Toybox 0.8.15</a>
+(<a href=https://codeberg.org/landley/toybox/src/tag/0.8.15>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.15>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.15>mkroot images</a>
+bootable under QEMU. (We stuck with <a href=/bin/mkroot/0.8.15/linux-patches/>Linux
+7.0</a> for now in mkroot,
+and still need to <a href=https://lists.gnu.org/archive/html/qemu-devel/2026-01/msg06318.html>patch
+QEMU</a> to run sh4 with more RAM.)</p>
+
+<p>Microsoft Copilot/Github is still deprecated, but an update this release
+<a href=https://lists.landley.net/pipermail/toybox/2026-September/010001.html>was
+requested</a>. Regular development is pushed to codeberg and the toybox
+website.</p>
+
+<p><u>New commands</u>: <b>ucsicontrol</b> from Madhu M to query/set advanced USB
+features.</p>
+
+<p><u>Features</u>: Felix Fischer added %h support to <b>find -printf</b>.
+<b>unicode</b> now parses U+XXXX to display unicode char with corresponding
+utf8 for that codepoint.</p>
+
+<p><u>Bugfixes</u>: eglonnnn reported a potential 3 byte buffer overrun in <b>readelf</b>,
+Jörgen Cederlöf reported that <b>grep</b> patterns starting with ^. were
+trying to use the fast past (which does a bucket sort of the first character,
+so it can't be a wildcard), and arbruijn on codeberg reported that <b>grep -B</b>
+wasn't handling NUL bytes properly. Singleconfig builds once again have
+--help text. Dima Zavin restored the missing mount --move accidentally
+removed from <b>switch_root</b> (which was confusing later calls to nsenter).</p>
+
+<p><u>Library</u>: anystart() working on an array of strings got replaced
+by anystrz() working on a string with embedded NUL bytes (saving a half-dozen
+bytes per string). Several functions now use long instead of ssize_t and
+check for negative values to more easily catch interger overflows that
+have undergone int-&gt;long conversion.</p>
+
+<p><u>Mkroot</u>: Tightened up the wildcards so blah-cross.tar.gz in the ccc
+directory no longer confuses target enumeration.</p>
+
+<p><u>Pending</u>: wt-z0 fixed an incorrect memset size in <b>brctl</b>,
+Brian Mayer added <b>getty --show-issue</b>, Avery Terrel fixed <b>vi</b>'s
+KEY_END placing cursor at last written character in insert mode. Partial
+cleanups to xzcat, tftp, and tftpd.</p>
+
+<p>The shell implemented <b>command</b> and <b>type</b> builtins,
+<b>${x@P}</b> prompt variable expansion, <b>${X@UuL}</b> case conversions (and
+fixed <b>${x^}</b> and friends when unicode expands under case conversion,
+with a bunch more tests),
+fixed prefix assignment in pipelines, better readonly variable
+checks, local unexported variables don't hide ancestral exported variables
+from child programs (who knew?), fixed += support in several places
+(local, unassign, prefix assignment...) and various
+infrastructure work and cleanup. Many more tests, and a new "tst" macro
+that takes only 3 arguments. Avery Terrel added a
+<b>umask</b> builtin.</p>
+
+<p><u>Cleanup</u>: moved toybox_version into rodata section. Minor cleanups
+to httpd, blikd, and sha3sum.</p>
+
+<p><u>Portability</u>: Tweaked lib/portability.[hc] to try to handle free, net,
+and openbsd somewhat collectively. Switched <b>readahead</b> to use
+posix_fadvise(POSIX_FADV_WILNEED) to avoid libc identity issues.</p>
+
+<p><u>Documentation</u>: <a href=release.txt>release.txt</a> updated.
+On IRC kroovy reported that the mailing list's top level page link
+needed to change (to osuosl) in about.html and header.html. Several old
+mercurial URLs in <a href=cleanup.html>cleanup.html</a> were converted
+to the equivalent git commits.
+There is now an <a href=faq.html#llm>AI policy</a> (in brief: <a href=https://en.wikipedia.org/wiki/Vogon>avoid</a>).</p>
+
+<p><u>Plumbing</u>: <b>scripts/probes/findglobals</b> can now specify a name
+other than toybox on the command line. <b>scripts/probes/bloatcheck</b>
+says "no change" when there's no change and Avery Terrel added an $NM
+variable to override calling "nm". Removed some musl-cross-make patches from <b>mcm-buildall.sh</b>
+that musl merged upstream, and made it stop using the "ftpmirror" site which
+for some reason fails to work from tokyo.
+</p>
+<p><u>Test suite</u>: New <b>NOREBUILD=1</b> for timing how long a batch of tests
+takes without trying to rebuild the binary, <b>tar</b> now has a txz test, the <b>xzcat</b> and <b>bzcat</b> tests got redone, slightly better error reporting. </p>
+
+<p><u>Build</u>: Various fixes to the new <b>genconfig.sh</b> and <b>make.sh</b>
+plumbing (make.sh was appending to build.sh instead of rewriting it,
+oldconfig wasn't properly parsing "is not set" lines, new kconfig.c got
+confused by KCONFIG_ALLCONFIG set to an empty string or the same file
+as KCONFIG_CONFIG). Use -Wno-discarded-qualifiers so the compiler doesn't
+complain when we use a const normally.</p>
+</p>
+<p><u>Pedantry</u>: dmesg now warns if it can't open /dev/kmsg because
+somebody insisted silently falling back to the old API was a problem for them:
+alias dmesg="dmesg -S" to avoid.
+</p>
+
+
 <a name="22-06-2026" /><a href="#22-06-2026"><hr><h2><b>June 22, 2026</b></h2></a>
 <blockquote>
 <p>

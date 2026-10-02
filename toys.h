@@ -142,5 +142,5 @@ extern const char *toybox_version;
 #ifndef TOYBOX_VENDOR
 #define TOYBOX_VENDOR ""
 #endif
-#define TOYBOX_VERSION "0.8.14"TOYBOX_VENDOR
+#define TOYBOX_VERSION "0.8.15"TOYBOX_VENDOR
 #endif
