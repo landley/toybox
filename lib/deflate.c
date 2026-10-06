@@ -57,7 +57,9 @@ static int bitbuf_skip(struct bitbuf *bb, int bits)
 
   while (pos >= (len = bb->len<<3)) {
     pos -= len;
-    if (1 > (bb->len = read(bb->fd, bb->buf, bb->max))) {
+    bb->len = (bb->fd < 0) ? 0 : read(bb->fd, bb->buf, bb->max);
+    if (bb->len < 1) {
+      bb->len = len = 0;
       if (!bits) break;
       error_exit("inflate EOF");
     }
@@ -98,7 +100,7 @@ static unsigned bitbuf_get(struct bitbuf *bb, int bits)
     blow = bb->bitpos & 7;
     blen = 8-blow;
     if (blen > bits) blen = bits;
-    result |= ((bb->buf[click] >> blow) & ((1<<blen)-1)) << offset;
+    result |= (unsigned)((bb->buf[click] >> blow) & ((1<<blen)-1)) << offset;
     offset += blen;
     bits -= blen;
     bb->bitpos += blen;

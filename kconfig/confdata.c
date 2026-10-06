@@ -392,7 +392,7 @@ struct menu *next_menu(struct menu *menu)
 	return menu;
 }
 
-#define SYMBOL_FORCEWRITE (1<<31)
+#define SYMBOL_FORCEWRITE (1U<<31)
 
 int conf_write(const char *name)
 {

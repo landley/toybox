@@ -64,7 +64,7 @@ config BZCAT
 
 // This is what we know about each huffman coding group
 struct group_data {
-  int limit[MAX_HUFCODE_BITS+1], base[MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
+  int limit[MAX_HUFCODE_BITS+2], base[MAX_HUFCODE_BITS+1], permute[MAX_SYMBOLS];
   char minLen, maxLen;
 };
 
@@ -126,7 +126,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
 
     // Avoid 32-bit overflow (dump bit buffer to top of output)
     if (bd->inbufBitCount>=24) {
-      bits = bd->inbufBits&((1<<bd->inbufBitCount)-1);
+      bits = bd->inbufBits&((1U<<bd->inbufBitCount)-1);
       bits_wanted -= bd->inbufBitCount;
       bits <<= bits_wanted;
       bd->inbufBitCount = 0;
@@ -139,7 +139,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
 
   // Calculate result
   bd->inbufBitCount -= bits_wanted;
-  bits |= (bd->inbufBits>>bd->inbufBitCount) & ((1<<bits_wanted)-1);
+  bits |= (bd->inbufBits>>bd->inbufBitCount) & ((1U<<bits_wanted)-1);
 
   return bits;
 }
@@ -275,11 +275,8 @@ static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
     hufGroup->minLen = minLen;
     hufGroup->maxLen = maxLen;
 
-    // Note that minLen can't be smaller than 1, so we adjust the base
-    // and limit array pointers so we're not always wasting the first
-    // entry.  We do this again when using them (during symbol decoding).
-    base = hufGroup->base-1;
-    limit = hufGroup->limit-1;
+    base = hufGroup->base;
+    limit = hufGroup->limit;
 
     // zero temp[] and limit[], and calculate permute[]
     pp = 0;
@@ -353,8 +350,8 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
       symCount = GROUP_SIZE-1;
       if (selector >= bd->nSelectors) return RETVAL_DATA_ERROR;
       hufGroup = bd->groups + bd->selectors[selector++];
-      base = hufGroup->base-1;
-      limit = hufGroup->limit-1;
+      base = hufGroup->base;
+      limit = hufGroup->limit;
     }
 
     // Read next huffman-coded symbol (into jj).

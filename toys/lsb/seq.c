@@ -47,7 +47,7 @@ static double parsef(char *s)
 {
   char *dp = strchr(s, '.');
 
-  if (dp++) TT.precision = maxof(TT.precision, strcspn(dp, "eE"));
+  if (dp) TT.precision = maxof(TT.precision, strcspn(dp+1, "eE"));
 
   return xstrtod(s);
 }

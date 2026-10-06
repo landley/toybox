@@ -63,7 +63,7 @@ GLOBALS(
 // b at top level implies bb.
 // The remaining options can be applied to search keys.
 
-#define FLAG_bb (1<<31)  // Ignore trailing blanks
+#define FLAG_bb (1U<<31)  // Ignore trailing blanks
 
 struct sort_key {
   struct sort_key *next_key;  // linked list

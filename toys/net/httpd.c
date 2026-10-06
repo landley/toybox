@@ -58,7 +58,7 @@ char *mime(char *file)
   int i;
 
   strcpy(toybuf, "text/plain");
-  if (s++) for (i = 0; i<ARRAY_LEN(types); i++) {
+  if (s) for (i = 0, s++; i<ARRAY_LEN(types); i++) {
     if (strcasecmp(s, types[i])) continue;
     strcpy(toybuf, types[i]+strlen(types[i])+1);
     break;

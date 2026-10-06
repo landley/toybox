@@ -75,9 +75,9 @@ static void get_sockaddr(char *host, void *buf)
     }
   }
 
-  if (s++) {
+  if (s) {
     char *ss;
-    unsigned long p = strtoul(s, &ss, 0);
+    unsigned long p = strtoul(++s, &ss, 0);
     if (!*s || *ss || p > 65535) error_exit("bad port '%s'", s);
     port_num = htons(p);
   }

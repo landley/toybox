@@ -40,7 +40,7 @@ struct double_list *dlist_add(struct double_list **list, char *data);
 void *dlist_terminate(void *list);
 
 // args.c
-#define FLAGS_NODASH (1LL<<63)
+#define FLAGS_NODASH (1ULL<<63)
 void get_optflags(void);
 
 // dirtree.c
@@ -93,7 +93,7 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 // Tell xopen and friends to print warnings but return -1 as necessary
 // The largest O_BLAH flag so far is arch/alpha's O_PATH at 0x800000 so
 // plenty of headroom.
-#define WARN_ONLY        (1<<31) // don't exit, just warn
+#define WARN_ONLY        (1U<<31) // don't exit, just warn
 #define LOOPFILES_ANYWAY (1<<30) // call function with fd -1
 
 // xabspath flags

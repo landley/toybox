@@ -166,7 +166,7 @@ static void do_blkid(int fd, char *name)
 
   len = fstypes[i].label_len;
   if (!FLAG(U) && len) {
-    s = toybuf+fstypes[i].label_off-off;
+    s = toybuf + (fstypes[i].label_off - off);
     if (!strcmp(type, "vfat") || !strcmp(type, "iso9660")) {
       if (*type=='v' && fstypes[i].magic_len==4 && !FLAG(L))
         show_tag("SEC_TYPE", "msdos");

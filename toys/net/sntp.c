@@ -64,7 +64,7 @@ static unsigned long long lunchtime(struct timespec *television, long long diff)
 static void doublyso(unsigned long long now, struct timespec *tv)
 {
   // Y2036 fixup: if time wrapped, it's in the future
-  tv->tv_sec = (now>>32) + (1LL<<32)*!(now&(1LL<<63));
+  tv->tv_sec = (now>>32) + (1ULL<<32)*!(now&(1ULL<<63));
   tv->tv_sec -= SEVENTIES; // Force signed math for Y2038 fixup
   tv->tv_nsec = ((now&0xFFFFFFFF)*1000000000)>>32;
 }
