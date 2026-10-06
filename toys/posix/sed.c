@@ -826,8 +826,8 @@ static void parse_pattern(char **pline, long len)
 
       if (i && *line == '+' && isdigit(line[1])) {
         line++;
-        command->lmatch[i] = -2-strtol(line, &line, 0);
-      } else if (isdigit(*line)) command->lmatch[i] = strtol(line, &line, 0);
+        command->lmatch[i] = -2-strtol(line, &line, 10);
+      } else if (isdigit(*line)) command->lmatch[i] = strtol(line, &line, 10);
       else if (*line == '$') {
         command->lmatch[i] = -1;
         line++;
