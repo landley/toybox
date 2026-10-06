@@ -234,7 +234,7 @@ static int cp_node(struct dirtree *try)
         // that what we open _is_ a directory rather than something else.
 
         if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
-          if (-1 != (try->extra = openat(cfd, catch, O_NOFOLLOW)))
+          if (-1 != (try->extra = openat(cfd, catch, O_RDONLY|O_NOFOLLOW)))
             if (!fstat(try->extra, &st2) && S_ISDIR(st2.st_mode))
               return DIRTREE_COMEAGAIN | DIRTREE_SYMFOLLOW*FLAG(L);
 
