@@ -282,10 +282,10 @@ static void sha2_64_transform(struct browns *hash)
 
 // Fill 64/128-byte (512/1024-bit) working buffer, call transform() when full.
 
-static void hash_update(char *data, unsigned int len,
+static void hash_update(char *data, unsigned len,
   void (*transform)(struct browns *hash), int chunksize, struct browns *hash)
 {
-  unsigned int i, j;
+  unsigned i, j;
 
   j = hash->count & (chunksize - 1);
   if (hash->count+len<hash->count) hash->overflow++;

@@ -27,7 +27,7 @@ void uptime_main(void)
   struct sysinfo info;
   time_t t;
   struct tm *tm;
-  unsigned int weeks, days, hours, minutes;
+  unsigned weeks, days, hours, minutes;
   struct utmpx *entry;
   int users = 0;
 

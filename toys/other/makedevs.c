@@ -56,8 +56,7 @@ void makedevs_main(void)
 
   while (getline(&line, &allocated_length, fp) > 0) {
     char type=0, user[64], group[64], *node, *ptr = line;
-    unsigned int mode = 0755, major = 0, minor = 0, cnt = 0, incr = 0,
-                 st_val = 0;
+    unsigned mode = 0755, major = 0, minor = 0, cnt = 0, incr = 0, st_val = 0;
     uid_t uid;
     gid_t gid;
     struct stat st;
