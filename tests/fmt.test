@@ -17,6 +17,8 @@ testing "blank line" "echo -e 'first paragraph of text\n\nand another' | fmt -w 
 testing "ws-only line" "echo -e 'hello\n  \nworld' | fmt -w 10" "hello\n\nworld\n" "" ""
 testing "leading space" "echo '  hello world' | fmt -w 5" "  hello\n  world\n" "" ""
 testing "utf8" "fmt -w 10 kr.txt" "동해물과\n백두산이\n마르고\n닳도록\n하나님이\n보우하사\n우리나라\n만세.\n" "" ""
+testing "control byte while measuring" "fmt" "a\001b\n" "" "a\001b\n"
+testing "invalid UTF-8 while measuring" "fmt" "\377\n" "" "\377\n"
 
 testing "no newline" "fmt -w 10" "and\nthisisaverylongline\n" \
   "" "and thisisaverylongline"
