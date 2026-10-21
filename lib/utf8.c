@@ -57,9 +57,9 @@ int crunch_rev_escape(FILE *out, int cols, int wc)
 {
   int rc;
 
-  xputsn("\e[7m");
+  if (out) xputsn("\e[7m");
   rc = crunch_escape(out, cols, wc);
-  xputsn("\e[27m");
+  if (out) xputsn("\e[27m");
 
   return rc;
 }
