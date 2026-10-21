@@ -5,28 +5,33 @@ on:
     - cron:  '0 2 * * *'
   push:
     branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  MacOS-13:
-    runs-on: macos-13
-
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-15, macos-26, xcode-27 ]
+    name: macOS (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: brew install gnu-sed
-    - name: Configure
-      run: make macos_defconfig
-    - name: Build
-      run: make
-    - name: Test
-      run: VERBOSE=all make tests
-
-  Ubuntu-22_04:
-    runs-on: ubuntu-22.04
-
+    - name: Configure, Build and Test
+      run: VERBOSE=all make macos_defconfig tests
+        
+  ubuntu:
+    strategy:
+      fail-fast: false
+      matrix:
+          os: [ ubuntu-22.04, ubuntu-24.04, ubuntu-26.04 ]
+    name: Ubuntu (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: Setup
       run: sudo apt-get install build-essential
-    - name: Configure build and test
+    - name: Configure, Build and Test
       run: VERBOSE=all CC=clang make defconfig tests

@@ -221,9 +221,12 @@ txpect()
       # send input to child
       I) printf %s "${1:1}" >&$IN || { do_fail;break;} ;;
 
-      R) LEN=0; B=1; ;&
       # check output from child
-      [OE])
+      R|[OE])
+        # macOS' bash is of an older version and does not understand the fallback operator (;&)
+        # We provide a alternative way for it with the following line:
+        [ "${1:0:1}" == 'R' ] && { LEN=0; B=1; }
+
         [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
         O=$OUT  A=
         [ "${1:$B:1}" == 'E' ] && O=$ERR

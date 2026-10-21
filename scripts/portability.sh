@@ -17,13 +17,17 @@ fi
 if [ "$(uname)" == "Darwin" ]
 then
   CFLAGS+=" -Wno-deprecated-declarations"
-  : ${LDOPTIMIZE:=-Wl,-dead_strip} ${STRIP:=strip}
+  : ${LDOPTIMIZE:=-Wl,-dead_strip,-liconv} ${STRIP:=strip}
 else
-  : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
+  # Ubuntu 22.04 segfaults because libcrypt is discarded by ASAN
+  # Pass it to the linker so functions needing crypt() no longer crash on a missing function
+  : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,-lcrypt -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
 fi
 
+IS_CLANG=$("$CROSS_COMPILE$CC" --version | grep -w clang)
+
 # Disable pointless warnings only clang produces
-[ -n "$("$CROSS_COMPILE$CC" --version | grep -w clang)" ] &&
+[ -n "$IS_CLANG" ] &&
   CFLAGS+=" -Wno-string-plus-int -Wno-invalid-source-encoding -Wno-incompatible-pointer-types-discards-qualifiers" ||
 # And ones only gcc produces
   CFLAGS+=" -Wno-restrict -Wno-format-overflow -Wno-discarded-qualifiers"
@@ -32,7 +36,20 @@ fi
 if [ -n "$ASAN" ]; then
   # Turn ASan on and disable most optimization to get more readable backtraces.
   # (Technically ASAN is just "-fsanitize=address" and the rest is optional.)
-  export CFLAGS="$CFLAGS -fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -static-libasan"
+  ASAN_FLAGS="-fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls"
+
+  # Omit passing -static-libsan or -static-libasan for macOS as it rejects static runtime sanitizers
+  if [ "$(uname)" == "Darwin" ]
+  then
+    export CFLAGS="$CFLAGS $ASAN_FLAGS"
+  else
+    # The patch made to LLVM upstream (i.e aliasing -static-libsan to -static-libasan) was implemented in newer versions of clang
+    # For older versions of clang, this patch was not backported, so pass -static-libsan to clang as it recognizes it
+    # pass -static-libasan otherwise if gcc is used instead
+    STATIC_SAN=$([ -n "$IS_CLANG" ] && echo "-static-libsan" || echo "-static-libasan")
+    export CFLAGS="$CFLAGS $ASAN_FLAGS $STATIC_SAN"
+  fi
+  
   export NOSTRIP=1
   # Ignore leaks on exit. TODO
   export ASAN_OPTIONS="detect_leaks=0"
@@ -60,4 +77,3 @@ brun() {
       do_loudly $HOSTCC scripts/$1.c -o "$UNSTRIPPED"/$1 || exit 1; }
   do_loudly "$UNSTRIPPED"/$1 "${@:2}"
 }
-
